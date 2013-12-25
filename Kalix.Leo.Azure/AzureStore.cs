@@ -1,27 +1,37 @@
-﻿using Microsoft.Experience.CloudFx.Framework.Storage;
+﻿using Kalix.Leo.Azure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure
 {
     public class AzureStore : IStore
     {
-        public AzureStore(ICloudBlobStorage blobStorage)
+        private const string IdExtension = ".dat";
+
+        private readonly CloudBlobClient _blobStorage;
+
+        public AzureStore(CloudBlobClient blobStorage)
         {
+            _blobStorage = blobStorage;
         }
 
-        public Task SaveData(Stream data, StoreLocation location)
+        public async Task SaveData(Stream data, StoreLocation location)
         {
-            throw new NotImplementedException();
+            var blob = GetBlockBlob(location);
+            using (var writeStream = new BlobBlockStream(blob))
+            {
+                await data.CopyToAsync(writeStream);
+                await Task.Run(() => writeStream.Close());
+            }
         }
 
-        public Task<System.IO.Stream> LoadData(StoreLocation location)
+        public Task<Stream> LoadData(StoreLocation location)
         {
-            throw new NotImplementedException();
+            var blob = GetBlockBlob(location);
+            blob.DownloadToStreamAsync()
         }
 
         public Task<DateTime> TakeSnapshot(StoreLocation location)
@@ -47,6 +57,41 @@ namespace Kalix.Leo.Azure
         public Task PermanentDelete(StoreLocation location)
         {
             throw new NotImplementedException();
+        }
+
+        public Task CreateContainerIfNotExists(string container)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Task PermanentDeleteContainer(string container)
+        {
+            throw new NotImplementedException();
+        }
+
+        private CloudBlockBlob GetBlockBlob(StoreLocation location)
+        {
+            var container = _blobStorage.GetContainerReference(location.Container);
+
+            CloudBlockBlob blob;
+            if (location.Id.HasValue)
+            {
+                if (!string.IsNullOrEmpty(location.BasePath))
+                {
+                    var dir = container.GetDirectoryReference(location.BasePath);
+                    blob = dir.GetBlockBlobReference(location.Id.ToString() + IdExtension);
+                }
+                else
+                {
+                    blob = container.GetBlockBlobReference(location.Id.ToString() + IdExtension);
+                }
+            }
+            else
+            {
+                blob = container.GetBlockBlobReference(location.BasePath);
+            }
+
+            return blob;
         }
     }
 }
