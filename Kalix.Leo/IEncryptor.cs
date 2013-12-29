@@ -14,8 +14,8 @@ namespace Kalix.Leo
         /// <summary>
         /// Decrypt should not execute the underlying stream for maximum efficiancy
         /// </summary>
-        /// <param name="data">read stream of data to decrypt</param>
-        /// <returns>Read stream which will read from the data stream and decrypt it</returns>
+        /// <param name="data">Write stream to send data that has been decrypted</param>
+        /// <returns>Write stream that will decrypt data sent to it</returns>
         Stream Decrypt(Stream encyptedData);
     }
 }
