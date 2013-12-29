@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo", "Kalix.Leo\Kalix.Leo.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{E71A13D1-9E60-4767-99AE-77A9815F8628}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure.Tests", "Kalix.Leo.Azure.Tests\Kalix.Leo.Azure.Tests.csproj", "{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{32CE74F2-EF19-43AF-A89D-85D9212C7EC5}"
+	ProjectSection(SolutionItems) = preProject
+		.nuget\NuGet.Config = .nuget\NuGet.Config
+		.nuget\NuGet.exe = .nuget\NuGet.exe
+		.nuget\NuGet.targets = .nuget\NuGet.targets
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{74B58639-E668-47F2-83AD-1987BBD49F58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{74B58639-E668-47F2-83AD-1987BBD49F58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{74B58639-E668-47F2-83AD-1987BBD49F58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{74B58639-E668-47F2-83AD-1987BBD49F58}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03554C9E-00C8-46CE-BFBC-C12C629400E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03554C9E-00C8-46CE-BFBC-C12C629400E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03554C9E-00C8-46CE-BFBC-C12C629400E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03554C9E-00C8-46CE-BFBC-C12C629400E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
+	EndGlobalSection
+EndGlobal

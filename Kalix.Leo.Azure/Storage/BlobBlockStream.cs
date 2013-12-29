@@ -1,4 +1,5 @@
-﻿using Microsoft.WindowsAzure.Storage.Blob;
+﻿using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,14 +13,15 @@ namespace Kalix.Leo.Azure.Storage
     /// </summary>
     public class BlobBlockStream : Stream
     {
-        const long KB = 1024;
-        const long MB = 1024 * KB;
-        const long GB = 1024 * MB;
-        //const long MAXBLOCKS = 50000;
-        //const long MAXBLOBSIZE = 200 * GB;
-        const long MAXBLOCKSIZE = 4 * MB;
+        private const long KB = 1024;
+        private const long MB = 1024 * KB;
+        private const long GB = 1024 * MB;
+        //private const long MAXBLOCKS = 50000;
+        //private const long MAXBLOBSIZE = 200 * GB;
+        private const long MAXBLOCKSIZE = 4 * MB;
 
         private readonly CloudBlockBlob _blob;
+        private readonly OperationContext _context;
         private readonly byte[] _internalBuffer;
         private readonly List<string> _blocks;
 
@@ -27,9 +29,15 @@ namespace Kalix.Leo.Azure.Storage
         private int _currentPosition;
         private bool _isClosed;
 
-        public BlobBlockStream(CloudBlockBlob blob)
+        /// <summary>
+        /// Create a stream on top of a cloud blob
+        /// </summary>
+        /// <param name="blob">blob that the stream will write to in chunks</param>
+        /// <param name="context">context to run in, can be null</param>
+        public BlobBlockStream(CloudBlockBlob blob, OperationContext context)
         {
             _blob = blob;
+            _context = context;
             _currentBlock = 0;
             _internalBuffer = new byte[MAXBLOCKSIZE];
             _currentPosition = 0;
@@ -78,7 +86,7 @@ namespace Kalix.Leo.Azure.Storage
                     string blockId = GetBlockIdBase64(_currentBlock);
                     using (var ms = new MemoryStream(_internalBuffer))
                     {
-                        _blob.PutBlock(blockId, ms, null);
+                        _blob.PutBlock(blockId, ms, null, null, null, _context);
                     }
 
                     _blocks.Add(blockId);
@@ -107,7 +115,7 @@ namespace Kalix.Leo.Azure.Storage
                     string blockId = GetBlockIdBase64(_currentBlock);
                     using (var ms = new MemoryStream(_internalBuffer, 0, _currentPosition))
                     {
-                        _blob.PutBlock(blockId, ms, null);
+                        _blob.PutBlock(blockId, ms, null, null, null, _context);
                     }
 
                     _blocks.Add(blockId);
@@ -118,7 +126,7 @@ namespace Kalix.Leo.Azure.Storage
 
                 if (_blocks.Any())
                 {
-                    _blob.PutBlockList(_blocks);
+                    _blob.PutBlockList(_blocks, null, null, _context);
                     _blocks.Clear();
                 }
                 _isClosed = true;
