@@ -5,6 +5,10 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
 {
+    /// <summary>
+    /// An interface to hide an underlying storage mechanism, if you can implement this interface you can use
+    /// the Kalix engine
+    /// </summary>
     public interface IStore
     {
         /// <summary>
