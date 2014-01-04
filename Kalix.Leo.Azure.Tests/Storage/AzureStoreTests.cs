@@ -23,7 +23,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _store = new AzureStore(CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient());
 
             _blob = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata", true);
-            _location = new StoreLocation { Container = "kalix-leo-tests", BasePath = "AzureStoreTests.testdata" };
+            _location = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata");
         }
         
         [TestFixture]
@@ -130,11 +130,11 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 _store.SaveData(data, _location).Wait();
 
                 string metadata = null;
-                _store.LoadSnapshotData(_location, snapshot, m =>
+                _store.LoadData(_location, m =>
                 {
                     metadata = m["metadata1"];
                     return new MemoryStream();
-                }).Wait();
+                }, snapshot).Wait();
 
                 Assert.AreEqual("metadata", metadata);
             }
@@ -171,8 +171,9 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var snapshot = _store.TakeSnapshot(_location).Result;
 
                 var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
-                var location2 = new StoreLocation { Container = "kalix-leo-tests", BasePath = "AzureStoreTests.testdata/subitem.data" };
+                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
                 data.Position = 0;
+
                 _store.SaveData(data, location2).Wait();
                 var snapshot2 = _store.TakeSnapshot(location2).Result;
 
@@ -197,7 +198,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
-        public class LoadSnapshotDataMethod : AzureStoreTests
+        public class LoadDataMethodWithSnapshot : AzureStoreTests
         {
             [Test]
             [ExpectedException(typeof(TaskCanceledException))]
@@ -209,7 +210,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 try
                 {
-                    _store.LoadSnapshotData(_location, shapshot, m => null).Wait();
+                    _store.LoadData(_location, m => null, shapshot).Wait();
                 }
                 catch (AggregateException e)
                 {
@@ -225,11 +226,11 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var shapshot = _store.TakeSnapshot(_location).Result.Value;
 
                 string metadata = null;
-                _store.LoadSnapshotData(_location, shapshot, m =>
+                _store.LoadData(_location, m =>
                 {
                     metadata = m["metadata1"];
                     return new MemoryStream();
-                }).Wait();
+                }, shapshot).Wait();
 
                 Assert.AreEqual("metadata", metadata);
             }
@@ -237,7 +238,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadSnapshotData(_location, DateTime.UtcNow, m => null).Result;
+                var result = _store.LoadData(_location, m => null, DateTime.UtcNow).Result;
                 Assert.IsFalse(result);
             }
         }
@@ -272,7 +273,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadSnapshotData(_location, snapshot, m => new MemoryStream()).Result;
+                var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
                 Assert.IsTrue(result);
             }
         }
@@ -307,7 +308,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadSnapshotData(_location, snapshot, m => new MemoryStream()).Result;
+                var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
                 Assert.IsFalse(result);
             }
         }

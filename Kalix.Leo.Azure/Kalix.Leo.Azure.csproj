@@ -70,16 +70,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Queue\AzureQueueClient.cs" />
-    <Compile Include="Queue\PollingMessageListener.cs" />
+    <Compile Include="Queue\AzureQueue.cs" />
     <Compile Include="Storage\AzureStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Storage\BlobBlockStream.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Kalix.Leo\Kalix.Leo.csproj">
+    <ProjectReference Include="..\Kalix.Leo\Kalix.Leo.Core.csproj">
       <Project>{74b58639-e668-47f2-83ad-1987bbd49f58}</Project>
-      <Name>Kalix.Leo</Name>
+      <Name>Kalix.Leo.Core</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

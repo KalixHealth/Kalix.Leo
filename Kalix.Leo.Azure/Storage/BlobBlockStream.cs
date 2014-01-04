@@ -22,6 +22,7 @@ namespace Kalix.Leo.Azure.Storage
 
         private readonly CloudBlockBlob _blob;
         private readonly OperationContext _context;
+        private readonly AccessCondition _condition;
         private readonly byte[] _internalBuffer;
         private readonly List<string> _blocks;
 
@@ -34,10 +35,11 @@ namespace Kalix.Leo.Azure.Storage
         /// </summary>
         /// <param name="blob">blob that the stream will write to in chunks</param>
         /// <param name="context">context to run in, can be null</param>
-        public BlobBlockStream(CloudBlockBlob blob, OperationContext context)
+        public BlobBlockStream(CloudBlockBlob blob, OperationContext context, AccessCondition condition)
         {
             _blob = blob;
             _context = context;
+            _condition = condition;
             _currentBlock = 0;
             _internalBuffer = new byte[MAXBLOCKSIZE];
             _currentPosition = 0;
@@ -86,7 +88,7 @@ namespace Kalix.Leo.Azure.Storage
                     string blockId = GetBlockIdBase64(_currentBlock);
                     using (var ms = new MemoryStream(_internalBuffer))
                     {
-                        _blob.PutBlock(blockId, ms, null, null, null, _context);
+                        _blob.PutBlock(blockId, ms, null, _condition, null, _context);
                     }
 
                     _blocks.Add(blockId);
@@ -115,7 +117,7 @@ namespace Kalix.Leo.Azure.Storage
                     string blockId = GetBlockIdBase64(_currentBlock);
                     using (var ms = new MemoryStream(_internalBuffer, 0, _currentPosition))
                     {
-                        _blob.PutBlock(blockId, ms, null, null, null, _context);
+                        _blob.PutBlock(blockId, ms, null, _condition, null, _context);
                     }
 
                     _blocks.Add(blockId);
@@ -126,7 +128,7 @@ namespace Kalix.Leo.Azure.Storage
 
                 if (_blocks.Any())
                 {
-                    _blob.PutBlockList(_blocks, null, null, _context);
+                    _blob.PutBlockList(_blocks, _condition, null, _context);
                     _blocks.Clear();
                 }
                 _isClosed = true;

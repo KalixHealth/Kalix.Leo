@@ -12,6 +12,8 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>Profile78</TargetFrameworkProfile>
+    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
+    <RestorePackages>true</RestorePackages>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -34,20 +36,35 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\packages\Newtonsoft.Json.5.0.8\lib\portable-net45+wp80+win8\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IEncryptor.cs" />
-    <Compile Include="Queue\IQueueClient.cs" />
+    <Compile Include="BackupListener.cs" />
+    <Compile Include="Compression\ICompressor.cs" />
+    <Compile Include="Encryption\IEncryptor.cs" />
+    <Compile Include="MetadataConstants.cs" />
+    <Compile Include="Queue\IQueue.cs" />
     <Compile Include="SecureStoreOptions.cs" />
+    <Compile Include="SecureStore.cs" />
     <Compile Include="Storage\IStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Storage\IUniqueIdGenerator.cs" />
+    <Compile Include="Snapshot.cs" />
+    <Compile Include="Storage\UniqueIdGenerator.cs" />
+    <Compile Include="StoreDataDetails.cs" />
     <Compile Include="StoreLocation.cs" />
+    <Compile Include="Streams\WriteToReadPipeStream.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <None Include="packages.config" />
+  </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
+  <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

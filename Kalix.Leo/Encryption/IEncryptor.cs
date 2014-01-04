@@ -1,9 +1,11 @@
 ﻿using System.IO;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Encryption
 {
     public interface IEncryptor
     {
+        string Algorithm { get; }
+
         /// <summary>
         /// Encrypt should not execute the underlying stream for maximum efficiancy
         /// </summary>

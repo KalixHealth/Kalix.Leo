@@ -9,7 +9,7 @@ namespace Kalix.Leo
     public enum SecureStoreOptions
     {
         /// <summary>
-        /// Create a snapshot of the old record before saving the new one
+        /// Create a snapshot when saving a record
         /// </summary>
         Snapshot = 1,
         /// <summary>

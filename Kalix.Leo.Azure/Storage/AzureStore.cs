@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -29,10 +30,20 @@ namespace Kalix.Leo.Azure.Storage
             _deletedKey = deletedKey ?? DefaultDeletedKey;
         }
 
-        public async Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        {
+            return SaveDataInternal(data, location, metadata, false);
+        }
+
+        public Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        {
+            return SaveDataInternal(data, location, metadata, true);
+        }
+
+        private async Task<bool> SaveDataInternal(Stream data, StoreLocation location, IDictionary<string, string> metadata, bool isOptimistic)
         {
             var blob = GetBlockBlob(location);
-            
+
             // Copy the metadata across
             if (metadata != null)
             {
@@ -42,16 +53,30 @@ namespace Kalix.Leo.Azure.Storage
                 }
             }
 
-            using (var writeStream = new BlobBlockStream(blob, null))
+            try
             {
-                await data.CopyToAsync(writeStream);
-                await Task.Run(() => writeStream.Close());
+                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
+                using (var writeStream = new BlobBlockStream(blob, null, condition))
+                {
+                    await data.CopyToAsync(writeStream);
+                    await Task.Run(() => writeStream.Close());
+                }
             }
+            catch (StorageException exc)
+            {
+                if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    return false;
+                }
+                throw;
+            }
+
+            return true;
         }
 
-        public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker)
+        public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, DateTime? snapshot = null)
         {
-            var blob = GetBlockBlob(location);
+            var blob = GetBlockBlob(location, snapshot);
             bool hasDeleted = false;
 
             var cancellation = new CancellationTokenSource();
@@ -124,53 +149,21 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        public async Task<IEnumerable<DateTime>> FindSnapshots(StoreLocation location)
+        public async Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
-            var results = await Task.Run(() => blob.Container.ListBlobs(blob.Name, true, BlobListingDetails.Snapshots).ToList());
+            var results = await Task.Run(() => blob.Container.ListBlobs(blob.Name, true, BlobListingDetails.Snapshots | BlobListingDetails.Metadata).ToList());
 
             return results
                 .OfType<ICloudBlob>()
                 .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
-                .Select(b => b.SnapshotTime.Value.UtcDateTime)
+                .Select(b => new Snapshot
+                {
+                    Id = b.SnapshotTime.Value.UtcDateTime,
+                    Metadata = b.Metadata
+                })
                 .Reverse()
                 .ToList();
-        }
-
-        public async Task<bool> LoadSnapshotData(StoreLocation location, DateTime snapshot, Func<IDictionary<string, string>, Stream> streamPicker)
-        {
-            var blob = GetBlockBlob(location, snapshot);
-
-            var cancellation = new CancellationTokenSource();
-            var writeWrapper = new WriteWrapperStreamClass(() =>
-            {
-                // Should have blob metadata by this point?
-                var stream = streamPicker(blob.Metadata);
-                if (stream == null)
-                {
-                    cancellation.Cancel();
-                }
-                return stream;
-            });
-
-            bool hasFile;
-            try
-            {
-                await blob.DownloadToStreamAsync(writeWrapper, cancellation.Token);
-                hasFile = true;
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    hasFile = false;
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            return hasFile;
         }
 
         public async Task SoftDelete(StoreLocation location)

@@ -18,7 +18,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _blob = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "BlobBlockStreamTests.testdata", true);
 
             _context = new OperationContext();
-            _stream = new BlobBlockStream(_blob, _context);
+            _stream = new BlobBlockStream(_blob, _context, null);
         }
 
         [Test]
@@ -73,6 +73,20 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 Assert.AreEqual(rand[i], newData[i]);
             }
+        }
+
+        [Test]
+        public void OptimisticWriteWorksFor9mb()
+        {
+            var rand = AzureTestsHelper.RandomData(1);
+            _stream.Write(rand, 0, rand.Length);
+            _stream.Dispose();
+
+            _stream = new BlobBlockStream(_blob, _context, AccessCondition.GenerateIfMatchCondition(_blob.Properties.ETag));
+
+            rand = AzureTestsHelper.RandomData(9);
+            _stream.Write(rand, 0, rand.Length);
+            _stream.Dispose();
         }
     }
 }

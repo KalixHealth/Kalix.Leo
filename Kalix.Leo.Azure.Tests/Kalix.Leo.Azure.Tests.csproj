@@ -76,9 +76,9 @@
       <Project>{03554c9e-00c8-46ce-bfbc-c12c629400e1}</Project>
       <Name>Kalix.Leo.Azure</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Kalix.Leo\Kalix.Leo.csproj">
+    <ProjectReference Include="..\Kalix.Leo\Kalix.Leo.Core.csproj">
       <Project>{74b58639-e668-47f2-83ad-1987bbd49f58}</Project>
-      <Name>Kalix.Leo</Name>
+      <Name>Kalix.Leo.Core</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

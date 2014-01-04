@@ -20,12 +20,22 @@ namespace Kalix.Leo.Storage
         Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null);
 
         /// <summary>
+        /// Save data to a specified location, but put a lock on it while writing
+        /// </summary>
+        /// <param name="data">Read stream of data</param>
+        /// <param name="location">Location to store the file</param>
+        /// <param name="metadata">Any additional user defined metadata</param>
+        /// <returns>Whether the write was successful or not</returns>
+        Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null);
+
+        /// <summary>
         /// Load data from a specified location into a write stream
         /// </summary>
         /// <param name="location">Location of the file to load</param>
         /// <param name="streamPicker">Function to pick a write stream depending on returned metadata</param>
+        /// <param name="snapshot">Whether to load a specific snapshot</param>
         /// <returns>Returns whether there was a file found</returns>
-        Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker); 
+        Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, DateTime? snapshot = null); 
 
         /// <summary>
         /// Takes a snapshot of a file location
@@ -39,16 +49,7 @@ namespace Kalix.Leo.Storage
         /// </summary>
         /// <param name="location">The location of the file to find snapshots of</param>
         /// <returns>List of snapshot dates</returns>
-        Task<IEnumerable<DateTime>> FindSnapshots(StoreLocation location);
-
-        /// <summary>
-        /// Gets the data of a snapshot
-        /// </summary>
-        /// <param name="location">Location of the file</param>
-        /// <param name="snapshot">The snapshot identifier</param>
-        /// <param name="streamPicker">Function to pick a write stream depending on returned metadata</param>
-        /// <returns>Whether the snapshot was found</returns>
-        Task<bool> LoadSnapshotData(StoreLocation location, DateTime snapshot, Func<IDictionary<string, string>, Stream> streamPicker);
+        Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location);
 
         /// <summary>
         /// Marks the file as deleted, but snapshots are still available
