@@ -40,7 +40,7 @@ namespace Kalix.Leo
             return _store.FindSnapshots(location);
         }
 
-        public async Task<Tuple<T, IDictionary<string, string>>> LoadObjectWithMetadata<T>(StoreLocation location, DateTime? snapshot = null)
+        public async Task<Tuple<T, IDictionary<string, string>>> LoadObjectWithMetadata<T>(StoreLocation location, string snapshot = null)
         {
             using(var ms = new MemoryStream())
             {
@@ -57,12 +57,12 @@ namespace Kalix.Leo
             }
         }
 
-        public Task<T> LoadObject<T>(StoreLocation location, DateTime? snapshot = null)
+        public Task<T> LoadObject<T>(StoreLocation location, string snapshot = null)
         {
             return LoadObjectWithMetadata<T>(location, snapshot).ContinueWith(t => t.Result.Item1);
         }
 
-        public async Task<IDictionary<string, string>> LoadData(Stream writeStream, StoreLocation location, DateTime? snapshot = null)
+        public async Task<IDictionary<string, string>> LoadData(Stream writeStream, StoreLocation location, string snapshot = null)
         {
             IDictionary<string, string> metadata = null;
             
@@ -162,11 +162,6 @@ namespace Kalix.Leo
             /****************************************************
              *  SAVE METADATA
              * ***************************************************/
-            if (options.HasFlag(SecureStoreOptions.Snapshot))
-            {
-                metadata.Add(MetadataConstants.SnapshotMetadataKey, DateTime.UtcNow.Ticks.ToString());
-            }
-
             if(userMetadata != null)
             {
                 foreach(var m in userMetadata)
@@ -185,10 +180,6 @@ namespace Kalix.Leo
              * ***************************************************/
             // The rest of the tasks are done asyncly
             var tasks = new List<Task>();
-            if(options.HasFlag(SecureStoreOptions.Snapshot))
-            {
-                tasks.Add(_store.TakeSnapshot(location));
-            }
 
             if(options.HasFlag(SecureStoreOptions.Backup))
             {

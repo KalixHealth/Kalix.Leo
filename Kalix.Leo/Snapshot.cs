@@ -5,7 +5,8 @@ namespace Kalix.Leo
 {
     public class Snapshot
     {
-        public DateTime Id { get; set; }
+        public string Id { get; set; }
+        public DateTime Modified { get; set; }
 
         public IDictionary<string, string> Metadata { get; set; }
     }

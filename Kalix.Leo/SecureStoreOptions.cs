@@ -9,34 +9,30 @@ namespace Kalix.Leo
     public enum SecureStoreOptions
     {
         /// <summary>
-        /// Create a snapshot when saving a record
-        /// </summary>
-        Snapshot = 1,
-        /// <summary>
         /// Create a message to eventually back this record up to another store
         /// </summary>
-        Backup = 2,
+        Backup = 1,
         /// <summary>
         /// Create a message to eventually index this record
         /// </summary>
-        Index = 4,
+        Index = 2,
         /// <summary>
         /// Encrypt this record when saving
         /// </summary>
-        Encrypt = 8,
+        Encrypt = 4,
         /// <summary>
         /// Compress this record when saving
         /// </summary>
-        Compress = 16,
+        Compress = 8,
         /// <summary>
         /// Generate an id if the record has no id
         /// </summary>
-        GenerateId = 32,
+        GenerateId = 16,
         /// <summary>
         /// When deleting records do not actually delete the record
         /// </summary>
-        KeepDeletes = 64,
+        KeepDeletes = 32,
 
-        All = Snapshot | Backup | Index | Encrypt | Compress | GenerateId | KeepDeletes
+        All = Backup | Index | Encrypt | Compress | GenerateId | KeepDeletes
     }
 }

@@ -20,7 +20,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         [SetUp]
         public virtual void Init()
         {
-            _store = new AzureStore(CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient());
+            _store = new AzureStore(CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient(), true);
 
             _blob = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata", true);
             _location = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata");
@@ -110,37 +110,6 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
-        public class TakeSnapshotMethod : AzureStoreTests
-        {
-            [Test]
-            public void NoBlobReturnsNull()
-            {
-                var result = _store.TakeSnapshot(_location).Result;
-                Assert.IsNull(result);
-            }
-
-            [Test]
-            public void CreateSnapshopSavesMetadata()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
-
-                var snapshot = _store.TakeSnapshot(_location).Result.Value;
-
-                _store.SaveData(data, _location).Wait();
-
-                string metadata = null;
-                _store.LoadData(_location, m =>
-                {
-                    metadata = m["metadata1"];
-                    return new MemoryStream();
-                }, snapshot).Wait();
-
-                Assert.AreEqual("metadata", metadata);
-            }
-        }
-
-        [TestFixture]
         public class FindSnapshotsMethod : AzureStoreTests
         {
             [Test]
@@ -156,26 +125,6 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
-                var snapshot = _store.TakeSnapshot(_location).Result;
-
-                var snapshots = _store.FindSnapshots(_location).Result;
-
-                Assert.AreEqual(snapshot, snapshots.First());
-            }
-
-            [Test]
-            public void SubItemBlobSnapshotsAreNotIncluded()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location).Wait();
-                var snapshot = _store.TakeSnapshot(_location).Result;
-
-                var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
-                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
-                data.Position = 0;
-
-                _store.SaveData(data, location2).Wait();
-                var snapshot2 = _store.TakeSnapshot(location2).Result;
 
                 var snapshots = _store.FindSnapshots(_location).Result;
 
@@ -183,65 +132,83 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
-            public void SnapshotsAreFromNewestToOldest()
+            public void SubItemBlobSnapshotsAreNotIncluded()
             {
                 var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
-                var snapshot = _store.TakeSnapshot(_location).Result;
-                var snapshot2 = _store.TakeSnapshot(_location).Result;
+
+                var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
+                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
+                data.Position = 0;
+
+                _store.SaveData(data, location2).Wait();
 
                 var snapshots = _store.FindSnapshots(_location).Result;
 
-                Assert.AreEqual(snapshot, snapshots.Last());
-                Assert.AreEqual(snapshot2, snapshots.First());
+                Assert.AreEqual(1, snapshots.Count());
             }
+
+            //[Test]
+            //public void SnapshotsAreFromNewestToOldest()
+            //{
+            //    var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+            //    _store.SaveData(data, _location).Wait();
+            //    var snapshot = _store.TakeSnapshot(_location).Result;
+            //    var snapshot2 = _store.TakeSnapshot(_location).Result;
+
+            //    var snapshots = _store.FindSnapshots(_location).Result;
+
+            //    var snapshot = new DateTimesnapshots.Last().Id
+            //    Assert.AreEqual(snapshot, snapshots.Last());
+            //    Assert.AreEqual(snapshot2, snapshots.First());
+            //}
         }
 
-        [TestFixture]
-        public class LoadDataMethodWithSnapshot : AzureStoreTests
-        {
-            [Test]
-            [ExpectedException(typeof(TaskCanceledException))]
-            public void NullStreamCancelsTheDownload()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location).Wait();
-                var shapshot = _store.TakeSnapshot(_location).Result.Value;
+        //[TestFixture]
+        //public class LoadDataMethodWithSnapshot : AzureStoreTests
+        //{
+        //    [Test]
+        //    [ExpectedException(typeof(TaskCanceledException))]
+        //    public void NullStreamCancelsTheDownload()
+        //    {
+        //        var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+        //        _store.SaveData(data, _location).Wait();
+        //        var shapshot = _store.TakeSnapshot(_location).Result.Value;
 
-                try
-                {
-                    _store.LoadData(_location, m => null, shapshot).Wait();
-                }
-                catch (AggregateException e)
-                {
-                    throw e.InnerException;
-                }
-            }
+        //        try
+        //        {
+        //            _store.LoadData(_location, m => null, shapshot).Wait();
+        //        }
+        //        catch (AggregateException e)
+        //        {
+        //            throw e.InnerException;
+        //        }
+        //    }
 
-            [Test]
-            public void MetadataIsTransferedWhenSelectingAStream()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
-                var shapshot = _store.TakeSnapshot(_location).Result.Value;
+        //    [Test]
+        //    public void MetadataIsTransferedWhenSelectingAStream()
+        //    {
+        //        var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+        //        _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
+        //        var shapshot = _store.TakeSnapshot(_location).Result.Value;
 
-                string metadata = null;
-                _store.LoadData(_location, m =>
-                {
-                    metadata = m["metadata1"];
-                    return new MemoryStream();
-                }, shapshot).Wait();
+        //        string metadata = null;
+        //        _store.LoadData(_location, m =>
+        //        {
+        //            metadata = m["metadata1"];
+        //            return new MemoryStream();
+        //        }, shapshot).Wait();
 
-                Assert.AreEqual("metadata", metadata);
-            }
+        //        Assert.AreEqual("metadata", metadata);
+        //    }
 
-            [Test]
-            public void NoFileReturnsFalse()
-            {
-                var result = _store.LoadData(_location, m => null, DateTime.UtcNow).Result;
-                Assert.IsFalse(result);
-            }
-        }
+        //    [Test]
+        //    public void NoFileReturnsFalse()
+        //    {
+        //        var result = _store.LoadData(_location, m => null, DateTime.UtcNow.Ticks.ToString()).Result;
+        //        Assert.IsFalse(result);
+        //    }
+        //}
 
         [TestFixture]
         public class SoftDeleteMethod : AzureStoreTests
@@ -264,18 +231,18 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.IsFalse(result);
             }
 
-            [Test]
-            public void ShouldNotDeleteSnapshots()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location).Wait();
-                var snapshot = _store.TakeSnapshot(_location).Result.Value;
+            //[Test]
+            //public void ShouldNotDeleteSnapshots()
+            //{
+            //    var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+            //    _store.SaveData(data, _location).Wait();
+            //    var snapshot = _store.TakeSnapshot(_location).Result.Value;
 
-                _store.SoftDelete(_location).Wait();
+            //    _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
-                Assert.IsTrue(result);
-            }
+            //    var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
+            //    Assert.IsTrue(result);
+            //}
         }
 
         [TestFixture]
@@ -299,18 +266,18 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.IsFalse(result);
             }
 
-            [Test]
-            public void ShouldDeleteAllSnapshots()
-            {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(data, _location).Wait();
-                var snapshot = _store.TakeSnapshot(_location).Result.Value;
+            //[Test]
+            //public void ShouldDeleteAllSnapshots()
+            //{
+            //    var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+            //    _store.SaveData(data, _location).Wait();
+            //    var snapshot = _store.TakeSnapshot(_location).Result.Value;
 
-                _store.PermanentDelete(_location).Wait();
+            //    _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
-                Assert.IsFalse(result);
-            }
+            //    var result = _store.LoadData(_location, m => new MemoryStream(), snapshot).Result;
+            //    Assert.IsFalse(result);
+            //}
         }
     }
 }

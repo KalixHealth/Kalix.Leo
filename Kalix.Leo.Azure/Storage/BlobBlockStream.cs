@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
@@ -63,9 +65,14 @@ namespace Kalix.Leo.Azure.Storage
 
         public override void Write(byte[] buffer, int offset, int count)
         {
+            throw new NotSupportedException("Only task async methods are supported in this stream");
+        }
+
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
             if (_isClosed)
             {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException("Stream is closed");
             }
 
             // This loop may or may not write an actual block
@@ -88,7 +95,7 @@ namespace Kalix.Leo.Azure.Storage
                     string blockId = GetBlockIdBase64(_currentBlock);
                     using (var ms = new MemoryStream(_internalBuffer))
                     {
-                        _blob.PutBlock(blockId, ms, null, _condition, null, _context);
+                        await _blob.PutBlockAsync(blockId, ms, null, _condition, null, _context);
                     }
 
                     _blocks.Add(blockId);
@@ -104,7 +111,12 @@ namespace Kalix.Leo.Azure.Storage
 
         public override void Flush()
         {
-            // Do nothing.... Only clear the blob on close
+            throw new NotSupportedException("Only task async methods are supported in this stream");
+        }
+
+        public override Task FlushAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(0);
         }
 
         public override void Close()
@@ -137,7 +149,7 @@ namespace Kalix.Leo.Azure.Storage
 
         private static string GetBlockIdBase64(int block)
         {
-            return Convert.ToBase64String(System.BitConverter.GetBytes(block));
+            return Convert.ToBase64String(BitConverter.GetBytes(block));
         }
 
         //************************************************

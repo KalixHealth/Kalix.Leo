@@ -35,14 +35,7 @@ namespace Kalix.Leo.Storage
         /// <param name="streamPicker">Function to pick a write stream depending on returned metadata</param>
         /// <param name="snapshot">Whether to load a specific snapshot</param>
         /// <returns>Returns whether there was a file found</returns>
-        Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, DateTime? snapshot = null); 
-
-        /// <summary>
-        /// Takes a snapshot of a file location
-        /// </summary>
-        /// <param name="location">Location of the file</param>
-        /// <returns>Time/Identifier of the snapshot, null if failed</returns>
-        Task<DateTime?> TakeSnapshot(StoreLocation location);
+        Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null); 
 
         /// <summary>
         /// Find a list of snapshots. Ignores the fact if the file is 'soft' deleted. 

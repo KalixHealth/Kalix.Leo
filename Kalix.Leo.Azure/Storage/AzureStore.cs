@@ -18,15 +18,18 @@ namespace Kalix.Leo.Azure.Storage
 
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
+        private readonly bool _enableSnapshots;
 
         /// <summary>
         /// Constructor for a store backed by Azure
         /// </summary>
         /// <param name="blobStorage">The storage account that backs this store</param>
+        /// <param name="enableSnapshots">Whether any save on this store should create snapshots</param>
         /// <param name="deletedKey">The metadata key to check if a store item is soft deleted</param>
-        public AzureStore(CloudBlobClient blobStorage, string deletedKey = null)
+        public AzureStore(CloudBlobClient blobStorage, bool enableSnapshots, string deletedKey = null)
         {
             _blobStorage = blobStorage;
+            _enableSnapshots = enableSnapshots;
             _deletedKey = deletedKey ?? DefaultDeletedKey;
         }
 
@@ -61,6 +64,13 @@ namespace Kalix.Leo.Azure.Storage
                     await data.CopyToAsync(writeStream);
                     await Task.Run(() => writeStream.Close());
                 }
+
+                // Create a snapshot straight away on azure
+                // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
+                if (_enableSnapshots)
+                {
+                    await blob.CreateSnapshotAsync();
+                }
             }
             catch (StorageException exc)
             {
@@ -74,7 +84,7 @@ namespace Kalix.Leo.Azure.Storage
             return true;
         }
 
-        public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, DateTime? snapshot = null)
+        public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
             bool hasDeleted = false;
@@ -130,25 +140,6 @@ namespace Kalix.Leo.Azure.Storage
             return hasFile;
         }
 
-        public async Task<DateTime?> TakeSnapshot(StoreLocation location)
-        {
-            var blob = GetBlockBlob(location);
-            try
-            {
-                var snapshot = await blob.CreateSnapshotAsync();
-                return snapshot.SnapshotTime.Value.UtcDateTime;
-            }
-            catch(StorageException e)
-            {
-                if(e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return null;
-                }
-
-                throw;
-            }
-        }
-
         public async Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
@@ -159,10 +150,11 @@ namespace Kalix.Leo.Azure.Storage
                 .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                 .Select(b => new Snapshot
                 {
-                    Id = b.SnapshotTime.Value.UtcDateTime,
+                    Id = b.SnapshotTime.Value.UtcDateTime.Ticks.ToString(),
+                    Modified = b.SnapshotTime.Value.UtcDateTime,
                     Metadata = b.Metadata
                 })
-                .Reverse()
+                .Reverse() // We know we have to reverse to get right ordering...
                 .ToList();
         }
 
@@ -206,15 +198,16 @@ namespace Kalix.Leo.Azure.Storage
             return c.DeleteIfExistsAsync();
         }
 
-        private CloudBlockBlob GetBlockBlob(StoreLocation location, DateTime? snapshot = null)
+        private CloudBlockBlob GetBlockBlob(StoreLocation location, string snapshot = null)
         {
-            if(snapshot.HasValue && snapshot.Value.Kind == DateTimeKind.Local)
+            DateTime? snapshotDate = null;
+            if(snapshot != null)
             {
-                throw new ArgumentException("Snapshot must be a Utc or Unspecified time", "snapshot");
+                snapshotDate = new DateTime(long.Parse(snapshot));
             }
 
             var container = _blobStorage.GetContainerReference(location.Container);
-            var offset = snapshot.HasValue ? new DateTimeOffset(snapshot.Value, new TimeSpan(0)) : (DateTimeOffset?)null;
+            var offset = snapshotDate.HasValue ? new DateTimeOffset(snapshotDate.Value, new TimeSpan(0)) : (DateTimeOffset?)null;
 
             CloudBlockBlob blob;
             if (location.Id.HasValue)
@@ -253,6 +246,11 @@ namespace Kalix.Leo.Azure.Storage
             public override void Flush()
             {
                 _writeStream.Value.Flush();
+            }
+
+            public override Task FlushAsync(CancellationToken cancellationToken)
+            {
+                return _writeStream.Value.FlushAsync(cancellationToken);
             }
 
             public override long Length
@@ -294,6 +292,17 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     stream.Write(buffer, offset, count);
                 }
+            }
+
+            public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            {
+                var stream = _writeStream.Value;
+                if (stream != null)
+                {
+                    return stream.WriteAsync(buffer, offset, count, cancellationToken);
+                }
+
+                return Task.FromResult(0);
             }
         }
     }

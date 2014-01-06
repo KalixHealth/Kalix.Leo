@@ -1,8 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
-MinimumVisualStudioVersion = 10.0.40219.1
+# Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core", "Kalix.Leo\Kalix.Leo.Core.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
@@ -17,6 +15,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{32CE74
 		.nuget\NuGet.exe = .nuget\NuGet.exe
 		.nuget\NuGet.targets = .nuget\NuGet.targets
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core.Tests", "Kalix.Leo.Core.Tests\Kalix.Leo.Core.Tests.csproj", "{EC411333-995F-423A-8700-A98962D79928}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon", "Kalix.Leo.Amazon\Kalix.Leo.Amazon.csproj", "{5027D588-FE74-4F32-86B6-770F1B0DDB78}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -36,11 +38,20 @@ Global
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC411333-995F-423A-8700-A98962D79928}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC411333-995F-423A-8700-A98962D79928}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC411333-995F-423A-8700-A98962D79928}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC411333-995F-423A-8700-A98962D79928}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
+		{EC411333-995F-423A-8700-A98962D79928} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 	EndGlobalSection
 EndGlobal
