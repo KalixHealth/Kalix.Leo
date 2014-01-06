@@ -18,6 +18,7 @@ namespace Kalix.Leo.Storage
         private readonly IStore _store;
         private readonly StoreLocation _location;
         private readonly int _rangeSize;
+        private readonly object _taskLock;
 
         private Task _innerUpdateTask;
         private long _internalId;
@@ -29,6 +30,7 @@ namespace Kalix.Leo.Storage
             int rangeSize = 10,
             int maxRetries = 25)
         {
+            _taskLock = new object();
             _rangeSize = rangeSize;
             _maxRetries = maxRetries;
             _store = store;
@@ -44,10 +46,22 @@ namespace Kalix.Leo.Storage
             var current = Interlocked.Increment(ref _internalId);
             if (current >= _upperIdLimit)
             {
-                // only have one task running at any one time to get more values...
-                _innerUpdateTask = _innerUpdateTask ?? UpdateFromSyncStore();
+                // Only need to lock this piece of code to make sure that
+                // 1) There is only ever one task running at any one time
+                // 2) That the value for _innerUpdateTask always has a value for
+                //    'ContinueWith' on the next line
+                lock(_taskLock)
+                { 
+                    // If inner task is done then reset!
+                    if (_innerUpdateTask != null && _innerUpdateTask.IsCompleted)
+                    {
+                        _innerUpdateTask = null;
+                    }
 
-                // We will create a new continuation task though
+                    _innerUpdateTask = _innerUpdateTask ?? UpdateFromSyncStore();
+                }
+
+                // Try the method again
                 return _innerUpdateTask.ContinueWith(t => NextId()).Unwrap();
             }
             else
@@ -101,9 +115,6 @@ namespace Kalix.Leo.Storage
                         // Then upper limit, this will avoid any need for locks etc
                         _internalId = currentId;
                         _upperIdLimit = upperLimit;
-
-                        // update succeeded
-                        _innerUpdateTask = null;
 
                         return;
                     }
