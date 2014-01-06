@@ -42,17 +42,25 @@ namespace Kalix.Leo.Amazon.Storage
                 VersionId = snapshot
             };
 
-            using (var resp = await _client.GetObjectAsync(request))
+            try
             {
-                if (resp.HttpStatusCode != HttpStatusCode.OK) { return false; }
-
-                var metadata = resp.Metadata.Keys.ToDictionary(s => s, s => resp.Metadata[s]);
-                var writeStream = streamPicker(metadata);
-                if (writeStream == null) { return false; }
-
-                using (var readStream = resp.ResponseStream)
+                using (var resp = await _client.GetObjectAsync(request))
                 {
-                    await readStream.CopyToAsync(writeStream);
+                    var metadata = resp.Metadata.Keys.ToDictionary(s => s, s => resp.Metadata[s]);
+                    var writeStream = streamPicker(metadata);
+                    if (writeStream == null) { return false; }
+
+                    using (var readStream = resp.ResponseStream)
+                    {
+                        await readStream.CopyToAsync(writeStream);
+                    }
+                }
+            }
+            catch(AmazonS3Exception e)
+            {
+                if(e.ErrorCode == "NotFound")
+                {
+                    return false;
                 }
             }
 

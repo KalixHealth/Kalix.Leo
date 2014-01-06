@@ -28,7 +28,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _context.SendingRequest += (e, a) => reqCount++;
 
             var rand = AzureTestsHelper.RandomData(3);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
 
             Assert.AreEqual(0, reqCount);
         }
@@ -40,7 +40,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _context.SendingRequest += (e, a) => reqCount++;
 
             var rand = AzureTestsHelper.RandomData(3);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
             _stream.Dispose();
 
             Assert.AreEqual(2, reqCount);
@@ -53,7 +53,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _context.SendingRequest += (e, a) => reqCount++;
 
             var rand = AzureTestsHelper.RandomData(9);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
             _stream.Dispose();
 
             Assert.AreEqual(4, reqCount);
@@ -63,7 +63,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         public void Write1mbAndCanReadData()
         {
             var rand = AzureTestsHelper.RandomData(1);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
             _stream.Dispose();
 
             var newData = new byte[rand.Length];
@@ -79,13 +79,13 @@ namespace Kalix.Leo.Azure.Tests.Storage
         public void OptimisticWriteWorksFor9mb()
         {
             var rand = AzureTestsHelper.RandomData(1);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
             _stream.Dispose();
 
             _stream = new BlobBlockStream(_blob, _context, AccessCondition.GenerateIfMatchCondition(_blob.Properties.ETag));
 
             rand = AzureTestsHelper.RandomData(9);
-            _stream.Write(rand, 0, rand.Length);
+            _stream.WriteAsync(rand, 0, rand.Length).Wait();
             _stream.Dispose();
         }
     }
