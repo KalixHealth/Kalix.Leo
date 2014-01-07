@@ -51,6 +51,7 @@
     <Compile Include="Queue\IQueue.cs" />
     <Compile Include="SecureStoreOptions.cs" />
     <Compile Include="SecureStore.cs" />
+    <Compile Include="Storage\IOptimisticStore.cs" />
     <Compile Include="Storage\IStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Storage\IUniqueIdGenerator.cs" />

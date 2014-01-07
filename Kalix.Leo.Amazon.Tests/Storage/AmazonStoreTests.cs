@@ -5,6 +5,7 @@ using Kalix.Leo.Amazon.Tests;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -24,7 +25,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _client = AmazonTestsHelper.SetupBlob("kalix-leo-tests", "AmazonStoreTests.testdata");
             _location = new StoreLocation("kalix-leo-tests", "AmazonStoreTests.testdata");
 
-            _store = new AmazonStore(_client, true);
+            var bucketName = ConfigurationManager.AppSettings["TestBucket"];
+            _store = new AmazonStore(_client, bucketName);
         }
         
         [TestFixture]

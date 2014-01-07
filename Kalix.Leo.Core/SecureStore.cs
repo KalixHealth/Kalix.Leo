@@ -13,13 +13,13 @@ namespace Kalix.Leo
 {
     public class SecureStore
     {
-        private readonly IStore _store;
+        private readonly IOptimisticStore _store;
         private readonly IQueue _backupQueue;
         private readonly IQueue _indexQueue;
         private readonly IEncryptor _encryptor;
         private readonly ICompressor _compressor;
 
-        public SecureStore(IStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
+        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
         {
             if (_store == null) { throw new ArgumentNullException("writeStore"); }
 

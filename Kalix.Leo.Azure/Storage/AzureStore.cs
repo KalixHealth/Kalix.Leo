@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    public class AzureStore : IStore
+    public class AzureStore : IOptimisticStore
     {
         private const string IdExtension = ".dat";
         private const string DefaultDeletedKey = "azurestorage_deleted";
@@ -33,17 +33,7 @@ namespace Kalix.Leo.Azure.Storage
             _deletedKey = deletedKey ?? DefaultDeletedKey;
         }
 
-        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
-        {
-            return SaveDataInternal(data, location, metadata, false);
-        }
-
-        public Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
-        {
-            return SaveDataInternal(data, location, metadata, true);
-        }
-
-        private async Task<bool> SaveDataInternal(Stream data, StoreLocation location, IDictionary<string, string> metadata, bool isOptimistic)
+        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null, bool multipart = false)
         {
             var blob = GetBlockBlob(location);
 
@@ -56,14 +46,31 @@ namespace Kalix.Leo.Azure.Storage
                 }
             }
 
+            return multipart ? SaveDataMultipart(data, blob) : SaveDataSingle(data, blob, false);
+        }
+
+        public Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        {
+            var blob = GetBlockBlob(location);
+
+            // Copy the metadata across
+            if (metadata != null)
+            {
+                foreach (var m in metadata)
+                {
+                    blob.Metadata[m.Key] = m.Value;
+                }
+            }
+
+            return SaveDataSingle(data, blob, true);
+        }
+
+        private async Task<bool> SaveDataSingle(Stream data, CloudBlockBlob blob, bool isOptimistic)
+        {
             try
             {
                 var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-                using (var writeStream = new BlobBlockStream(blob, null, condition))
-                {
-                    await data.CopyToAsync(writeStream);
-                    await Task.Run(() => writeStream.Close());
-                }
+                await blob.UploadFromStreamAsync(data, condition, null, null);
 
                 // Create a snapshot straight away on azure
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
@@ -82,6 +89,22 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             return true;
+        }
+
+        private async Task SaveDataMultipart(Stream data, CloudBlockBlob blob)
+        {
+            using (var writeStream = new BlobBlockStream(blob, null, null))
+            {
+                await data.CopyToAsync(writeStream);
+                await Task.Run(() => writeStream.Close());
+            }
+
+            // Create a snapshot straight away on azure
+            // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
+            if (_enableSnapshots)
+            {
+                await blob.CreateSnapshotAsync();
+            }
         }
 
         public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)

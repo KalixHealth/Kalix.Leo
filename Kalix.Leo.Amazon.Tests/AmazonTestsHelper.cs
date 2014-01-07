@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 
 namespace Kalix.Leo.Amazon.Tests
@@ -10,8 +11,6 @@ namespace Kalix.Leo.Amazon.Tests
     public static class AmazonTestsHelper
     {
         private const long KB = 1024;
-        private const long MB = 1024 * KB;
-        private const long GB = 1024 * MB;
 
         private static List<string> _containers = new List<string>();
         private static AmazonS3Client _client;
@@ -19,14 +18,9 @@ namespace Kalix.Leo.Amazon.Tests
 
         static AmazonTestsHelper()
         {
-            _client = new AmazonS3Client("temp", "temp", new AmazonS3Config 
-            {
-                RegionEndpoint = RegionEndpoint.SAEast1,
-                UseHttp = true,
-                ProxyHost = "localhost",
-                ProxyPort = 4231,
-                ForcePathStyle = true
-            });
+            var systemName = ConfigurationManager.AppSettings["RegionSystemName"];
+            var region = RegionEndpoint.GetBySystemName(systemName);
+            _client = new AmazonS3Client(region);
         }
 
         public static AmazonS3Client GetContainer(string name)
@@ -80,9 +74,9 @@ namespace Kalix.Leo.Amazon.Tests
             return _client;
         }
 
-        public static byte[] RandomData(long noOfMb)
+        public static byte[] RandomData(long noOfKb)
         {
-            var data = new byte[noOfMb * MB];
+            var data = new byte[noOfKb * KB];
             _random.NextBytes(data);
             return data;
         }

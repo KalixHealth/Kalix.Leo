@@ -15,7 +15,7 @@ namespace Kalix.Leo.Storage
     public sealed class UniqueIdGenerator : IUniqueIdGenerator
     {
         private readonly int _maxRetries;
-        private readonly IStore _store;
+        private readonly IOptimisticStore _store;
         private readonly StoreLocation _location;
         private readonly int _rangeSize;
         private readonly object _taskLock;
@@ -25,7 +25,7 @@ namespace Kalix.Leo.Storage
         private long _upperIdLimit;
 
         public UniqueIdGenerator(
-            IStore store,
+            IOptimisticStore store,
             StoreLocation location,
             int rangeSize = 10,
             int maxRetries = 25)

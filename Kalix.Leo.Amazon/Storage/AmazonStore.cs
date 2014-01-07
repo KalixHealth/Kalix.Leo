@@ -1,5 +1,6 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
+using Amazon.S3.Transfer;
 using Kalix.Leo.Storage;
 using System;
 using System.Collections.Generic;
@@ -15,29 +16,78 @@ namespace Kalix.Leo.Amazon.Storage
         private const string IdExtension = ".dat";
 
         private readonly AmazonS3Client _client;
-        private readonly bool _enableSnapshots;
+        private readonly string _bucket;
 
-        public AmazonStore(AmazonS3Client client, bool enableSnapshots)
+        /// <summary>
+        /// The store is a wrapper over a specific bucket. If you want snapshots to work make sure they
+        /// are enabled on the bucket!
+        /// </summary>
+        /// <param name="client">Amazon client that can be configured</param>
+        /// <param name="bucket">Bucket to place everything</param>
+        public AmazonStore(AmazonS3Client client, string bucket)
         {
             _client = client;
-            _enableSnapshots = enableSnapshots;
+            _bucket = bucket;
         }
 
-        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null, bool multipart = false)
         {
-            throw new NotImplementedException();
+            return multipart ? SaveDataMultipart(data, location, metadata) : SaveDataSingle(data, location, metadata);
         }
 
-        public Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        private Task SaveDataSingle(Stream data, StoreLocation location, IDictionary<string, string> metadata)
         {
-            throw new NotImplementedException();
+            var request = new PutObjectRequest
+            {
+                AutoCloseStream = false,
+                AutoResetStreamPosition = false,
+                BucketName = _bucket,
+                Key = GetObjectKey(location),
+                InputStream = data
+            };
+
+            // Copy the metadata across
+            if (metadata != null)
+            {
+                foreach (var m in metadata)
+                {
+                    request.Metadata.Add(m.Key, m.Value);
+                }
+            }
+
+            return _client.PutObjectAsync(request);
+        }
+
+        private Task SaveDataMultipart(Stream data, StoreLocation location, IDictionary<string, string> metadata)
+        {
+            var request = new TransferUtilityUploadRequest
+            {
+                AutoCloseStream = false,
+                AutoResetStreamPosition = false,
+                BucketName = _bucket,
+                Key = GetObjectKey(location),
+                PartSize = 4194304, // 4mb
+                InputStream = data
+            };
+
+            // Copy the metadata across
+            if (metadata != null)
+            {
+                foreach (var m in metadata)
+                {
+                    request.Metadata.Add(m.Key, m.Value);
+                }
+            }
+
+            var util = new TransferUtility(_client);
+            return util.UploadAsync(request);
         }
 
         public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
         {
             var request = new GetObjectRequest
             {
-                BucketName = location.Container,
+                BucketName = _bucket,
                 Key = GetObjectKey(location),
                 VersionId = snapshot
             };
@@ -70,19 +120,12 @@ namespace Kalix.Leo.Amazon.Storage
         public async Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
         {
             var key = GetObjectKey(location);
-            var request = new ListVersionsRequest
-            {
-                BucketName = location.Container,
-                Prefix = key
-            };
+            var snapshots = await ListObjects(key);
 
-            // TODO: deal with more than 1000 version results
-            var resp = await _client.ListVersionsAsync(request);
-
-            return await Task.WhenAll(resp.Versions
+            return await Task.WhenAll(snapshots
                 .Where(v => v.Key == key && !v.IsDeleteMarker)
                 .OrderByDescending(v => v.LastModified)
-                .Select(v => GetSnapshotFromVersion(v, location.Container)));
+                .Select(GetSnapshotFromVersion));
         }
 
         public async Task SoftDelete(StoreLocation location)
@@ -91,7 +134,7 @@ namespace Kalix.Leo.Amazon.Storage
             var key = GetObjectKey(location);
             var request = new DeleteObjectRequest
             {
-                BucketName = location.Container,
+                BucketName = _bucket,
                 Key = key
             };
 
@@ -105,98 +148,90 @@ namespace Kalix.Leo.Amazon.Storage
         public async Task PermanentDelete(StoreLocation location)
         {
             var key = GetObjectKey(location);
-            var request = new ListVersionsRequest
-            {
-                BucketName = location.Container,
-                Prefix = key
-            };
+            var snapshots = await ListObjects(key);
 
-            // TODO: deal with more than 1000 version results
-            var resp = await _client.ListVersionsAsync(request);
-            var toDelete = resp.Versions.Where(v => v.Key == key).Select(v => new KeyVersion
+            var toDelete = snapshots.Where(v => v.Key == key).Select(v => new KeyVersion
             {
                 Key = v.Key,
                 VersionId = v.VersionId
             }).ToList();
 
             if(toDelete.Any())
-            {            
-                var delRequest = new DeleteObjectsRequest
+            {
+                var delTasks = Chunk(toDelete, 1000).Select(async d =>
                 {
-                    BucketName = location.Container,
-                    Objects = toDelete,
-                    Quiet = true
-                };
+                    var delRequest = new DeleteObjectsRequest
+                    {
+                        BucketName = _bucket,
+                        Objects = d,
+                        Quiet = true
+                    };
 
-                var delRes = await _client.DeleteObjectsAsync(delRequest);
-                // TODO: handle failures??
-                if (resp.HttpStatusCode != HttpStatusCode.OK)
-                {
-                    // TODO: throw exception?
-                }
+                    var delRes = await _client.DeleteObjectsAsync(delRequest);
+                    if (delRes.HttpStatusCode != HttpStatusCode.OK)
+                    {
+                        // TODO: throw exception?
+                    }
+                });
+
+                await Task.WhenAll(delTasks);
             }
         }
 
-        public async Task CreateContainerIfNotExists(string container)
+        public Task CreateContainerIfNotExists(string container)
         {
-            var request = new PutBucketRequest
-            {
-                BucketName = container,
-                CannedACL = S3CannedACL.Private,
-                UseClientRegion = true
-            };
-
-            var resp = await _client.PutBucketAsync(request);
-            if (resp.HttpStatusCode != HttpStatusCode.OK)
-            {
-                // TODO: throw exception?
-            }
-            
-            // Always make sure this is enabled if required
-            if (_enableSnapshots)
-            {
-                // Turn on versioning if we have snapshots
-                var versioningRequest = new PutBucketVersioningRequest
-                {
-                    BucketName = container,
-                    VersioningConfig = new S3BucketVersioningConfig { Status = VersionStatus.Enabled }
-                };
-                await _client.PutBucketVersioningAsync(versioningRequest);
-            }
+            // Don't need to do anything here...
+            // As the bucket exists and the container is virtual
+            return Task.FromResult(0);
         }
 
         public async Task PermanentDeleteContainer(string container)
         {
-            var request = new DeleteBucketRequest
-            {
-                BucketName = container,
-                UseClientRegion = true
-            };
+            // We have to iterate though every object in a container and then delete it...
+            var snapshots = await ListObjects(container + "/");
 
-            var resp = await _client.DeleteBucketAsync(request);
-            if (resp.HttpStatusCode != HttpStatusCode.OK)
+            if (snapshots.Any())
             {
-                // TODO: throw exception?
+                var delTasks = Chunk(snapshots.Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId }), 1000).Select(async d =>
+                {
+                    var delRequest = new DeleteObjectsRequest
+                    {
+                        BucketName = _bucket,
+                        Objects = d,
+                        Quiet = true
+                    };
+
+                    var delRes = await _client.DeleteObjectsAsync(delRequest);
+                    if (delRes.HttpStatusCode != HttpStatusCode.OK)
+                    {
+                        // TODO: throw exception?
+                    }
+                });
+
+                await Task.WhenAll(delTasks);
             }
         }
 
         private string GetObjectKey(StoreLocation location)
         {
+            string objPath;
             if (location.Id.HasValue)
             {
-                return Path.Combine(location.BasePath, location.Id.Value.ToString() + IdExtension);
+                objPath = Path.Combine(location.BasePath, location.Id.Value.ToString() + IdExtension);
             }
             else
             {
-                return location.BasePath;
+                objPath = location.BasePath;
             }
+
+            return Path.Combine(location.Container, objPath);
         }
 
-        private async Task<Snapshot> GetSnapshotFromVersion(S3ObjectVersion version, string bucket)
+        private async Task<Snapshot> GetSnapshotFromVersion(S3ObjectVersion version)
         {
             var req = new GetObjectMetadataRequest
             {
-                BucketName = bucket,
+                BucketName = _bucket,
                 Key = version.Key,
                 VersionId = version.VersionId
             };
@@ -208,6 +243,55 @@ namespace Kalix.Leo.Amazon.Storage
                 Modified = version.LastModified,
                 Metadata = res.Metadata.Keys.ToDictionary(s => s, s => res.Metadata[s])
             };
+        }
+
+        private async Task<IEnumerable<S3ObjectVersion>> ListObjects(string prefix)
+        {
+            var results = new List<S3ObjectVersion>();
+            bool isComplete = false;
+            string keyMarker = null;
+            string versionIdMarker = null;
+
+            while (!isComplete)
+            {
+                var request = new ListVersionsRequest
+                {
+                    BucketName = _bucket,
+                    Prefix = prefix,
+                    KeyMarker = keyMarker,
+                    VersionIdMarker = versionIdMarker
+                };
+
+                var resp = await _client.ListVersionsAsync(request);
+                results.AddRange(resp.Versions);
+
+                isComplete = !resp.IsTruncated;
+                keyMarker = resp.NextKeyMarker;
+                versionIdMarker = resp.NextVersionIdMarker;
+            }
+
+            return results;
+        }
+
+        private IEnumerable<List<T>> Chunk<T>(IEnumerable<T> en, int size)
+        {
+            var enumerator = en.GetEnumerator();
+            var currentList = new List<T>(size);
+
+            while (enumerator.MoveNext())
+            {
+                currentList.Add(enumerator.Current);
+                if (currentList.Count == size)
+                {
+                    yield return currentList;
+                    currentList = new List<T>(size);
+                }
+            }
+
+            if (currentList.Any())
+            {
+                yield return currentList;
+            }
         }
     }
 }
