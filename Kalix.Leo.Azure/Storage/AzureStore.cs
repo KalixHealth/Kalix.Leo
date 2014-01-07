@@ -130,7 +130,7 @@ namespace Kalix.Leo.Azure.Storage
         public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
-            bool hasDeleted = false;
+            bool hasCancelledOnPurpose = false;
 
             var cancellation = new CancellationTokenSource();
             var writeWrapper = new WriteWrapperStreamClass(() =>
@@ -138,7 +138,7 @@ namespace Kalix.Leo.Azure.Storage
                 var metadata = GetActualMetadata(blob);
                 if(metadata.ContainsKey(_deletedKey))
                 {
-                    hasDeleted = true;
+                    hasCancelledOnPurpose = true;
                     cancellation.Cancel();
                     return null;
                 }
@@ -147,6 +147,7 @@ namespace Kalix.Leo.Azure.Storage
                 var stream = streamPicker(metadata);
                 if(stream == null)
                 {
+                    hasCancelledOnPurpose = true;
                     cancellation.Cancel();
                 }
                 return stream;
@@ -171,7 +172,7 @@ namespace Kalix.Leo.Azure.Storage
             }
             catch(TaskCanceledException)
             {
-                if(hasDeleted)
+                if(hasCancelledOnPurpose)
                 {
                     hasFile = false;
                 }

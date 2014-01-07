@@ -114,6 +114,11 @@ namespace Kalix.Leo
             return metadata;
         }
 
+        public Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null)
+        {
+            return _store.GetMetadata(location, snapshot);
+        }
+
         public Task<StoreLocation> SaveObject<T>(T obj, StoreLocation location, IDictionary<string, string> userMetadata = null, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform

@@ -83,6 +83,31 @@ namespace Kalix.Leo.Amazon.Storage
             return util.UploadAsync(request);
         }
 
+        public async Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null)
+        {
+            var request = new GetObjectMetadataRequest
+            {
+                BucketName = _bucket,
+                Key = GetObjectKey(location),
+                VersionId = snapshot
+            };
+
+            try
+            {
+                var resp = await _client.GetObjectMetadataAsync(request);
+                return ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
+            }
+            catch (AmazonS3Exception e)
+            {
+                if (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+
+                throw;
+            }
+        }
+
         public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
         {
             var request = new GetObjectRequest
@@ -96,7 +121,7 @@ namespace Kalix.Leo.Amazon.Storage
             {
                 using (var resp = await _client.GetObjectAsync(request))
                 {
-                    var metadata = resp.Metadata.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => resp.Metadata[s]);
+                    var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
                     var writeStream = streamPicker(metadata);
                     if (writeStream == null) { return false; }
 
@@ -202,6 +227,21 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
+        private IDictionary<string, string> ActualMetadata(MetadataCollection m, DateTime modified, long size)
+        {
+            var metadata = m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]);
+            if(!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
+            {
+                metadata[MetadataConstants.SizeMetadataKey] = size.ToString();
+            }
+
+            if(!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey))
+            {
+                metadata[MetadataConstants.ModifiedMetadataKey] = modified.Ticks.ToString();
+            }
+            return metadata;
+        }
+
         private string GetObjectKey(StoreLocation location)
         {
             var list = new List<string>(3);
@@ -234,7 +274,7 @@ namespace Kalix.Leo.Amazon.Storage
             {
                 Id = version.VersionId,
                 Modified = version.LastModified,
-                Metadata = res.Metadata.Keys.ToDictionary(s => s, s => res.Metadata[s])
+                Metadata = ActualMetadata(res.Metadata, res.LastModified, res.ContentLength)
             };
         }
 

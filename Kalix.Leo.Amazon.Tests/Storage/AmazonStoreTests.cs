@@ -67,6 +67,30 @@ namespace Kalix.Leo.Amazon.Tests.Storage
         }
 
         [TestFixture]
+        public class GetMetadataMethod : AmazonStoreTests
+        {
+            [Test]
+            public void NoFileReturnsNull()
+            {
+                var result = _store.GetMetadata(_location).Result;
+                Assert.IsNull(result);
+            }
+
+            [Test]
+            public void FindsMetadataIncludingSizeAndLength()
+            {
+                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata1", "somemetadata" } }).Wait();
+
+                var result = _store.GetMetadata(_location).Result;
+
+                Assert.AreEqual("1024", result[MetadataConstants.SizeMetadataKey]);
+                Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
+                Assert.AreEqual("somemetadata", result["metadata1"]);
+            }
+        }
+
+        [TestFixture]
         public class LoadDataMethod : AmazonStoreTests
         {
             [Test]

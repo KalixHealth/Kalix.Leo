@@ -1,5 +1,7 @@
-﻿using Lucene.Net.Store;
+﻿using AsyncBridge;
+using Lucene.Net.Store;
 using System;
+using System.Collections.Generic;
 
 namespace Kalix.Leo.Lucene
 {
@@ -28,18 +30,21 @@ namespace Kalix.Leo.Lucene
 
         public override void DeleteFile(string name)
         {
-            _store.Delete(GetLocation(name), SecureStoreOptions.None);
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(_store.Delete(GetLocation(name), SecureStoreOptions.None));
+            }
             _cachingDirectory.DeleteFile(name);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            throw new NotImplementedException();
         }
 
         public override bool FileExists(string name)
         {
-            throw new NotImplementedException();
+            bool exists = false;
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(_store.GetMetadata(GetLocation(name)).ContinueWith(t => { exists = t.Result != null; }));
+            }
+            return exists;
         }
 
         public override long FileLength(string name)
@@ -75,6 +80,10 @@ namespace Kalix.Leo.Lucene
         private StoreLocation GetLocation(string path)
         {
             return new StoreLocation(_container, path);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
         }
     }
 }

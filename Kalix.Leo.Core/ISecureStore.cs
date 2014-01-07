@@ -16,7 +16,9 @@ namespace Kalix.Leo
         Task<IDictionary<string, string>> LoadData(Stream writeStream, StoreLocation location, string snapshot = null);
         Task<T> LoadObject<T>(StoreLocation location, string snapshot = null);
         Task<Tuple<T, IDictionary<string, string>>> LoadObjectWithMetadata<T>(StoreLocation location, string snapshot = null);
-        
+
+        Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null);
+
         Task<StoreLocation> SaveData(Stream data, StoreLocation location, IDictionary<string, string> userMetadata = null, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All);
         Task<StoreLocation> SaveObject<T>(T obj, StoreLocation location, IDictionary<string, string> userMetadata = null, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All);
 

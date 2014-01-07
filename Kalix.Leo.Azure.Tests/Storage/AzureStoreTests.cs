@@ -55,10 +55,33 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
+        public class GetMetadataMethod : AzureStoreTests
+        {
+            [Test]
+            public void NoFileReturnsNull()
+            {
+                var result = _store.GetMetadata(_location).Result;
+                Assert.IsNull(result);
+            }
+
+            [Test]
+            public void FindsMetadataIncludingSizeAndLength()
+            {
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata1", "somemetadata" } }).Wait();
+
+                var result = _store.GetMetadata(_location).Result;
+
+                Assert.AreEqual("1048576", result[MetadataConstants.SizeMetadataKey]);
+                Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
+                Assert.AreEqual("somemetadata", result["metadata1"]);
+            }
+        }
+
+        [TestFixture]
         public class LoadDataMethod : AzureStoreTests
         {
             [Test]
-            [ExpectedException(typeof(TaskCanceledException))]
             public void NullStreamCancelsTheDownload()
             {
                 var data = new MemoryStream(AzureTestsHelper.RandomData(1));
