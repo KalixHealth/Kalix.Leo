@@ -8,6 +8,7 @@ namespace Kalix.Leo
     [Flags]
     public enum SecureStoreOptions
     {
+        None = 0,
         /// <summary>
         /// Create a message to eventually back this record up to another store
         /// </summary>

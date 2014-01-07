@@ -11,15 +11,15 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
-    public class SecureStore
+    public class SecureStore : ISecureStore
     {
-        private readonly IOptimisticStore _store;
+        private readonly IStore _store;
         private readonly IQueue _backupQueue;
         private readonly IQueue _indexQueue;
         private readonly IEncryptor _encryptor;
         private readonly ICompressor _compressor;
 
-        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
+        public SecureStore(IStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
         {
             if (_store == null) { throw new ArgumentNullException("writeStore"); }
 
@@ -30,9 +30,24 @@ namespace Kalix.Leo
             _compressor = compressor;
         }
 
-        public IUniqueIdGenerator CreateUniqueIdGenerator(StoreLocation location, int rangeSize = 10, int maxRetries = 25)
+        public bool CanEncrypt
         {
-            return new UniqueIdGenerator(_store, location, rangeSize, maxRetries);
+            get { return _encryptor != null; }
+        }
+
+        public bool CanCompress
+        {
+            get { return _compressor != null; }
+        }
+
+        public bool CanIndex
+        {
+            get { return _indexQueue != null; }
+        }
+
+        public bool CanBackup
+        {
+            get { return _backupQueue != null; }
         }
 
         public Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
@@ -197,6 +212,18 @@ namespace Kalix.Leo
             }
 
             return location;
+        }
+
+        public Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All)
+        {
+            if (options.HasFlag(SecureStoreOptions.KeepDeletes))
+            {
+                return _store.SoftDelete(location);
+            }
+            else
+            {
+                return _store.PermanentDelete(location);
+            }
         }
 
         private string GetMessageDetails(StoreLocation location, IDictionary<string, string> metadata)

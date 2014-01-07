@@ -21,6 +21,14 @@ namespace Kalix.Leo.Storage
         Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null, bool multipart = false);
 
         /// <summary>
+        /// Gets the metadata at a certain location
+        /// </summary>
+        /// <param name="location">Location to find the metadata</param>
+        /// <param name="snapshot">Specific snapshot to find metadata</param>
+        /// <returns>Metadata, or null if not found</returns>
+        Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null);
+
+        /// <summary>
         /// Load data from a specified location into a write stream
         /// </summary>
         /// <param name="location">Location of the file to load</param>

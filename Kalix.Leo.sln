@@ -1,8 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
-MinimumVisualStudioVersion = 10.0.40219.1
+# Visual Studio 2012
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core", "Kalix.Leo.Core\Kalix.Leo.Core.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
@@ -23,6 +21,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon", "Kalix.Leo.Amazon\Kalix.Leo.Amazon.csproj", "{5027D588-FE74-4F32-86B6-770F1B0DDB78}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon.Tests", "Kalix.Leo.Amazon.Tests\Kalix.Leo.Amazon.Tests.csproj", "{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene", "Kalix.Leo.Lucene\Kalix.Leo.Lucene.csproj", "{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -54,6 +54,10 @@ Global
 		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

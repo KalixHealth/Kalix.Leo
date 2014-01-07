@@ -107,6 +107,26 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
+        public async Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null)
+        {
+            var blob = GetBlockBlob(location, snapshot);
+            try
+            {
+                await blob.FetchAttributesAsync();
+            }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    return null;
+                }
+                
+                throw;
+            }
+
+            return GetActualMetadata(blob);
+        }
+
         public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
@@ -115,7 +135,8 @@ namespace Kalix.Leo.Azure.Storage
             var cancellation = new CancellationTokenSource();
             var writeWrapper = new WriteWrapperStreamClass(() =>
             {
-                if(blob.Metadata.ContainsKey(_deletedKey))
+                var metadata = GetActualMetadata(blob);
+                if(metadata.ContainsKey(_deletedKey))
                 {
                     hasDeleted = true;
                     cancellation.Cancel();
@@ -123,7 +144,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
 
                 // Should have blob metadata by this point?
-                var stream = streamPicker(blob.Metadata);
+                var stream = streamPicker(metadata);
                 if(stream == null)
                 {
                     cancellation.Cancel();
@@ -175,7 +196,7 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     Id = b.SnapshotTime.Value.UtcDateTime.Ticks.ToString(),
                     Modified = b.SnapshotTime.Value.UtcDateTime,
-                    Metadata = b.Metadata
+                    Metadata = GetActualMetadata(b)
                 })
                 .Reverse() // We know we have to reverse to get right ordering...
                 .ToList();
@@ -199,7 +220,7 @@ namespace Kalix.Leo.Azure.Storage
                 throw;
             }
 
-            blob.Metadata.Add(_deletedKey, DateTime.UtcNow.Ticks.ToString());
+            blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
             await blob.SetMetadataAsync();
         }
 
@@ -219,6 +240,23 @@ namespace Kalix.Leo.Azure.Storage
         {
             var c = _blobStorage.GetContainerReference(container);
             return c.DeleteIfExistsAsync();
+        }
+
+        private IDictionary<string, string> GetActualMetadata(ICloudBlob blob)
+        {
+            var metadata = blob.Metadata;
+
+            if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey) && blob.Properties.LastModified.HasValue)
+            {
+                metadata[MetadataConstants.ModifiedMetadataKey] = blob.Properties.LastModified.Value.UtcDateTime.Ticks.ToString();
+            }
+
+            if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
+            {
+                metadata[MetadataConstants.SizeMetadataKey] = blob.Properties.Length.ToString();
+            }
+
+            return metadata;
         }
 
         private CloudBlockBlob GetBlockBlob(StoreLocation location, string snapshot = null)
