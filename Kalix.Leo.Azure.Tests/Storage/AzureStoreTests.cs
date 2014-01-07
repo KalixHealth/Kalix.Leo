@@ -64,14 +64,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
 
-                try
-                {
-                    _store.LoadData(_location, m => null).Wait();
-                }
-                catch (AggregateException e)
-                {
-                    throw e.InnerException;
-                }
+                var hasFile = _store.LoadData(_location, m => null).Result;
+                Assert.IsFalse(hasFile);
             }
 
             [Test]
@@ -167,21 +161,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
         public class LoadDataMethodWithSnapshot : AzureStoreTests
         {
             [Test]
-            [ExpectedException(typeof(TaskCanceledException))]
             public void NullStreamCancelsTheDownload()
             {
                 var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
                 var shapshot = _store.FindSnapshots(_location).Result.Single().Id;
 
-                try
-                {
-                    _store.LoadData(_location, m => null, shapshot).Wait();
-                }
-                catch (AggregateException e)
-                {
-                    throw e.InnerException;
-                }
+                var hasFile = _store.LoadData(_location, m => null, shapshot).Result;
+                Assert.IsFalse(hasFile);
             }
 
             [Test]

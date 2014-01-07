@@ -23,29 +23,8 @@ namespace Kalix.Leo.Amazon.Tests
             _client = new AmazonS3Client(region);
         }
 
-        public static AmazonS3Client GetContainer(string name)
-        {
-            if(!_containers.Contains(name))
-            {
-                var request = new PutBucketRequest
-                {
-                    BucketName = name,
-                    CannedACL = S3CannedACL.Private,
-                    UseClientRegion = true
-                };
-
-                var resp = _client.PutBucket(request);
-
-                _containers.Add(name);
-            }
-
-            return _client;
-        }
-
         public static AmazonS3Client SetupBlob(string container, string path)
         {
-            GetContainer(container);
-
             var request = new ListVersionsRequest
             {
                 BucketName = container,

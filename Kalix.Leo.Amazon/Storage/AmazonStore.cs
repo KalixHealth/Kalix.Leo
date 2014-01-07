@@ -96,7 +96,7 @@ namespace Kalix.Leo.Amazon.Storage
             {
                 using (var resp = await _client.GetObjectAsync(request))
                 {
-                    var metadata = resp.Metadata.Keys.ToDictionary(s => s, s => resp.Metadata[s]);
+                    var metadata = resp.Metadata.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => resp.Metadata[s]);
                     var writeStream = streamPicker(metadata);
                     if (writeStream == null) { return false; }
 
@@ -108,10 +108,12 @@ namespace Kalix.Leo.Amazon.Storage
             }
             catch(AmazonS3Exception e)
             {
-                if(e.ErrorCode == "NotFound")
+                if(e.StatusCode == HttpStatusCode.NotFound)
                 {
                     return false;
                 }
+
+                throw;
             }
 
             return true;
@@ -128,7 +130,7 @@ namespace Kalix.Leo.Amazon.Storage
                 .Select(GetSnapshotFromVersion));
         }
 
-        public async Task SoftDelete(StoreLocation location)
+        public Task SoftDelete(StoreLocation location)
         {
             // If we support snapshots then we can just delete the record in amazon...
             var key = GetObjectKey(location);
@@ -138,11 +140,7 @@ namespace Kalix.Leo.Amazon.Storage
                 Key = key
             };
 
-            var resp = await _client.DeleteObjectAsync(request);
-            if (resp.HttpStatusCode != HttpStatusCode.OK)
-            {
-                // TODO: throw exception?
-            }
+            return _client.DeleteObjectAsync(request);
         }
 
         public async Task PermanentDelete(StoreLocation location)
@@ -167,11 +165,7 @@ namespace Kalix.Leo.Amazon.Storage
                         Quiet = true
                     };
 
-                    var delRes = await _client.DeleteObjectsAsync(delRequest);
-                    if (delRes.HttpStatusCode != HttpStatusCode.OK)
-                    {
-                        // TODO: throw exception?
-                    }
+                    await _client.DeleteObjectsAsync(delRequest);
                 });
 
                 await Task.WhenAll(delTasks);
@@ -192,7 +186,7 @@ namespace Kalix.Leo.Amazon.Storage
 
             if (snapshots.Any())
             {
-                var delTasks = Chunk(snapshots.Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId }), 1000).Select(async d =>
+                var delTasks = Chunk(snapshots.Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId }), 1000).Select(d =>
                 {
                     var delRequest = new DeleteObjectsRequest
                     {
@@ -201,11 +195,7 @@ namespace Kalix.Leo.Amazon.Storage
                         Quiet = true
                     };
 
-                    var delRes = await _client.DeleteObjectsAsync(delRequest);
-                    if (delRes.HttpStatusCode != HttpStatusCode.OK)
-                    {
-                        // TODO: throw exception?
-                    }
+                    return _client.DeleteObjectsAsync(delRequest);
                 });
 
                 await Task.WhenAll(delTasks);
@@ -214,17 +204,20 @@ namespace Kalix.Leo.Amazon.Storage
 
         private string GetObjectKey(StoreLocation location)
         {
-            string objPath;
-            if (location.Id.HasValue)
+            var list = new List<string>(3);
+            list.Add(location.Container);
+
+            if(!string.IsNullOrEmpty(location.BasePath))
             {
-                objPath = Path.Combine(location.BasePath, location.Id.Value.ToString() + IdExtension);
-            }
-            else
-            {
-                objPath = location.BasePath;
+                list.Add(location.BasePath);
             }
 
-            return Path.Combine(location.Container, objPath);
+            if (location.Id.HasValue)
+            {
+                list.Add(location.Id.Value.ToString() + IdExtension);
+            }
+
+            return string.Join("\\", list);
         }
 
         private async Task<Snapshot> GetSnapshotFromVersion(S3ObjectVersion version)

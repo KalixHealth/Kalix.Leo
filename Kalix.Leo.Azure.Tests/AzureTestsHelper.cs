@@ -2,7 +2,6 @@
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Kalix.Leo.Azure.Tests
 {
@@ -10,7 +9,6 @@ namespace Kalix.Leo.Azure.Tests
     {
         private const long KB = 1024;
         private const long MB = 1024 * KB;
-        private const long GB = 1024 * MB;
 
         private static Dictionary<string, CloudBlobContainer> _containers = new Dictionary<string,CloudBlobContainer>();
         private static Random _random = new Random();

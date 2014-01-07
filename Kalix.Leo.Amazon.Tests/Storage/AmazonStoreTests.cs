@@ -1,20 +1,19 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
 using Kalix.Leo.Amazon.Storage;
-using Kalix.Leo.Amazon.Tests;
 using NUnit.Framework;
-using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
 
-namespace Kalix.Leo.Azure.Tests.Storage
+namespace Kalix.Leo.Amazon.Tests.Storage
 {
     [TestFixture]
-    public class AzureStoreTests
+    public class AmazonStoreTests
     {
+        protected string _bucket;
         protected AmazonStore _store;
         protected AmazonS3Client _client;
         protected StoreLocation _location;
@@ -22,15 +21,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
         [SetUp]
         public virtual void Init()
         {
-            _client = AmazonTestsHelper.SetupBlob("kalix-leo-tests", "AmazonStoreTests.testdata");
+            _bucket = ConfigurationManager.AppSettings["TestBucket"];
+            _client = AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AmazonStoreTests.testdata");
             _location = new StoreLocation("kalix-leo-tests", "AmazonStoreTests.testdata");
-
-            var bucketName = ConfigurationManager.AppSettings["TestBucket"];
-            _store = new AmazonStore(_client, bucketName);
+            _store = new AmazonStore(_client, _bucket);
         }
         
         [TestFixture]
-        public class SaveDataMethod : AzureStoreTests
+        public class SaveDataMethod : AmazonStoreTests
         {
             [Test]
             public void HasMetadataCorrectlySavesIt()
@@ -60,32 +58,25 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 var resp = _client.GetObjectMetadata(new GetObjectMetadataRequest
                 {
-                    BucketName = location.Container,
-                    Key = location.BasePath,
+                    BucketName = _bucket,
+                    Key = Path.Combine(location.Container, location.BasePath),
                 });
 
-                return resp.Metadata.Keys.ToDictionary(s => s, s => resp.Metadata[s]);
+                return resp.Metadata.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => resp.Metadata[s]);
             }
         }
 
         [TestFixture]
-        public class LoadDataMethod : AzureStoreTests
+        public class LoadDataMethod : AmazonStoreTests
         {
             [Test]
-            [ExpectedException(typeof(TaskCanceledException))]
             public void NullStreamCancelsTheDownload()
             {
                 var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
 
-                try
-                {
-                    _store.LoadData(_location, m => null).Wait();
-                }
-                catch (AggregateException e)
-                {
-                    throw e.InnerException;
-                }
+                var hasFile = _store.LoadData(_location, m => null).Result;
+                Assert.IsFalse(hasFile);
             }
 
             [Test]
@@ -111,20 +102,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var result = _store.LoadData(_location, m => null).Result;
                 Assert.IsFalse(result);
             }
-
-            [Test]
-            public void FileMarkedAsDeletedReturnsFalse()
-            {
-                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-                _store.SaveData(data, _location, new Dictionary<string, string> { { "azurestorage_deleted", DateTime.UtcNow.Ticks.ToString() } }).Wait();
-
-                var result = _store.LoadData(_location, m => null).Result;
-                Assert.IsFalse(result);
-            }
         }
 
         [TestFixture]
-        public class FindSnapshotsMethod : AzureStoreTests
+        public class FindSnapshotsMethod : AmazonStoreTests
         {
             [Test]
             public void NoSnapshotsReturnsEmpty()
@@ -151,8 +132,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
 
-                AmazonTestsHelper.SetupBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
-                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
+                AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AzureStoreTests.testdata\\subitem.data");
+                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata\\subitem.data");
                 data.Position = 0;
 
                 _store.SaveData(data, location2).Wait();
@@ -167,6 +148,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
+                Thread.Sleep(1000);
                 _store.SaveData(data, _location).Wait();
 
                 var snapshots = _store.FindSnapshots(_location).Result;
@@ -178,24 +160,17 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
-        public class LoadDataMethodWithSnapshot : AzureStoreTests
+        public class LoadDataMethodWithSnapshot : AmazonStoreTests
         {
             [Test]
-            [ExpectedException(typeof(TaskCanceledException))]
             public void NullStreamCancelsTheDownload()
             {
                 var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
                 _store.SaveData(data, _location).Wait();
                 var shapshot = _store.FindSnapshots(_location).Result.Single().Id;
 
-                try
-                {
-                    _store.LoadData(_location, m => null, shapshot).Wait();
-                }
-                catch (AggregateException e)
-                {
-                    throw e.InnerException;
-                }
+                var hasFile = _store.LoadData(_location, m => null, shapshot).Result;
+                Assert.IsFalse(hasFile);
             }
 
             [Test]
@@ -218,13 +193,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location, m => null, DateTime.UtcNow.Ticks.ToString()).Result;
+                // Had to find a valid version number!
+                var result = _store.LoadData(_location, m => null, "ffwBujO.zXJtBw9dpKcV2WeJ3XhRwR2x").Result;
                 Assert.IsFalse(result);
             }
         }
 
         [TestFixture]
-        public class SoftDeleteMethod : AzureStoreTests
+        public class SoftDeleteMethod : AmazonStoreTests
         {
             [Test]
             public void BlobThatDoesNotExistShouldNotThrowError()
@@ -259,7 +235,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
-        public class PermanentDeleteMethod : AzureStoreTests
+        public class PermanentDeleteMethod : AmazonStoreTests
         {
             [Test]
             public void BlobThatDoesNotExistShouldNotThrowError()
