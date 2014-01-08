@@ -24,6 +24,7 @@ namespace Kalix.Leo
 
         Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All);
 
-        Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location);
+        IObservable<Snapshot> FindSnapshots(StoreLocation location);
+        IObservable<StoreLocation> FindFiles(string container, string prefix = null);
     }
 }

@@ -50,9 +50,14 @@ namespace Kalix.Leo
             get { return _backupQueue != null; }
         }
 
-        public Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
+        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
         {
             return _store.FindSnapshots(location);
+        }
+
+        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        {
+            return _store.FindFiles(container, prefix);
         }
 
         public async Task<Tuple<T, IDictionary<string, string>>> LoadObjectWithMetadata<T>(StoreLocation location, string snapshot = null)

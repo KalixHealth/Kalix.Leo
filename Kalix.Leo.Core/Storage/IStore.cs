@@ -42,7 +42,15 @@ namespace Kalix.Leo.Storage
         /// </summary>
         /// <param name="location">The location of the file to find snapshots of</param>
         /// <returns>List of snapshot dates</returns>
-        Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location);
+        IObservable<Snapshot> FindSnapshots(StoreLocation location);
+
+        /// <summary>
+        /// Finds all non-shapshot files in the specified container, with a path prefix if required
+        /// </summary>
+        /// <param name="container">Container to search</param>
+        /// <param name="prefix">Prefix of the path to filter by</param>
+        /// <returns>List of files</returns>
+        IObservable<StoreLocation> FindFiles(string container, string prefix = null);
 
         /// <summary>
         /// Marks the file as deleted, but snapshots are still available

@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Amazon.Storage
@@ -144,7 +146,7 @@ namespace Kalix.Leo.Amazon.Storage
             return true;
         }
 
-        public async Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
+        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
         {
             var key = GetObjectKey(location);
             var snapshots = await ListObjects(key);
@@ -153,6 +155,10 @@ namespace Kalix.Leo.Amazon.Storage
                 .Where(v => v.Key == key && !v.IsDeleteMarker)
                 .OrderByDescending(v => v.LastModified)
                 .Select(GetSnapshotFromVersion));
+        }
+
+        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        {
         }
 
         public Task SoftDelete(StoreLocation location)
@@ -207,24 +213,26 @@ namespace Kalix.Leo.Amazon.Storage
         public async Task PermanentDeleteContainer(string container)
         {
             // We have to iterate though every object in a container and then delete it...
-            var snapshots = await ListObjects(container + "/");
+            var snapshots = Observable
+                .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, container + "/", ct))
+                .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
-            if (snapshots.Any())
+            var delTasks = snapshots.Buffer(1000).Select(d =>
             {
-                var delTasks = Chunk(snapshots.Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId }), 1000).Select(d =>
+                var delRequest = new DeleteObjectsRequest
                 {
-                    var delRequest = new DeleteObjectsRequest
-                    {
-                        BucketName = _bucket,
-                        Objects = d,
-                        Quiet = true
-                    };
+                    BucketName = _bucket,
+                    Objects = d.ToList(),
+                    Quiet = true
+                };
 
-                    return _client.DeleteObjectsAsync(delRequest);
-                });
+                return _client.DeleteObjectsAsync(delRequest);
+            });
 
-                await Task.WhenAll(delTasks);
-            }
+            // Make sure we are not blocking anything here!
+            var tasks = new List<Task>();
+            await delTasks.ForEachAsync(t => tasks.Add(t));
+            await Task.WhenAll(tasks);
         }
 
         private IDictionary<string, string> ActualMetadata(MetadataCollection m, DateTime modified, long size)
@@ -278,52 +286,41 @@ namespace Kalix.Leo.Amazon.Storage
             };
         }
 
-        private async Task<IEnumerable<S3ObjectVersion>> ListObjects(string prefix)
+        private async Task ListObjects(IObserver<S3ObjectVersion> observer, string prefix, CancellationToken ct)
         {
-            var results = new List<S3ObjectVersion>();
-            bool isComplete = false;
-            string keyMarker = null;
-            string versionIdMarker = null;
-
-            while (!isComplete)
+            try
             {
-                var request = new ListVersionsRequest
+                bool isComplete = false;
+                string keyMarker = null;
+                string versionIdMarker = null;
+
+                while (!isComplete && !ct.IsCancellationRequested)
                 {
-                    BucketName = _bucket,
-                    Prefix = prefix,
-                    KeyMarker = keyMarker,
-                    VersionIdMarker = versionIdMarker
-                };
+                    var request = new ListVersionsRequest
+                    {
+                        BucketName = _bucket,
+                        Prefix = prefix,
+                        KeyMarker = keyMarker,
+                        VersionIdMarker = versionIdMarker
+                    };
 
-                var resp = await _client.ListVersionsAsync(request);
-                results.AddRange(resp.Versions);
+                    var resp = await _client.ListVersionsAsync(request, ct);
+                    foreach (var v in resp.Versions)
+                    {
+                        observer.OnNext(v);
+                    }
 
-                isComplete = !resp.IsTruncated;
-                keyMarker = resp.NextKeyMarker;
-                versionIdMarker = resp.NextVersionIdMarker;
-            }
-
-            return results;
-        }
-
-        private IEnumerable<List<T>> Chunk<T>(IEnumerable<T> en, int size)
-        {
-            var enumerator = en.GetEnumerator();
-            var currentList = new List<T>(size);
-
-            while (enumerator.MoveNext())
-            {
-                currentList.Add(enumerator.Current);
-                if (currentList.Count == size)
-                {
-                    yield return currentList;
-                    currentList = new List<T>(size);
+                    isComplete = !resp.IsTruncated;
+                    keyMarker = resp.NextKeyMarker;
+                    versionIdMarker = resp.NextVersionIdMarker;
                 }
-            }
 
-            if (currentList.Any())
+                ct.ThrowIfCancellationRequested(); // Just in case...
+                observer.OnCompleted();
+            }
+            catch (Exception e)
             {
-                yield return currentList;
+                observer.OnError(e);
             }
         }
     }

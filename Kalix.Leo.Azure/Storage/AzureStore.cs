@@ -8,12 +8,14 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reactive.Linq;
+using System.Reactive;
 
 namespace Kalix.Leo.Azure.Storage
 {
     public class AzureStore : IOptimisticStore
     {
-        private const string IdExtension = ".dat";
+        private const string IdExtension = ".id";
         private const string DefaultDeletedKey = "azurestorage_deleted";
 
         private readonly CloudBlobClient _blobStorage;
@@ -185,22 +187,76 @@ namespace Kalix.Leo.Azure.Storage
             return hasFile;
         }
 
-        public async Task<IEnumerable<Snapshot>> FindSnapshots(StoreLocation location)
+        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
-            var results = await Task.Run(() => blob.Container.ListBlobs(blob.Name, true, BlobListingDetails.Snapshots | BlobListingDetails.Metadata).ToList());
+            var results = Observable.Create<ICloudBlob>((observer, ct) =>
+            {
+                return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
+            });
 
             return results
-                .OfType<ICloudBlob>()
                 .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                 .Select(b => new Snapshot
                 {
                     Id = b.SnapshotTime.Value.UtcDateTime.Ticks.ToString(),
                     Modified = b.SnapshotTime.Value.UtcDateTime,
                     Metadata = GetActualMetadata(b)
-                })
-                .Reverse() // We know we have to reverse to get right ordering...
-                .ToList();
+                });
+        }
+
+        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        {
+            var results = Observable.Create<ICloudBlob>((observer, ct) =>
+            {
+                var c = _blobStorage.GetContainerReference(container);
+                return ListBlobs(observer, c, prefix, BlobListingDetails.None, ct);
+            });
+
+            return results
+                .Select(b =>
+                {
+                    long? id = null;
+                    string path = b.Name;
+                    if (path.EndsWith(IdExtension))
+                    {
+                        long tempId;
+                        if (long.TryParse(Path.GetFileNameWithoutExtension(path), out tempId))
+                        {
+                            id = tempId;
+                            path = Path.GetDirectoryName(path);
+                        }
+                    }
+                    return new StoreLocation(container, path, id);
+                });
+        }
+
+        private async Task ListBlobs(IObserver<ICloudBlob> observer, CloudBlobContainer container, string prefix, BlobListingDetails options, CancellationToken ct)
+        {
+            BlobContinuationToken token = new BlobContinuationToken();
+
+            try
+            {
+                do
+                {
+                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct);
+
+                    foreach (var blob in segment.Results.OfType<ICloudBlob>())
+                    {
+                        observer.OnNext(blob);
+                    }
+
+                    token = segment.ContinuationToken;
+                }
+                while (token != null && !ct.IsCancellationRequested);
+
+                ct.ThrowIfCancellationRequested(); // Just in case...
+                observer.OnCompleted();
+            }
+            catch (Exception e)
+            {
+                observer.OnError(e);
+            }
         }
 
         public async Task SoftDelete(StoreLocation location)
