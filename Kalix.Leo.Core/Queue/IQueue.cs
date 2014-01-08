@@ -11,7 +11,7 @@ namespace Kalix.Leo.Queue
     {
         Task SendMessage(string data);
 
-        IDisposable SetupMessageListener(Func<string, Task> executeMessage, Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
+        IObservable<string> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
 
         Task CreateQueueIfExists();
         Task DeleteQueueIfExists();

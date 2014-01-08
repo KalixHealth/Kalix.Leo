@@ -5,7 +5,7 @@ using Kalix.Leo.Storage;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -60,86 +60,71 @@ namespace Kalix.Leo
             return _store.FindFiles(container, prefix);
         }
 
-        public async Task<Tuple<T, IDictionary<string, string>>> LoadObjectWithMetadata<T>(StoreLocation location, string snapshot = null)
+        public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null)
         {
-            using(var ms = new MemoryStream())
+            var data = await LoadData(location, snapshot);
+            if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
             {
-                var metadata = await LoadData(ms, location, snapshot);
-                if (!metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
-                {
-                    throw new InvalidOperationException("Data type does not match metadata");
-                }
-
-                var strBytes = ms.ToArray();
-                var data = JsonConvert.DeserializeObject<T>(Encoding.UTF8.GetString(strBytes, 0, strBytes.Length));
-
-                return Tuple.Create(data, metadata);
+                throw new InvalidOperationException("Data type does not match metadata");
             }
+
+            var obj = await data.Stream
+                .ToArray()
+                .Select(b => Encoding.UTF8.GetString(b, 0, b.Length))
+                .Select(JsonConvert.DeserializeObject<T>);
+
+            return new ObjectWithMetadata<T>(obj, data.Metadata);
         }
 
-        public Task<T> LoadObject<T>(StoreLocation location, string snapshot = null)
+        public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
         {
-            return LoadObjectWithMetadata<T>(location, snapshot).ContinueWith(t => t.Result.Item1);
-        }
+            var data = await _store.LoadData(location, snapshot);
+            var metadata = data.Metadata;
+            var stream = data.Stream;
 
-        public async Task<IDictionary<string, string>> LoadData(Stream writeStream, StoreLocation location, string snapshot = null)
-        {
-            IDictionary<string, string> metadata = null;
-            
-            await _store.LoadData(location, m =>
+            // First the decryptor sits on top
+            if (metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey))
             {
-                metadata = m ?? new Dictionary<string, string>();
-
-                // First the decryptor sits on top
-                if (metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey))
+                if (metadata[MetadataConstants.EncryptionMetadataKey] != _encryptor.Algorithm)
                 {
-                    if (metadata[MetadataConstants.EncryptionMetadataKey] != _encryptor.Algorithm)
-                    {
-                        throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
-                    }
-
-                    writeStream = _encryptor.Decrypt(writeStream);
+                    throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
                 }
 
-                // Might need to decompress first too!
-                if (metadata.ContainsKey(MetadataConstants.CompressionMetadataKey))
-                {
-                    if (metadata[MetadataConstants.CompressionMetadataKey] != _compressor.Algorithm)
-                    {
-                        throw new InvalidOperationException("Compression Algorithms do not match, cannot load data");
-                    }
+                stream = _encryptor.Decrypt(stream);
+            }
 
-                    writeStream = _compressor.Decompress(writeStream);
+            // Might need to decompress too!
+            if (metadata.ContainsKey(MetadataConstants.CompressionMetadataKey))
+            {
+                if (metadata[MetadataConstants.CompressionMetadataKey] != _compressor.Algorithm)
+                {
+                    throw new InvalidOperationException("Compression Algorithms do not match, cannot load data");
                 }
 
-                return writeStream;
-            }, snapshot);
+                stream = _compressor.Decompress(stream);
+            }
 
-            // If no file then metadata is null
-            return metadata;
+            return new DataWithMetadata(stream, metadata);
         }
 
-        public Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null)
+        public Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task<StoreLocation> SaveObject<T>(T obj, StoreLocation location, IDictionary<string, string> userMetadata = null, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public Task<StoreLocation> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
-            var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj));
-            using(var ms = new MemoryStream(data))
-            {
-                userMetadata = userMetadata ?? new Dictionary<string, string>();
-                userMetadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
+            var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data)).ToObservable();
+            obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-                return SaveData(ms, location, userMetadata, idGenerator, options);
-            }
+            return SaveData(location, new DataWithMetadata(data, obj.Metadata), idGenerator, options);
         }
 
-        public async Task<StoreLocation> SaveData(Stream data, StoreLocation location, IDictionary<string, string> userMetadata = null, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
-            var metadata = new Dictionary<string, string>();
+            var metadata = new Metadata();
+            var dataStream = data.Stream;
 
             /****************************************************
              *  PREPARE THE STREAM
@@ -153,7 +138,7 @@ namespace Kalix.Leo
                     throw new ArgumentException("Compression option should not be used if no compressor has been implemented", "options");
                 }
 
-                data = _compressor.Compress(data);
+                dataStream = _compressor.Compress(dataStream);
                 metadata.Add(MetadataConstants.CompressionMetadataKey, _compressor.Algorithm);
             }
 
@@ -165,7 +150,7 @@ namespace Kalix.Leo
                     throw new ArgumentException("Encrypt option should not be used if no encryptor has been implemented", "options");
                 }
 
-                data = _encryptor.Encrypt(data);
+                dataStream = _encryptor.Encrypt(dataStream);
                 metadata.Add(MetadataConstants.EncryptionMetadataKey, _encryptor.Algorithm);
             }
 
@@ -187,18 +172,15 @@ namespace Kalix.Leo
             /****************************************************
              *  SAVE METADATA
              * ***************************************************/
-            if(userMetadata != null)
+            foreach(var m in data.Metadata)
             {
-                foreach(var m in userMetadata)
-                {
-                    metadata[m.Key] = m.Value;
-                }
+                metadata[m.Key] = m.Value;
             }
 
             /****************************************************
              *  SAVE THE INITIAL DATA
              * ***************************************************/
-            await _store.SaveData(data, location, metadata);
+            await _store.SaveData(location, new DataWithMetadata(dataStream, metadata));
 
             /****************************************************
              *  POST SAVE TASKS (SNAPSHOT, BACKUP, INDEX)
@@ -236,7 +218,7 @@ namespace Kalix.Leo
             }
         }
 
-        private string GetMessageDetails(StoreLocation location, IDictionary<string, string> metadata)
+        private string GetMessageDetails(StoreLocation location, IMetadata metadata)
         {
             var details = new StoreDataDetails
             {

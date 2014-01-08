@@ -1,9 +1,9 @@
 ﻿using Kalix.Leo.Queue;
 using Kalix.Leo.Storage;
-using Kalix.Leo.Streams;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -20,38 +20,33 @@ namespace Kalix.Leo
             _originalStore = originalStore;
 
             // Setup the listener...
-            _listener = backupQueue.SetupMessageListener(MessageRecieved, uncaughtException, messagesToProcessInParallel);
+            _listener = backupQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
+                .Select(m => Observable
+                    .FromAsync(() => MessageRecieved(m))
+                    .Catch((Func<Exception,IObservable<Unit>>)(e => 
+                    {
+                        if(uncaughtException != null) { uncaughtException(e); }
+                        return Observable.Empty<Unit>();
+                    }))) // Make sure this listener doesnt stop due to errors!
+                .Merge()
+                .Subscribe(); // Start listening
         }
 
         private async Task MessageRecieved(string message)
         {
-            var data = JsonConvert.DeserializeObject<StoreDataDetails>(message);
-            var location = data.GetLocation();
+            var details = JsonConvert.DeserializeObject<StoreDataDetails>(message);
+            var location = details.GetLocation();
 
-            var streamTasks = new List<Task>();
-
-            using (var readWrite = new WriteToReadPipeStream())
+            var data = await _originalStore.LoadData(location);
+            if (data == null)
             {
-                Task saveTask = null;
-
-                var hasFile = await _originalStore.LoadData(location, m => 
-                {
-                    // Make sure to save with the latest metadata
-                    saveTask = _backupStore.SaveData(readWrite, location, m);
-                    return readWrite;
-                });
-
-                if(hasFile)
-                {
-                    // If we have a file the save task will exist
-                    readWrite.FinishWriting();
-                    await saveTask;
-                }
-                else
-                {
-                    // Need to make sure to soft delete in our backup...
-                    await _backupStore.SoftDelete(location);
-                }
+                // Need to make sure to soft delete in our backup...
+                await _backupStore.SoftDelete(location);
+            }
+            else
+            {
+                // Just save it right back into the backup!
+                await _backupStore.SaveData(location, data);
             }
         }
 

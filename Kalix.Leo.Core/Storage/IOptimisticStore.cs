@@ -9,10 +9,9 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Save data to a specified location, but put a lock on it while writing. Does not support multipart...
         /// </summary>
-        /// <param name="data">Read stream of data</param>
+        /// <param name="data">Stream of data and metadata</param>
         /// <param name="location">Location to store the file</param>
-        /// <param name="metadata">Any additional user defined metadata</param>
         /// <returns>Whether the write was successful or not</returns>
-        Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null);
+        Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data);
     }
 }

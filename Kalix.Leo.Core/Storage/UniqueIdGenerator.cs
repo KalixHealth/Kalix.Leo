@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.IO;
+using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,14 +79,13 @@ namespace Kalix.Leo.Storage
             while (retryCount < _maxRetries + 1)
             {
                 string data = null;
-                using (var ms = new MemoryStream())
+
+                var dataStream = await _store.LoadData(_location);
+                if (dataStream != null)
                 {
-                    var success = await _store.LoadData(_location, m => ms);
-                    if(success)
-                    {
-                        var byteData = ms.ToArray();
-                        data = Encoding.UTF8.GetString(byteData, 0, byteData.Length);
-                    }
+                    data = await dataStream.Stream
+                        .ToArray()
+                        .Select(b => Encoding.UTF8.GetString(b, 0, b.Length));
                 }
 
                 long currentId;
@@ -107,17 +107,16 @@ namespace Kalix.Leo.Storage
 
                 var upperLimit = currentId + _rangeSize;
 
-                using (var limitData = new MemoryStream(Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture))))
+                var limitStream = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture)).ToObservable();
+                var limitData = new DataWithMetadata(limitStream);
+                if (await _store.TryOptimisticWrite(_location, limitData))
                 {
-                    if (await _store.TryOptimisticWrite(limitData, _location))
-                    {
-                        // First update currentId
-                        // Then upper limit, this will avoid any need for locks etc
-                        _internalId = currentId;
-                        _upperIdLimit = upperLimit;
+                    // First update currentId
+                    // Then upper limit, this will avoid any need for locks etc
+                    _internalId = currentId;
+                    _upperIdLimit = upperLimit;
 
-                        return;
-                    }
+                    return;
                 }
 
                 retryCount++;

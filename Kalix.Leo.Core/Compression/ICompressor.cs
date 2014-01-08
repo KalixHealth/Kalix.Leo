@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace Kalix.Leo.Compression
 {
@@ -7,17 +8,17 @@ namespace Kalix.Leo.Compression
         string Algorithm { get; }
 
         /// <summary>
-        /// Compress should not execute the underlying stream for maximum efficiancy
+        /// Compress a stream of data
         /// </summary>
-        /// <param name="data">read stream of data to compress</param>
-        /// <returns>Read stream which will read from the data stream and compress it</returns>
-        Stream Compress(Stream data);
+        /// <param name="data">Stream of data to compress</param>
+        /// <returns>Stream of data that will be compressed</returns>
+        IObservable<byte> Compress(IObservable<byte> data);
 
         /// <summary>
-        /// Decompress should not execute the underlying stream for maximum efficiancy
+        /// Decompress a stream of compressed data
         /// </summary>
-        /// <param name="data">Write stream to send data that has been decompressed</param>
-        /// <returns>Write stream that will decompress data sent to it</returns>
-        Stream Decompress(Stream compressedData);
+        /// <param name="data">Stream of compressed data to decompress</param>
+        /// <returns>Stream of data</returns>
+        IObservable<byte> Decompress(IObservable<byte> compressedData);
     }
 }

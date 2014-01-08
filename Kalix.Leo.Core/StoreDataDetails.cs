@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using Kalix.Leo.Storage;
 
 namespace Kalix.Leo
 {
@@ -8,7 +8,7 @@ namespace Kalix.Leo
         public string BasePath { get; set; }
         public long? Id { get; set; }
 
-        public IDictionary<string, string> Metadata { get; set; }
+        public IMetadata Metadata { get; set; }
 
         public StoreLocation GetLocation()
         {

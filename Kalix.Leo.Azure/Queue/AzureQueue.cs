@@ -1,6 +1,7 @@
 ﻿using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
+using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Queue.Messaging
@@ -31,38 +32,42 @@ namespace Kalix.Leo.Queue.Messaging
             return client.SendAsync(message);
         }
 
-        public IDisposable SetupMessageListener(Func<string, Task> executeMessage, Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
+        public IObservable<string> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            // By default use the number of processors
-            var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
-            var client = _factory.CreateQueueClient(_queue);
-
-            var options = new OnMessageOptions
+            return Observable.Create<string>(observer =>
             {
-                AutoComplete = true,
-                MaxConcurrentCalls = prefetchCount
-            };
+                // By default use the number of processors
+                var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
+                var client = _factory.CreateQueueClient(_queue);
 
-            EventHandler<ExceptionReceivedEventArgs> handler = null;
-            if (uncaughtException != null)
-            {
-                handler = new EventHandler<ExceptionReceivedEventArgs>((s, e) => uncaughtException(e.Exception));
-                options.ExceptionReceived += handler;
-            }
-
-            client.OnMessageAsync((m) =>
-            {
-                var data = m.GetBody<string>();
-                return executeMessage(data);
-            }, options);
-
-            return new SimpleDispose(() =>
-            {
-                client.Close();
-                if(handler != null)
+                var options = new OnMessageOptions
                 {
-                    options.ExceptionReceived -= handler;
+                    AutoComplete = true,
+                    MaxConcurrentCalls = prefetchCount
+                };
+
+                EventHandler<ExceptionReceivedEventArgs> handler = null;
+                if (uncaughtException != null)
+                {
+                    handler = new EventHandler<ExceptionReceivedEventArgs>((s, e) => uncaughtException(e.Exception));
+                    options.ExceptionReceived += handler;
                 }
+
+                client.OnMessage((m) =>
+                {
+                    var data = m.GetBody<string>();
+                    observer.OnNext(data);
+                }, options);
+
+                // Return the method to call on dispose
+                return () =>
+                {
+                    client.Close();
+                    if (handler != null)
+                    {
+                        options.ExceptionReceived -= handler;
+                    }
+                };
             });
         }
 
@@ -84,26 +89,6 @@ namespace Kalix.Leo.Queue.Messaging
             if (await ns.QueueExistsAsync(_queue))
             {
                 await ns.DeleteQueueAsync(_queue);
-            }
-        }
-
-        private sealed class SimpleDispose : IDisposable
-        {
-            private readonly Action _onDispose;
-            private bool _isDisposed;
-
-            public SimpleDispose(Action onDispose)
-            {
-                _onDispose = onDispose;
-            }
-
-            public void Dispose()
-            {
-                if (!_isDisposed)
-                {
-                    _onDispose();
-                    _isDisposed = true;
-                }
             }
         }
     }

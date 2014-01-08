@@ -1,4 +1,4 @@
-﻿using System.IO;
+﻿using System;
 
 namespace Kalix.Leo.Encryption
 {
@@ -7,17 +7,17 @@ namespace Kalix.Leo.Encryption
         string Algorithm { get; }
 
         /// <summary>
-        /// Encrypt should not execute the underlying stream for maximum efficiancy
+        /// Encrypt a stream of data
         /// </summary>
-        /// <param name="data">read stream of data to encrypt</param>
-        /// <returns>Read stream which will read from the data stream and encrypt it</returns>
-        Stream Encrypt(Stream data);
+        /// <param name="data">stream of data to encrypt</param>
+        /// <returns>stream of encrypted data</returns>
+        IObservable<byte> Encrypt(IObservable<byte> data);
 
         /// <summary>
-        /// Decrypt should not execute the underlying stream for maximum efficiancy
+        /// Decrypt a stream of encrypted data
         /// </summary>
-        /// <param name="data">Write stream to send data that has been decrypted</param>
-        /// <returns>Write stream that will decrypt data sent to it</returns>
-        Stream Decrypt(Stream encyptedData);
+        /// <param name="data">Stream of data to decrypt</param>
+        /// <returns>Stream of data</returns>
+        IObservable<byte> Decrypt(IObservable<byte> encyptedData);
     }
 }

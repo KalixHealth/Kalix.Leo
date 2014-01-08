@@ -14,11 +14,11 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Save Data to a specified location
         /// </summary>
-        /// <param name="data">Read stream of data</param>
+        /// <param name="data">Stream of data</param>
         /// <param name="location">Location to store the file</param>
         /// <param name="metadata">Any additional user defined metadata</param>
         /// <param name="multipart">Whether to upload the stream in parts, good for large blobs of data</param>
-        Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null, bool multipart = false);
+        Task SaveData(StoreLocation location, DataWithMetadata data, bool? multipart = null);
 
         /// <summary>
         /// Gets the metadata at a certain location
@@ -26,26 +26,26 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to find the metadata</param>
         /// <param name="snapshot">Specific snapshot to find metadata</param>
         /// <returns>Metadata, or null if not found</returns>
-        Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null);
+        Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null);
 
         /// <summary>
-        /// Load data from a specified location into a write stream
+        /// Load data from a specified location
         /// </summary>
         /// <param name="location">Location of the file to load</param>
-        /// <param name="streamPicker">Function to pick a write stream depending on returned metadata</param>
         /// <param name="snapshot">Whether to load a specific snapshot</param>
         /// <returns>Returns whether there was a file found</returns>
-        Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null); 
+        Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null); 
 
         /// <summary>
         /// Find a list of snapshots. Ignores the fact if the file is 'soft' deleted. 
         /// </summary>
         /// <param name="location">The location of the file to find snapshots of</param>
-        /// <returns>List of snapshot dates</returns>
+        /// <returns>List of snapshot dates, not guarenteed to be in any order</returns>
         IObservable<Snapshot> FindSnapshots(StoreLocation location);
 
         /// <summary>
-        /// Finds all non-shapshot files in the specified container, with a path prefix if required
+        /// Finds all non-shapshot files in the specified container, with a path prefix if required.
+        /// Do not find files that are 'soft' deleted
         /// </summary>
         /// <param name="container">Container to search</param>
         /// <param name="prefix">Prefix of the path to filter by</param>

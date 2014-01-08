@@ -2,21 +2,21 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Reactive;
+using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Reactive.Linq;
-using System.Reactive;
 
 namespace Kalix.Leo.Azure.Storage
 {
     public class AzureStore : IOptimisticStore
     {
         private const string IdExtension = ".id";
-        private const string DefaultDeletedKey = "azurestorage_deleted";
+        private const string DefaultDeletedKey = "leo.azurestorage.deleted";
+        private const int AzureBlockSize = 4194304;
 
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
@@ -35,44 +35,50 @@ namespace Kalix.Leo.Azure.Storage
             _deletedKey = deletedKey ?? DefaultDeletedKey;
         }
 
-        public Task SaveData(Stream data, StoreLocation location, IDictionary<string, string> metadata = null, bool multipart = false)
+        public Task SaveData(StoreLocation location, DataWithMetadata data, bool? multipart = null)
         {
             var blob = GetBlockBlob(location);
 
             // Copy the metadata across
-            if (metadata != null)
+            foreach (var m in data.Metadata)
             {
-                foreach (var m in metadata)
-                {
-                    blob.Metadata[m.Key] = m.Value;
-                }
+                blob.Metadata[m.Key] = m.Value;
             }
 
-            return multipart ? SaveDataMultipart(data, blob) : SaveDataSingle(data, blob, false);
+            bool useMulti;
+            if(multipart.HasValue)
+            {
+                useMulti = multipart.Value;
+            }
+            else
+            {
+                // Only use multi by default if the size is greater than 10 blocks...
+                useMulti = data.Metadata.Size.HasValue && data.Metadata.Size.Value > 10 * AzureBlockSize;
+            }
+
+            return SaveDataMultipart(data.Stream, blob);
+            //return useMulti ? SaveDataMultipart(data.Stream, blob) : SaveDataSingle(data.Stream, blob, false);
         }
 
-        public Task<bool> TryOptimisticWrite(Stream data, StoreLocation location, IDictionary<string, string> metadata = null)
+        public Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data)
         {
             var blob = GetBlockBlob(location);
 
             // Copy the metadata across
-            if (metadata != null)
+            foreach (var m in data.Metadata)
             {
-                foreach (var m in metadata)
-                {
-                    blob.Metadata[m.Key] = m.Value;
-                }
+                blob.Metadata[m.Key] = m.Value;
             }
 
-            return SaveDataSingle(data, blob, true);
+            return SaveDataSingle(data.Stream, blob, true);
         }
 
-        private async Task<bool> SaveDataSingle(Stream data, CloudBlockBlob blob, bool isOptimistic)
+        private async Task<bool> SaveDataSingle(IObservable<byte> data, CloudBlockBlob blob, bool isOptimistic)
         {
             try
             {
                 var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-                await blob.UploadFromStreamAsync(data, condition, null, null);
+                await blob.UploadFromStreamAsync(data.ToReadStream(), condition, null, null);
 
                 // Create a snapshot straight away on azure
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
@@ -93,13 +99,38 @@ namespace Kalix.Leo.Azure.Storage
             return true;
         }
 
-        private async Task SaveDataMultipart(Stream data, CloudBlockBlob blob)
+        private async Task SaveDataMultipart(IObservable<byte> data, CloudBlockBlob blob, int blocksInParallel = 4)
         {
-            using (var writeStream = new BlobBlockStream(blob, null, null))
-            {
-                await data.CopyToAsync(writeStream);
-                await Task.Run(() => writeStream.Close());
-            }
+            int block = 0;
+            await data
+                // Group into blocks of the right size to send up to azure
+                .Buffer(AzureBlockSize)
+                .Select(blockBytes =>
+                {
+                    //var blockId = Interlocked.Increment(ref block);
+                    block++;
+                    var blockStr = Convert.ToBase64String(BitConverter.GetBytes(block));
+                    return blob
+                        .PutBlockAsync(blockStr, new MemoryStream(blockBytes.ToArray()), null)
+                        .ContinueWith(t => blockStr);
+                })
+
+                // allow n to run simultaneously
+                .Buffer(blocksInParallel)
+                .Select(t => Task.WhenAll(t))
+
+                // merge it all back together again
+                .Merge()
+                .Select(s => s.ToObservable())
+                .Merge()
+
+                // finish the put
+                .ToList()
+                .Select(blocks =>
+                {
+                    blob.PutBlockList(blocks);
+                    return Unit.Default;
+                });
 
             // Create a snapshot straight away on azure
             // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
@@ -109,7 +140,7 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        public async Task<IDictionary<string, string>> GetMetadata(StoreLocation location, string snapshot = null)
+        public async Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
             try
@@ -129,62 +160,53 @@ namespace Kalix.Leo.Azure.Storage
             return GetActualMetadata(blob);
         }
 
-        public async Task<bool> LoadData(StoreLocation location, Func<IDictionary<string, string>, Stream> streamPicker, string snapshot = null)
+        public Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
-            bool hasCancelledOnPurpose = false;
 
             var cancellation = new CancellationTokenSource();
-            var writeWrapper = new WriteWrapperStreamClass(() =>
-            {
-                var metadata = GetActualMetadata(blob);
-                if(metadata.ContainsKey(_deletedKey))
-                {
-                    hasCancelledOnPurpose = true;
-                    cancellation.Cancel();
-                    return null;
-                }
+            var source = new TaskCompletionSource<DataWithMetadata>();
 
-                // Should have blob metadata by this point?
-                var stream = streamPicker(metadata);
-                if(stream == null)
-                {
-                    hasCancelledOnPurpose = true;
-                    cancellation.Cancel();
-                }
-                return stream;
+            IObservable<byte> data = null;
+            data = Observable.Create<byte>((obs, ct) =>
+            {
+                return obs.UseWriteStream(
+                    async s =>
+                    {
+                        try
+                        {
+                            await blob.DownloadToStreamAsync(s, ct);
+                        }
+                        catch (StorageException e)
+                        {
+                            if (e.RequestInformation.HttpStatusCode == 404)
+                            {
+                                source.TrySetResult(null);
+                            }
+                            else
+                            {
+                                throw;
+                            }
+                        }
+                    },
+                    () =>
+                    {
+                        var metadata = GetActualMetadata(blob);
+                        if (metadata.ContainsKey(_deletedKey))
+                        {
+                            source.TrySetResult(null);
+                            cancellation.Cancel();
+                        }
+                        else
+                        {
+                            source.TrySetResult(new DataWithMetadata(data, metadata));
+                        }
+                    }
+                );
             });
 
-            bool hasFile;
-            try
-            {
-                await blob.DownloadToStreamAsync(writeWrapper, cancellation.Token);
-                hasFile = true;
-            }
-            catch(StorageException e)
-            {
-                if(e.RequestInformation.HttpStatusCode == 404)
-                {
-                    hasFile = false;
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            catch(TaskCanceledException)
-            {
-                if(hasCancelledOnPurpose)
-                {
-                    hasFile = false;
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return hasFile;
+            data.Subscribe(cancellation.Token);
+            return source.Task;
         }
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
@@ -210,10 +232,11 @@ namespace Kalix.Leo.Azure.Storage
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
                 var c = _blobStorage.GetContainerReference(container);
-                return ListBlobs(observer, c, prefix, BlobListingDetails.None, ct);
+                return ListBlobs(observer, c, prefix, BlobListingDetails.Metadata, ct);
             });
 
             return results
+                .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
                 .Select(b =>
                 {
                     long? id = null;
@@ -299,9 +322,9 @@ namespace Kalix.Leo.Azure.Storage
             return c.DeleteIfExistsAsync();
         }
 
-        private IDictionary<string, string> GetActualMetadata(ICloudBlob blob)
+        private IMetadata GetActualMetadata(ICloudBlob blob)
         {
-            var metadata = blob.Metadata;
+            var metadata = new Metadata(blob.Metadata);
 
             if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey) && blob.Properties.LastModified.HasValue)
             {
@@ -348,80 +371,83 @@ namespace Kalix.Leo.Azure.Storage
             return blob;
         }
 
-        private class WriteWrapperStreamClass : Stream
-        {
-            private Lazy<Stream> _writeStream;
+        /// <summary>
+        /// Needed to be able to inject some logic when loading data
+        /// </summary>
+        //private class WriteWrapperStreamClass : Stream
+        //{
+        //    private Lazy<Stream> _writeStream;
 
-            public WriteWrapperStreamClass(Func<Stream> writeStream)
-            {
-                _writeStream = new Lazy<Stream>(writeStream);
-            }
+        //    public WriteWrapperStreamClass(Func<Stream> writeStream)
+        //    {
+        //        _writeStream = new Lazy<Stream>(writeStream);
+        //    }
 
-            public override bool CanRead { get { return false; } }
-            public override bool CanSeek { get { return false; } }
-            public override bool CanWrite { get { return true; } }
+        //    public override bool CanRead { get { return false; } }
+        //    public override bool CanSeek { get { return false; } }
+        //    public override bool CanWrite { get { return true; } }
 
-            public override void Flush()
-            {
-                _writeStream.Value.Flush();
-            }
+        //    public override void Flush()
+        //    {
+        //        _writeStream.Value.Flush();
+        //    }
 
-            public override Task FlushAsync(CancellationToken cancellationToken)
-            {
-                return _writeStream.Value.FlushAsync(cancellationToken);
-            }
+        //    public override Task FlushAsync(CancellationToken cancellationToken)
+        //    {
+        //        return _writeStream.Value.FlushAsync(cancellationToken);
+        //    }
 
-            public override long Length
-            {
-                get { return _writeStream.Value.Length; }
-            }
+        //    public override long Length
+        //    {
+        //        get { return _writeStream.Value.Length; }
+        //    }
 
-            public override long Position
-            {
-                get
-                {
-                    return _writeStream.Value.Position;
-                }
-                set
-                {
-                    throw new NotImplementedException();
-                }
-            }
+        //    public override long Position
+        //    {
+        //        get
+        //        {
+        //            return _writeStream.Value.Position;
+        //        }
+        //        set
+        //        {
+        //            throw new NotImplementedException();
+        //        }
+        //    }
 
-            public override int Read(byte[] buffer, int offset, int count)
-            {
-                throw new NotImplementedException();
-            }
+        //    public override int Read(byte[] buffer, int offset, int count)
+        //    {
+        //        throw new NotImplementedException();
+        //    }
 
-            public override long Seek(long offset, SeekOrigin origin)
-            {
-                throw new NotImplementedException();
-            }
+        //    public override long Seek(long offset, SeekOrigin origin)
+        //    {
+        //        throw new NotImplementedException();
+        //    }
 
-            public override void SetLength(long value)
-            {
-                _writeStream.Value.SetLength(value);
-            }
+        //    public override void SetLength(long value)
+        //    {
+        //        _writeStream.Value.SetLength(value);
+        //    }
 
-            public override void Write(byte[] buffer, int offset, int count)
-            {
-                var stream = _writeStream.Value;
-                if(stream != null)
-                {
-                    stream.Write(buffer, offset, count);
-                }
-            }
+        //    public override void Write(byte[] buffer, int offset, int count)
+        //    {
+        //        var stream = _writeStream.Value;
+        //        if(stream != null)
+        //        {
+        //            stream.Write(buffer, offset, count);
+        //        }
+        //    }
 
-            public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-            {
-                var stream = _writeStream.Value;
-                if (stream != null)
-                {
-                    return stream.WriteAsync(buffer, offset, count, cancellationToken);
-                }
+        //    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        //    {
+        //        var stream = _writeStream.Value;
+        //        if (stream != null)
+        //        {
+        //            return stream.WriteAsync(buffer, offset, count, cancellationToken);
+        //        }
 
-                return Task.FromResult(0);
-            }
-        }
+        //        return Task.FromResult(0);
+        //    }
+        //}
     }
 }
