@@ -60,6 +60,16 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 Assert.AreEqual("othermetadata", metadata["metadata2"]);
             }
 
+            [Test]
+            public void MultiUploadLargeFileIsSuccessful()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(7 * 1024));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+
+                var metadata = GetMetadata(_location);
+                Assert.IsNotNull(metadata);
+            }
+
             private IDictionary<string, string> GetMetadata(StoreLocation location)
             {
                 var resp = _client.GetObjectMetadata(new GetObjectMetadataRequest
@@ -119,6 +129,17 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             {
                 var result = _store.LoadData(_location).Result;
                 Assert.IsNull(result);
+            }
+
+            [Test]
+            public void AllDataLoadsCorrectly()
+            {
+                var data = AmazonTestsHelper.RandomData(1);
+                _store.SaveData(_location, new DataWithMetadata(Observable.Return(data))).Wait();
+
+                var result = _store.LoadData(_location).Result.Stream.ToEnumerable().Single();
+
+                Assert.IsTrue(data.SequenceEqual(result));
             }
         }
 

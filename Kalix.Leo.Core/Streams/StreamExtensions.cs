@@ -17,9 +17,9 @@ namespace System.IO
                 .Select(b => b.ToArray());
         }
 
-        public static IObservable<byte[]> ToObservable(this Stream readStream, int bufferSize, Action disposeAction = null)
+        public static IObservable<byte[]> ToObservable(this Stream readStream, int bufferSize)
         {
-            return ReadStream(readStream, bufferSize, disposeAction).ToObservable(Scheduler.Default);
+            return ReadStream(readStream, bufferSize).ToObservable(Scheduler.Default);
         }
 
         public static async Task UseWriteStream(this IObserver<byte[]> observer, Func<Stream, Task> writeStreamScope, Action firstHit = null)
@@ -38,9 +38,9 @@ namespace System.IO
             }
         }
 
-        private static IEnumerable<byte[]> ReadStream(Stream stream, int bufferSize, Action disposeAction = null)
+        private static IEnumerable<byte[]> ReadStream(Stream stream, int bufferSize)
         {
-            try
+            using (stream)
             {
                 var buffer = new byte[bufferSize];
                 int bytesRead = stream.Read(buffer, 0, bufferSize);
@@ -51,13 +51,6 @@ namespace System.IO
                     yield return data;
 
                     bytesRead = stream.Read(buffer, 0, bufferSize);
-                }
-            }
-            finally
-            {
-                if (disposeAction != null)
-                {
-                    disposeAction();
                 }
             }
         }

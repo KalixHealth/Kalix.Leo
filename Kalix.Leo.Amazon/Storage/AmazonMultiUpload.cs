@@ -13,14 +13,14 @@ namespace Kalix.Leo.Amazon.Storage
         private readonly string _bucket;
         private readonly string _key;
         private readonly Task<string> _uploadId;
-        private readonly List<Task> _blocks;
+        private readonly List<Task<UploadPartResponse>> _blocks;
 
         public AmazonMultiUpload(AmazonS3Client client, string bucket, string key, IMetadata metadata)
         {
             _client = client;
             _bucket = bucket;
             _key = key;
-            _blocks = new List<Task>();
+            _blocks = new List<Task<UploadPartResponse>>();
 
             // Fire up the multipart upload request...
             var req = new InitiateMultipartUploadRequest { BucketName = _bucket, Key = key };
@@ -41,7 +41,7 @@ namespace Kalix.Leo.Amazon.Storage
 
         public async Task Complete()
         {
-            await Task.WhenAll(_blocks).ConfigureAwait(false);
+            var responses = await Task.WhenAll(_blocks).ConfigureAwait(false);
 
             var req = new CompleteMultipartUploadRequest
             {
@@ -50,10 +50,27 @@ namespace Kalix.Leo.Amazon.Storage
                 UploadId = await _uploadId.ConfigureAwait(false),
             };
 
+            req.AddPartETags(responses);
+
             await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
         }
 
-        private async Task PushBlockOfDataInteral(byte[] data, int partNumber)
+        public void Abort()
+        {
+            // No need to cancel if the uploadid call is the thing that failed
+            if (_uploadId.IsFaulted || !_uploadId.IsCompleted) { return; }
+
+            var abortMPURequest = new AbortMultipartUploadRequest
+            {
+                BucketName = _bucket,
+                Key = _key,
+                UploadId = _uploadId.Result
+            };
+
+            _client.AbortMultipartUpload(abortMPURequest);
+        }
+
+        private async Task<UploadPartResponse> PushBlockOfDataInteral(byte[] data, int partNumber)
         {
             var uploadId = await _uploadId.ConfigureAwait(false);
 
@@ -69,7 +86,7 @@ namespace Kalix.Leo.Amazon.Storage
                     PartSize = data.LongLength
                 };
 
-                await _client.UploadPartAsync(uploadReq).ConfigureAwait(false);
+                return await _client.UploadPartAsync(uploadReq).ConfigureAwait(false);
             }
         }
     }

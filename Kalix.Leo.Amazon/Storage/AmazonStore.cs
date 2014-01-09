@@ -1,6 +1,5 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
-using Amazon.S3.Transfer;
 using Kalix.Leo.Storage;
 using System;
 using System.Collections.Generic;
@@ -8,7 +7,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reactive;
-using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,78 +35,87 @@ namespace Kalix.Leo.Amazon.Storage
 
         public async Task SaveData(StoreLocation location, DataWithMetadata data)
         {
-            var key = GetObjectKey(location);
-            byte[] firstHit = null;
-            var uploadLock = new object();
             AmazonMultiUpload uploadClient = null;
-            int partNumber = 1;
 
-            await data.Stream
-                .BufferBytes(ReadWriteBufferSize)
-                .Select(async b =>
-                {
-                    if (firstHit == null)
-                    {
-                        firstHit = b;
-                    }
-                    else
-                    {
-                        var pNum = Interlocked.Increment(ref partNumber);
+            try
+            {
+                var key = GetObjectKey(location);
+                byte[] firstHit = null;
+                var uploadLock = new object();
+                int partNumber = 1;
 
-                        if (uploadClient == null)
+                await data.Stream
+                    .BufferBytes(ReadWriteBufferSize)
+                    .Select(async b =>
+                    {
+                        if (firstHit == null)
                         {
-                            lock (uploadLock)
+                            firstHit = b;
+                        }
+                        else
+                        {
+                            var pNum = Interlocked.Increment(ref partNumber);
+
+                            if (uploadClient == null)
                             {
-                                if (uploadClient == null)
+                                lock (uploadLock)
                                 {
-                                    uploadClient = new AmazonMultiUpload(_client, _bucket, key, data.Metadata);
+                                    if (uploadClient == null)
+                                    {
+                                        uploadClient = new AmazonMultiUpload(_client, _bucket, key, data.Metadata);
+                                    }
                                 }
                             }
+
+                            if (pNum == 2)
+                            {
+                                await uploadClient.PushBlockOfData(firstHit, 1).ConfigureAwait(false);
+                            }
+
+                            // We are doing multipart here!
+                            await uploadClient.PushBlockOfData(b, pNum).ConfigureAwait(false);
                         }
 
-                        if (pNum == 2)
+                        return Unit.Default;
+                    })
+                    .Merge();
+
+                // If we didnt do multimerge then just do single!
+                if (uploadClient == null)
+                {
+                    using (var ms = new MemoryStream(firstHit))
+                    {
+                        var request = new PutObjectRequest
                         {
-                            await uploadClient.PushBlockOfData(firstHit, 1);
+                            AutoCloseStream = false,
+                            AutoResetStreamPosition = false,
+                            BucketName = _bucket,
+                            Key = GetObjectKey(location),
+                            InputStream = ms
+                        };
+
+                        // Copy the metadata across
+                        foreach (var m in data.Metadata)
+                        {
+                            request.Metadata.Add(m.Key, m.Value);
                         }
 
-                        // We are doing multipart here!
-                        await uploadClient.PushBlockOfData(b, pNum);
+                        await _client.PutObjectAsync(request).ConfigureAwait(false);
                     }
-
-                    return Unit.Default;
-                })
-                .Merge();
-
-            // If we didnt do multimerge then just do single!
-            if (uploadClient == null)
-            {
-            }
-            else
-            {
-                await uploadClient.Complete();
-            }
-        }
-
-        private async Task SaveDataSingle(StoreLocation location, byte[] data, IMetadata metadata)
-        {
-            using (var ms = new MemoryStream(data))
-            {
-                var request = new PutObjectRequest
+                }
+                else
                 {
-                    AutoCloseStream = false,
-                    AutoResetStreamPosition = false,
-                    BucketName = _bucket,
-                    Key = GetObjectKey(location),
-                    InputStream = ms
-                };
-
-                // Copy the metadata across
-                foreach (var m in metadata)
+                    await uploadClient.Complete().ConfigureAwait(false);
+                }
+            }
+            catch(Exception)
+            {
+                if(uploadClient != null)
                 {
-                    request.Metadata.Add(m.Key, m.Value);
+                    uploadClient.Abort();
                 }
 
-                await _client.PutObjectAsync(request).ConfigureAwait(false);
+                throw;
             }
         }
 
@@ -139,22 +146,19 @@ namespace Kalix.Leo.Amazon.Storage
 
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
         {
-            var request = new GetObjectRequest
-            {
-                BucketName = _bucket,
-                Key = GetObjectKey(location),
-                VersionId = snapshot
-            };
-
             try
             {
+                var request = new GetObjectRequest
+                {
+                    BucketName = _bucket,
+                    Key = GetObjectKey(location),
+                    VersionId = snapshot
+                };
+
                 var resp = await _client.GetObjectAsync(request);
                 var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
-                var stream = resp.ResponseStream.ToObservable(ReadWriteBufferSize, () =>
-                {
-                    resp.ResponseStream.Dispose();
-                    resp.Dispose();
-                });
+                var stream = resp.ResponseStream
+                    .ToObservable(ReadWriteBufferSize);
 
                 return new DataWithMetadata(stream, metadata);
             }
