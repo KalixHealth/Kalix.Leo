@@ -73,7 +73,6 @@
     <Compile Include="Storage\UniqueIdGenerator.cs" />
     <Compile Include="StoreDataDetails.cs" />
     <Compile Include="StoreLocation.cs" />
-    <Compile Include="Streams\ObservableReadStream.cs" />
     <Compile Include="Streams\ObserverWriteStream.cs" />
     <Compile Include="Streams\StreamExtensions.cs" />
   </ItemGroup>

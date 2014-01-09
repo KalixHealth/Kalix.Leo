@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -17,8 +15,7 @@ namespace Kalix.Leo.Storage
         /// <param name="data">Stream of data</param>
         /// <param name="location">Location to store the file</param>
         /// <param name="metadata">Any additional user defined metadata</param>
-        /// <param name="multipart">Whether to upload the stream in parts, good for large blobs of data</param>
-        Task SaveData(StoreLocation location, DataWithMetadata data, bool? multipart = null);
+        Task SaveData(StoreLocation location, DataWithMetadata data);
 
         /// <summary>
         /// Gets the metadata at a certain location

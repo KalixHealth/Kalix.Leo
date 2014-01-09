@@ -5,6 +5,7 @@ using Kalix.Leo.Storage;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -69,8 +70,12 @@ namespace Kalix.Leo
             }
 
             var obj = await data.Stream
-                .ToArray()
-                .Select(b => Encoding.UTF8.GetString(b, 0, b.Length))
+                .ToList()
+                .Select(b => 
+                {
+                    var all = b.SelectMany(a => a).ToArray();
+                    return Encoding.UTF8.GetString(all, 0, all.Length);
+                })
                 .Select(JsonConvert.DeserializeObject<T>);
 
             return new ObjectWithMetadata<T>(obj, data.Metadata);
@@ -115,10 +120,10 @@ namespace Kalix.Leo
         public Task<StoreLocation> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
-            var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data)).ToObservable();
+            var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, new DataWithMetadata(data, obj.Metadata), idGenerator, options);
+            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), idGenerator, options);
         }
 
         public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)

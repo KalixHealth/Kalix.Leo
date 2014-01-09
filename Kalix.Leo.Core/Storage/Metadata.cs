@@ -33,11 +33,11 @@ namespace Kalix.Leo.Storage
             {
                 if(value.HasValue)
                 {
-                    Remove(MetadataConstants.ModifiedMetadataKey);
+                    this[MetadataConstants.ModifiedMetadataKey] = value.Value.Ticks.ToString();
                 }
                 else
                 {
-                    this[MetadataConstants.ModifiedMetadataKey] = value.Value.Ticks.ToString();
+                    Remove(MetadataConstants.ModifiedMetadataKey);
                 }
             }
         }
@@ -60,11 +60,11 @@ namespace Kalix.Leo.Storage
             {
                 if (value.HasValue)
                 {
-                    Remove(MetadataConstants.SizeMetadataKey);
+                    this[MetadataConstants.SizeMetadataKey] = value.Value.ToString();
                 }
                 else
                 {
-                    this[MetadataConstants.SizeMetadataKey] = value.Value.ToString();
+                    Remove(MetadataConstants.SizeMetadataKey);
                 }
             }
         }

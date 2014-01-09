@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace Kalix.Leo.Storage
 {
@@ -84,8 +85,12 @@ namespace Kalix.Leo.Storage
                 if (dataStream != null)
                 {
                     data = await dataStream.Stream
-                        .ToArray()
-                        .Select(b => Encoding.UTF8.GetString(b, 0, b.Length));
+                        .ToList()
+                        .Select(b => 
+                        {
+                            var all = b.SelectMany(a => a).ToArray();
+                            return Encoding.UTF8.GetString(all, 0, all.Length);
+                        });
                 }
 
                 long currentId;
@@ -107,8 +112,8 @@ namespace Kalix.Leo.Storage
 
                 var upperLimit = currentId + _rangeSize;
 
-                var limitStream = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture)).ToObservable();
-                var limitData = new DataWithMetadata(limitStream);
+                var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
+                var limitData = new DataWithMetadata(Observable.Return(limitBytes));
                 if (await _store.TryOptimisticWrite(_location, limitData))
                 {
                     // First update currentId

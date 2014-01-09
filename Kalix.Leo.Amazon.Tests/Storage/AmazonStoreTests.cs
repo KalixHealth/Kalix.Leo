@@ -1,282 +1,262 @@
-﻿//using Amazon.S3;
-//using Amazon.S3.Model;
-//using Kalix.Leo.Amazon.Storage;
-//using NUnit.Framework;
-//using System.Collections.Generic;
-//using System.Configuration;
-//using System.IO;
-//using System.Linq;
-//using System.Reactive.Linq;
-//using System.Threading;
+﻿using Amazon.S3;
+using Amazon.S3.Model;
+using Kalix.Leo.Amazon.Storage;
+using Kalix.Leo.Storage;
+using NUnit.Framework;
+using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
+using System.Linq;
+using System.Reactive.Linq;
 
-//namespace Kalix.Leo.Amazon.Tests.Storage
-//{
-//    [TestFixture]
-//    public class AmazonStoreTests
-//    {
-//        protected string _bucket;
-//        protected AmazonStore _store;
-//        protected AmazonS3Client _client;
-//        protected StoreLocation _location;
+namespace Kalix.Leo.Amazon.Tests.Storage
+{
+    [TestFixture]
+    public class AmazonStoreTests
+    {
+        protected string _bucket;
+        protected AmazonStore _store;
+        protected AmazonS3Client _client;
+        protected StoreLocation _location;
 
-//        [SetUp]
-//        public virtual void Init()
-//        {
-//            _bucket = ConfigurationManager.AppSettings["TestBucket"];
-//            _client = AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AmazonStoreTests.testdata");
-//            _location = new StoreLocation("kalix-leo-tests", "AmazonStoreTests.testdata");
-//            _store = new AmazonStore(_client, _bucket);
-//        }
-        
-//        [TestFixture]
-//        public class SaveDataMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void HasMetadataCorrectlySavesIt()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata1", "somemetadata" } }).Wait();
+        [SetUp]
+        public virtual void Init()
+        {
+            _bucket = ConfigurationManager.AppSettings["TestBucket"];
+            _client = AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AmazonStoreTests.testdata");
+            _location = new StoreLocation("kalix-leo-tests", "AmazonStoreTests.testdata");
+            _store = new AmazonStore(_client, _bucket);
+        }
 
-//                var metadata = GetMetadata(_location);
-//                Assert.AreEqual("somemetadata", metadata["metadata1"]);
-//            }
+        [TestFixture]
+        public class SaveDataMethod : AmazonStoreTests
+        {
+            [Test]
+            public void HasMetadataCorrectlySavesIt()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "somemetadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-//            [Test]
-//            public void AlwaysOverridesMetadata()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata1", "somemetadata" } }).Wait();
-                
-//                data.Position = 0;
-//                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata2", "othermetadata" } }).Wait();
+                var metadata = GetMetadata(_location);
+                Assert.AreEqual("somemetadata", metadata["metadata1"]);
+            }
 
-//                var metadata = GetMetadata(_location);
-//                Assert.IsFalse(metadata.ContainsKey("metadata1"));
-//                Assert.AreEqual("othermetadata", metadata["metadata2"]);
-//            }
+            [Test]
+            public void AlwaysOverridesMetadata()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "somemetadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-//            private IDictionary<string, string> GetMetadata(StoreLocation location)
-//            {
-//                var resp = _client.GetObjectMetadata(new GetObjectMetadataRequest
-//                {
-//                    BucketName = _bucket,
-//                    Key = Path.Combine(location.Container, location.BasePath),
-//                });
+                var m2 = new Metadata();
+                m2["metadata2"] = "othermetadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m2)).Wait();
 
-//                return resp.Metadata.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => resp.Metadata[s]);
-//            }
-//        }
+                var metadata = GetMetadata(_location);
+                Assert.IsFalse(metadata.ContainsKey("metadata1"));
+                Assert.AreEqual("othermetadata", metadata["metadata2"]);
+            }
 
-//        [TestFixture]
-//        public class GetMetadataMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void NoFileReturnsNull()
-//            {
-//                var result = _store.GetMetadata(_location).Result;
-//                Assert.IsNull(result);
-//            }
+            private IDictionary<string, string> GetMetadata(StoreLocation location)
+            {
+                var resp = _client.GetObjectMetadata(new GetObjectMetadataRequest
+                {
+                    BucketName = _bucket,
+                    Key = Path.Combine(location.Container, location.BasePath),
+                });
 
-//            [Test]
-//            public void FindsMetadataIncludingSizeAndLength()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string>() { { "metadata1", "somemetadata" } }).Wait();
+                return resp.Metadata.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => resp.Metadata[s]);
+            }
+        }
 
-//                var result = _store.GetMetadata(_location).Result;
+        [TestFixture]
+        public class GetMetadataMethod : AmazonStoreTests
+        {
+            [Test]
+            public void NoFileReturnsNull()
+            {
+                var result = _store.GetMetadata(_location).Result;
+                Assert.IsNull(result);
+            }
 
-//                Assert.AreEqual("1024", result[MetadataConstants.SizeMetadataKey]);
-//                Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
-//                Assert.AreEqual("somemetadata", result["metadata1"]);
-//            }
-//        }
+            [Test]
+            public void FindsMetadataIncludingSizeAndLength()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "somemetadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-//        [TestFixture]
-//        public class LoadDataMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void NullStreamCancelsTheDownload()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
+                var result = _store.GetMetadata(_location).Result;
 
-//                var hasFile = _store.LoadData(_location, m => null).Result;
-//                Assert.IsFalse(hasFile);
-//            }
+                Assert.AreEqual("1024", result[MetadataConstants.SizeMetadataKey]);
+                Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
+                Assert.AreEqual("somemetadata", result["metadata1"]);
+            }
+        }
 
-//            [Test]
-//            public void MetadataIsTransferedWhenSelectingAStream()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
+        [TestFixture]
+        public class LoadDataMethod : AmazonStoreTests
+        {
+            [Test]
+            public void MetadataIsTransferedWhenSelectingAStream()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "metadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-//                string metadata = null;
-//                var result = _store.LoadData(_location, m =>
-//                {
-//                    metadata = m["metadata1"];
-//                    return new MemoryStream();
-//                }).Result;
+                var result = _store.LoadData(_location).Result;
 
-//                Assert.IsTrue(result);
-//                Assert.AreEqual("metadata", metadata);
-//            }
+                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+            }
 
-//            [Test]
-//            public void NoFileReturnsFalse()
-//            {
-//                var result = _store.LoadData(_location, m => null).Result;
-//                Assert.IsFalse(result);
-//            }
-//        }
+            [Test]
+            public void NoFileReturnsFalse()
+            {
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
+            }
+        }
 
-//        [TestFixture]
-//        public class FindSnapshotsMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void NoSnapshotsReturnsEmpty()
-//            {
-//                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+        [TestFixture]
+        public class FindSnapshotsMethod : AmazonStoreTests
+        {
+            [Test]
+            public void NoSnapshotsReturnsEmpty()
+            {
+                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-//                Assert.AreEqual(0, snapshots.Count());
-//            }
+                Assert.AreEqual(0, snapshots.Count());
+            }
 
-//            [Test]
-//            public void SingleSnapshotCanBeFound()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
+            [Test]
+            public void SingleSnapshotCanBeFound()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "metadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-//                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-//                Assert.AreEqual(1, snapshots.Count());
-//            }
+                Assert.AreEqual(1, snapshots.Count());
+            }
 
-//            [Test]
-//            public void SubItemBlobSnapshotsAreNotIncluded()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
+            [Test]
+            public void SubItemBlobSnapshotsAreNotIncluded()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
-//                AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AzureStoreTests.testdata\\subitem.data");
-//                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata\\subitem.data");
-//                data.Position = 0;
+                AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AzureStoreTests.testdata\\subitem.data");
+                var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata\\subitem.data");
 
-//                _store.SaveData(data, location2).Wait();
+                _store.SaveData(location2, new DataWithMetadata(data)).Wait();
 
-//                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+                var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-//                Assert.AreEqual(1, snapshots.Count());
-//            }
-//        }
+                Assert.AreEqual(1, snapshots.Count());
+            }
+        }
 
-//        [TestFixture]
-//        public class LoadDataMethodWithSnapshot : AmazonStoreTests
-//        {
-//            [Test]
-//            public void NullStreamCancelsTheDownload()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
-//                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+        [TestFixture]
+        public class LoadDataMethodWithSnapshot : AmazonStoreTests
+        {
+            [Test]
+            public void MetadataIsTransferedWhenSelectingAStream()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                var m = new Metadata();
+                m["metadata1"] = "metadata";
+                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-//                var hasFile = _store.LoadData(_location, m => null, shapshot).Result;
-//                Assert.IsFalse(hasFile);
-//            }
+                var result = _store.LoadData(_location, shapshot).Result;
 
-//            [Test]
-//            public void MetadataIsTransferedWhenSelectingAStream()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location, new Dictionary<string, string> { { "metadata1", "metadata" } }).Wait();
-//                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+            }
 
-//                string metadata = null;
-//                _store.LoadData(_location, m =>
-//                {
-//                    metadata = m["metadata1"];
-//                    return new MemoryStream();
-//                }, shapshot).Wait();
+            [Test]
+            public void NoFileReturnsFalse()
+            {
+                // Had to find a valid version number!
+                var result = _store.LoadData(_location, "ffwBujO.zXJtBw9dpKcV2WeJ3XhRwR2x").Result;
+                Assert.IsNull(result);
+            }
+        }
 
-//                Assert.AreEqual("metadata", metadata);
-//            }
+        [TestFixture]
+        public class SoftDeleteMethod : AmazonStoreTests
+        {
+            [Test]
+            public void BlobThatDoesNotExistShouldNotThrowError()
+            {
+                _store.SoftDelete(_location).Wait();
+            }
 
-//            [Test]
-//            public void NoFileReturnsFalse()
-//            {
-//                // Had to find a valid version number!
-//                var result = _store.LoadData(_location, m => null, "ffwBujO.zXJtBw9dpKcV2WeJ3XhRwR2x").Result;
-//                Assert.IsFalse(result);
-//            }
-//        }
+            [Test]
+            public void BlobThatIsSoftDeletedShouldNotBeLoadable()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
-//        [TestFixture]
-//        public class SoftDeleteMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void BlobThatDoesNotExistShouldNotThrowError()
-//            {
-//                _store.SoftDelete(_location).Wait();
-//            }
+                _store.SoftDelete(_location).Wait();
 
-//            [Test]
-//            public void BlobThatIsSoftDeletedShouldNotBeLoadable()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
+            }
 
-//                _store.SoftDelete(_location).Wait();
+            [Test]
+            public void ShouldNotDeleteSnapshots()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-//                var result = _store.LoadData(_location, m => null).Result;
-//                Assert.IsFalse(result);
-//            }
+                _store.SoftDelete(_location).Wait();
 
-//            [Test]
-//            public void ShouldNotDeleteSnapshots()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
-//                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+                var result = _store.LoadData(_location, shapshot).Result;
+                Assert.IsNotNull(result);
+            }
+        }
 
-//                _store.SoftDelete(_location).Wait();
+        [TestFixture]
+        public class PermanentDeleteMethod : AmazonStoreTests
+        {
+            [Test]
+            public void BlobThatDoesNotExistShouldNotThrowError()
+            {
+                _store.PermanentDelete(_location).Wait();
+            }
 
-//                var result = _store.LoadData(_location, m => new MemoryStream(), shapshot).Result;
-//                Assert.IsTrue(result);
-//            }
-//        }
+            [Test]
+            public void BlobThatIsSoftDeletedShouldNotBeLoadable()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
-//        [TestFixture]
-//        public class PermanentDeleteMethod : AmazonStoreTests
-//        {
-//            [Test]
-//            public void BlobThatDoesNotExistShouldNotThrowError()
-//            {
-//                _store.PermanentDelete(_location).Wait();
-//            }
+                _store.PermanentDelete(_location).Wait();
 
-//            [Test]
-//            public void BlobThatIsSoftDeletedShouldNotBeLoadable()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
+            }
 
-//                _store.PermanentDelete(_location).Wait();
+            [Test]
+            public void ShouldDeleteAllSnapshots()
+            {
+                var data = Observable.Return(AmazonTestsHelper.RandomData(1));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-//                var result = _store.LoadData(_location, m => null).Result;
-//                Assert.IsFalse(result);
-//            }
+                _store.PermanentDelete(_location).Wait();
 
-//            [Test]
-//            public void ShouldDeleteAllSnapshots()
-//            {
-//                var data = new MemoryStream(AmazonTestsHelper.RandomData(1));
-//                _store.SaveData(data, _location).Wait();
-//                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
-
-//                _store.PermanentDelete(_location).Wait();
-
-//                var result = _store.LoadData(_location, m => new MemoryStream(), shapshot).Result;
-//                Assert.IsFalse(result);
-//            }
-//        }
-//    }
-//}
+                var result = _store.LoadData(_location, shapshot).Result;
+                Assert.IsNull(result);
+            }
+        }
+    }
+}

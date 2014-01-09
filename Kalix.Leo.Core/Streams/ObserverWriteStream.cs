@@ -7,10 +7,10 @@ namespace Kalix.Leo.Streams
 {
     public class ObserverWriteStream : Stream
     {
-        private readonly IObserver<byte> _observer;
+        private readonly IObserver<byte[]> _observer;
         private readonly Lazy<bool> _firstHit;
 
-        public ObserverWriteStream(IObserver<byte> observer, Action firstHit = null)
+        public ObserverWriteStream(IObserver<byte[]> observer, Action firstHit = null)
         {
             _observer = observer;
             _firstHit = new Lazy<bool>(() =>
@@ -48,10 +48,9 @@ namespace Kalix.Leo.Streams
         public override void Write(byte[] buffer, int offset, int count)
         {
             var dummy = _firstHit.Value;
-            for (int i = 0; i < count; i++)
-            {
-                _observer.OnNext(buffer[offset + i]);
-            }
+            var data = new byte[count];
+            Buffer.BlockCopy(buffer, offset, data, 0, count);
+            _observer.OnNext(data);
         }
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
