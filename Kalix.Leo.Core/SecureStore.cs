@@ -63,22 +63,24 @@ namespace Kalix.Leo
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null)
         {
-            var data = await LoadData(location, snapshot);
-            if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
+            using (var data = await LoadData(location, snapshot))
             {
-                throw new InvalidOperationException("Data type does not match metadata");
-            }
-
-            var obj = await data.Stream
-                .ToList()
-                .Select(b => 
+                if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
                 {
-                    var all = b.SelectMany(a => a).ToArray();
-                    return Encoding.UTF8.GetString(all, 0, all.Length);
-                })
-                .Select(JsonConvert.DeserializeObject<T>);
+                    throw new InvalidOperationException("Data type does not match metadata");
+                }
 
-            return new ObjectWithMetadata<T>(obj, data.Metadata);
+                var obj = await data.Stream
+                    .ToList()
+                    .Select(b =>
+                    {
+                        var all = b.SelectMany(a => a).ToArray();
+                        return Encoding.UTF8.GetString(all, 0, all.Length);
+                    })
+                    .Select(JsonConvert.DeserializeObject<T>);
+
+                return new ObjectWithMetadata<T>(obj, data.Metadata);
+            }
         }
 
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
@@ -109,7 +111,7 @@ namespace Kalix.Leo
                 stream = _compressor.Decompress(stream);
             }
 
-            return new DataWithMetadata(stream, metadata);
+            return new DataWithMetadata(stream, metadata, () => data.Dispose());
         }
 
         public Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)

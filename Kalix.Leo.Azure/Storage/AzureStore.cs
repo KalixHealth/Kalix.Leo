@@ -2,12 +2,11 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reactive;
-using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -39,47 +38,81 @@ namespace Kalix.Leo.Azure.Storage
 
         public Task SaveData(StoreLocation location, DataWithMetadata data)
         {
-            var blob = GetBlockBlob(location);
-
-            // Copy the metadata across
-            foreach (var m in data.Metadata)
-            {
-                blob.Metadata[m.Key] = m.Value;
-            }
-
-            bool useMulti;
-            if (multipart.HasValue)
-            {
-                useMulti = multipart.Value;
-            }
-            else
-            {
-                // Only use multi by default if the size is greater than 10 blocks...
-                useMulti = !length.HasValue || length.Value > 10 * AzureBlockSize;
-            }
-
-            return useMulti ? SaveDataMultipart(data.Stream, blob) : SaveDataSingle(data.Stream, blob, false);
+            return SaveDataInternal(location, data, false);
         }
 
         public Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data)
         {
-            var blob = GetBlockBlob(location);
-
-            // Copy the metadata across
-            foreach (var m in data.Metadata)
-            {
-                blob.Metadata[m.Key] = m.Value;
-            }
-
-            return SaveDataSingle(data.Stream, blob, true);
+            return SaveDataInternal(location, data, true);
         }
 
-        private async Task<bool> SaveDataSingle(IObservable<byte[]> data, CloudBlockBlob blob, bool isOptimistic)
+        private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)
         {
             try
             {
+                var blob = GetBlockBlob(location);
+
+                // Copy the metadata across
+                foreach (var m in data.Metadata)
+                {
+                    blob.Metadata[m.Key] = m.Value;
+                }
+
                 var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-                await blob.UploadFromStreamAsync(data.ToReadStream(), condition, null, null);
+
+                byte[] firstHit = null;
+                var bag = new ConcurrentBag<string>();
+                int partNumber = 1;
+
+                await data.Stream
+                    .BufferBytes(AzureBlockSize)
+                    .Select(async b =>
+                    {
+                        if (firstHit == null)
+                        {
+                            firstHit = b;
+                        }
+                        else
+                        {
+                            var pNum = Interlocked.Increment(ref partNumber);
+
+                            string blockStr;
+                            if (pNum == 2)
+                            {
+                                blockStr = Convert.ToBase64String(BitConverter.GetBytes(1));
+                                using (var ms = new MemoryStream(firstHit))
+                                {
+                                    await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
+                                }
+                                bag.Add(blockStr);
+                            }
+
+                            // We are doing multipart here!
+                            blockStr = Convert.ToBase64String(BitConverter.GetBytes(pNum));
+                            using (var ms = new MemoryStream(b))
+                            {
+                                await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
+                            }
+                            bag.Add(blockStr);
+                        }
+
+                        return Unit.Default;
+                    })
+                    .Merge();
+
+                // Did we do multimerge or not?
+                if (bag.Any())
+                {
+                    await blob.PutBlockListAsync(bag).ConfigureAwait(false);
+                }
+                else
+                {
+                    // If we didnt do multimerge then just do single!
+                    using (var ms = new MemoryStream(firstHit))
+                    {
+                        await blob.UploadFromStreamAsync(ms, condition, null, null).ConfigureAwait(false);
+                    }
+                }
 
                 // Create a snapshot straight away on azure
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
@@ -98,45 +131,6 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             return true;
-        }
-
-        private async Task SaveDataMultipart(IObservable<byte[]> data, CloudBlockBlob blob)
-        {
-            int block = 0;
-            await data
-                // Group into blocks of the right size to send up to azure
-                .BufferBytes(AzureBlockSize)
-                .Select(dataBytes =>
-                {
-                    var blockNum = Interlocked.Increment(ref block);
-                    var blockStr = Convert.ToBase64String(BitConverter.GetBytes(blockNum));
-                    var ms = new MemoryStream(dataBytes);
-                    return blob
-                        .PutBlockAsync(blockStr, ms, null)
-                        .ContinueWith(t =>
-                        {
-                            ms.Dispose();
-                            return blockStr;
-                        });
-                })
-
-                // merge it all back together again
-                .Merge()
-
-                // finish the put
-                .ToList()
-                .Select(blocks =>
-                {
-                    blob.PutBlockList(blocks);
-                    return Unit.Default;
-                });
-
-            // Create a snapshot straight away on azure
-            // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
-            if (_enableSnapshots)
-            {
-                await blob.CreateSnapshotAsync();
-            }
         }
 
         public async Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)

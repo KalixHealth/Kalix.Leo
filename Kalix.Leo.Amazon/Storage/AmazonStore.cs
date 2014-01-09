@@ -157,10 +157,9 @@ namespace Kalix.Leo.Amazon.Storage
 
                 var resp = await _client.GetObjectAsync(request);
                 var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
-                var stream = resp.ResponseStream
-                    .ToObservable(ReadWriteBufferSize);
+                var stream = resp.ResponseStream.ToObservable(ReadWriteBufferSize);
 
-                return new DataWithMetadata(stream, metadata);
+                return new DataWithMetadata(stream, metadata, () => resp.Dispose());
             }
             catch (AmazonS3Exception e)
             {

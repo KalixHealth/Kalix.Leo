@@ -119,16 +119,19 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 m["metadata1"] = "metadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-                var result = _store.LoadData(_location).Result;
-
-                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                }
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -137,9 +140,11 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 _store.SaveData(_location, new DataWithMetadata(Observable.Return(data))).Wait();
 
-                var result = _store.LoadData(_location).Result.Stream.ToEnumerable().Single();
-
-                Assert.IsTrue(data.SequenceEqual(result));
+               
+                using(var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsTrue(data.SequenceEqual(result.Stream.ToEnumerable().Single()));
+                }
             }
         }
 
@@ -196,17 +201,20 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-                var result = _store.LoadData(_location, shapshot).Result;
-
-                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                using (var result = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                }
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
                 // Had to find a valid version number!
-                var result = _store.LoadData(_location, "ffwBujO.zXJtBw9dpKcV2WeJ3XhRwR2x").Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location, "ffwBujO.zXJtBw9dpKcV2WeJ3XhRwR2x").Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
         }
 
@@ -227,8 +235,10 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
                 _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -240,8 +250,10 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
                 _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, shapshot).Result;
-                Assert.IsNotNull(result);
+                using (var result = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.IsNotNull(result);
+                }
             }
         }
 
@@ -262,8 +274,10 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
                 _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -275,8 +289,10 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
                 _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, shapshot).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
         }
     }

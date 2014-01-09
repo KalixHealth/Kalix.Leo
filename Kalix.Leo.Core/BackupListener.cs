@@ -37,16 +37,18 @@ namespace Kalix.Leo
             var details = JsonConvert.DeserializeObject<StoreDataDetails>(message);
             var location = details.GetLocation();
 
-            var data = await _originalStore.LoadData(location);
-            if (data == null)
+            using (var data = await _originalStore.LoadData(location))
             {
-                // Need to make sure to soft delete in our backup...
-                await _backupStore.SoftDelete(location);
-            }
-            else
-            {
-                // Just save it right back into the backup!
-                await _backupStore.SaveData(location, data);
+                if (data == null)
+                {
+                    // Need to make sure to soft delete in our backup...
+                    await _backupStore.SoftDelete(location);
+                }
+                else
+                {
+                    // Just save it right back into the backup!
+                    await _backupStore.SaveData(location, data);
+                }
             }
         }
 

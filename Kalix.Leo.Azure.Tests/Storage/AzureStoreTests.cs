@@ -95,16 +95,19 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 m["metadata1"] = "metadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-                var result = _store.LoadData(_location).Result;
-
-                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+                }
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -115,8 +118,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 m["leo.azurestorage.deleted"] = DateTime.UtcNow.Ticks.ToString();
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
         }
 
@@ -173,16 +178,19 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-                var res = _store.LoadData(_location, shapshot).Result;
-
-                Assert.AreEqual("metadata", res.Metadata["metadata1"]);
+                using (var res = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.AreEqual("metadata", res.Metadata["metadata1"]);
+                }
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location, DateTime.UtcNow.Ticks.ToString()).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location, DateTime.UtcNow.Ticks.ToString()).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
         }
 
@@ -203,8 +211,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -216,8 +226,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.SoftDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, shapshot).Result;
-                Assert.IsNotNull(result);
+                using (var result = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.IsNotNull(result);
+                }
             }
         }
 
@@ -238,8 +250,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadData(_location).Result;
-                Assert.IsNull(result);
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsNull(result);
+                }
             }
 
             [Test]
@@ -251,8 +265,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _store.PermanentDelete(_location).Wait();
 
-                var result = _store.LoadData(_location, shapshot).Result;
-                Assert.IsNotNull(result);
+                using (var result = _store.LoadData(_location, shapshot).Result)
+                {
+                    Assert.IsNotNull(result);
+                }
             }
         }
     }

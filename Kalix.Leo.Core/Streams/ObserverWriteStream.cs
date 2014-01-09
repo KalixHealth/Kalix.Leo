@@ -8,16 +8,10 @@ namespace Kalix.Leo.Streams
     public class ObserverWriteStream : Stream
     {
         private readonly IObserver<byte[]> _observer;
-        private readonly Lazy<bool> _firstHit;
 
-        public ObserverWriteStream(IObserver<byte[]> observer, Action firstHit = null)
+        public ObserverWriteStream(IObserver<byte[]> observer)
         {
             _observer = observer;
-            _firstHit = new Lazy<bool>(() =>
-            {
-                if (firstHit != null) { firstHit(); }
-                return true;
-            });
         }
 
         public override bool CanRead
@@ -47,7 +41,6 @@ namespace Kalix.Leo.Streams
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            var dummy = _firstHit.Value;
             var data = new byte[count];
             Buffer.BlockCopy(buffer, offset, data, 0, count);
             _observer.OnNext(data);
