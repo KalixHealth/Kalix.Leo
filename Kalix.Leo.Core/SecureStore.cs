@@ -14,13 +14,13 @@ namespace Kalix.Leo
 {
     public class SecureStore : ISecureStore
     {
-        private readonly IStore _store;
+        private readonly IOptimisticStore _store;
         private readonly IQueue _backupQueue;
         private readonly IQueue _indexQueue;
         private readonly IEncryptor _encryptor;
         private readonly ICompressor _compressor;
 
-        public SecureStore(IStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
+        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
         {
             if (_store == null) { throw new ArgumentNullException("writeStore"); }
 
@@ -130,7 +130,7 @@ namespace Kalix.Leo
 
         public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
-            var metadata = new Metadata();
+            var metadata = new Metadata(data.Metadata);
             var dataStream = data.Stream;
 
             /****************************************************
@@ -148,6 +148,11 @@ namespace Kalix.Leo
                 dataStream = _compressor.Compress(dataStream);
                 metadata.Add(MetadataConstants.CompressionMetadataKey, _compressor.Algorithm);
             }
+            else
+            {
+                // Make sure to remove to not confuse loaders!
+                metadata.Remove(MetadataConstants.CompressionMetadataKey);
+            }
 
             // Next is encryption
             if(options.HasFlag(SecureStoreOptions.Encrypt))
@@ -159,6 +164,11 @@ namespace Kalix.Leo
 
                 dataStream = _encryptor.Encrypt(dataStream);
                 metadata.Add(MetadataConstants.EncryptionMetadataKey, _encryptor.Algorithm);
+            }
+            else
+            {
+                // Make sure to remove to not confuse loaders!
+                metadata.Remove(MetadataConstants.EncryptionMetadataKey);
             }
 
             /****************************************************
@@ -174,14 +184,6 @@ namespace Kalix.Leo
 
                 var id = await idGenerator.NextId();
                 location = new StoreLocation(location.Container, location.BasePath, id);
-            }
-
-            /****************************************************
-             *  SAVE METADATA
-             * ***************************************************/
-            foreach(var m in data.Metadata)
-            {
-                metadata[m.Key] = m.Value;
             }
 
             /****************************************************
@@ -223,6 +225,16 @@ namespace Kalix.Leo
             {
                 return _store.PermanentDelete(location);
             }
+        }
+
+        public Task<IDisposable> Lock(StoreLocation location)
+        {
+            return _store.Lock(location);
+        }
+
+        public IUniqueIdGenerator GetIdGenerator(StoreLocation location)
+        {
+            return new UniqueIdGenerator(_store, location);
         }
 
         private string GetMessageDetails(StoreLocation location, IMetadata metadata)

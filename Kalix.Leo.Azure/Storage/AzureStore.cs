@@ -7,6 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reactive;
+using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,7 +18,7 @@ namespace Kalix.Leo.Azure.Storage
     public class AzureStore : IOptimisticStore
     {
         private const string IdExtension = ".id";
-        private const string DefaultDeletedKey = "leo.azurestorage.deleted";
+        private const string DefaultDeletedKey = "leodeleted";
         private const int AzureBlockSize = 4194304;
 
         private readonly CloudBlobClient _blobStorage;
@@ -44,6 +46,59 @@ namespace Kalix.Leo.Azure.Storage
         public Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data)
         {
             return SaveDataInternal(location, data, true);
+        }
+
+        public async Task<IDisposable> Lock(StoreLocation location)
+        {
+            var blob = GetBlockBlob(location);
+
+            string leaseId;
+
+            try
+            {
+                leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                // If we have a conflict this blob is already locked...
+                if(e.RequestInformation.HttpStatusCode == 409)
+                {
+                    return null;
+                }
+
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    leaseId = null;
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            // May not have had a blob pushed...
+            if (leaseId == null)
+            {
+                using (var stream = new MemoryStream(new byte[1]))
+                {
+                    await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                }
+                leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
+            }
+
+            var condition = AccessCondition.GenerateLeaseCondition(leaseId);
+            var release = Disposable.Create(() => { blob.ReleaseLease(condition); });
+
+            // Every 40 secs keep the lock renewed
+            var keepAlive = Observable
+                .Interval(TimeSpan.FromSeconds(40), Scheduler.Default)
+                .Subscribe(
+                    _ => { blob.RenewLease(condition); }, 
+                    () => { release.Dispose(); }
+                );
+
+
+            return new CompositeDisposable(keepAlive, release);
         }
 
         private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)

@@ -24,5 +24,9 @@ namespace Kalix.Leo
 
         IObservable<Snapshot> FindSnapshots(StoreLocation location);
         IObservable<StoreLocation> FindFiles(string container, string prefix = null);
+
+        Task<IDisposable> Lock(StoreLocation location);
+
+        IUniqueIdGenerator GetIdGenerator(StoreLocation location);
     }
 }

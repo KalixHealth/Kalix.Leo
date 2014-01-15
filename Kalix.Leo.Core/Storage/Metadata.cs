@@ -46,10 +46,10 @@ namespace Kalix.Leo.Storage
         {
             get
             {
-                if (ContainsKey(MetadataConstants.ModifiedMetadataKey))
+                if (ContainsKey(MetadataConstants.SizeMetadataKey))
                 {
                     long size;
-                    if (long.TryParse(this[MetadataConstants.ModifiedMetadataKey], out size))
+                    if (long.TryParse(this[MetadataConstants.SizeMetadataKey], out size))
                     {
                         return size;
                     }

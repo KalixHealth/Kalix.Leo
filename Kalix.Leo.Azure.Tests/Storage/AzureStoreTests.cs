@@ -56,6 +56,15 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
                 Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
             }
+
+            [Test]
+            public void MultiUploadLargeFileIsSuccessful()
+            {
+                var data = Observable.Return(AzureTestsHelper.RandomData(7));
+                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+
+                Assert.IsTrue(_blob.Exists());
+            }
         }
 
         [TestFixture]
@@ -111,16 +120,28 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
-            public void FileMarkedAsDeletedReturnsFalse()
+            public void FileMarkedAsDeletedReturnsNull()
             {
                 var data = Observable.Return(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
-                m["leo.azurestorage.deleted"] = DateTime.UtcNow.Ticks.ToString();
+                m["leodeleted"] = DateTime.UtcNow.Ticks.ToString();
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
                 using (var result = _store.LoadData(_location).Result)
                 {
                     Assert.IsNull(result);
+                }
+            }
+
+            [Test]
+            public void AllDataLoadsCorrectly()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, new DataWithMetadata(Observable.Return(data))).Wait();
+
+                using (var result = _store.LoadData(_location).Result)
+                {
+                    Assert.IsTrue(data.SequenceEqual(result.Stream.ToEnumerable().SelectMany(b => b)));
                 }
             }
         }
@@ -267,7 +288,31 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 using (var result = _store.LoadData(_location, shapshot).Result)
                 {
-                    Assert.IsNotNull(result);
+                    Assert.IsNull(result);
+                }
+            }
+        }
+
+        [TestFixture]
+        public class LockMethod : AzureStoreTests
+        {
+            [Test]
+            public void LockSuceedsEvenIfNoFile()
+            {
+                using(var l = _store.Lock(_location).Result)
+                {
+                    Assert.IsNotNull(l);
+                }
+            }
+
+            [Test]
+            public void IfAlreadyLockedOtherLocksFail()
+            {
+                using(var l = _store.Lock(_location).Result)
+                using(var l2 = _store.Lock(_location).Result)
+                {
+                    Assert.IsNotNull(l);
+                    Assert.IsNull(l2);
                 }
             }
         }

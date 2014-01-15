@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core", "Kalix.Leo.Core\Kalix.Leo.Core.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
@@ -23,6 +25,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon.Tests", "Kalix.Leo.Amazon.Tests\Kalix.Leo.Amazon.Tests.csproj", "{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene", "Kalix.Leo.Lucene\Kalix.Leo.Lucene.csproj", "{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene.Tests", "Kalix.Leo.Lucene.Tests\Kalix.Leo.Lucene.Tests.csproj", "{C68B0680-B5D3-4D6B-993A-4844E94E4C84}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -58,6 +62,10 @@ Global
 		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -66,5 +74,6 @@ Global
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 		{EC411333-995F-423A-8700-A98962D79928} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
+		{C68B0680-B5D3-4D6B-993A-4844E94E4C84} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 	EndGlobalSection
 EndGlobal

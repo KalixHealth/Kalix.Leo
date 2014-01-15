@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
+﻿using System;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -13,5 +12,12 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to store the file</param>
         /// <returns>Whether the write was successful or not</returns>
         Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data);
+
+        /// <summary>
+        /// Locks the storage at the specified location
+        /// </summary>
+        /// <param name="location">Location of the file to lock</param>
+        /// <returns>A disposable to release the lock, or null if the lock could not be made</returns>
+        Task<IDisposable> Lock(StoreLocation location);
     }
 }
