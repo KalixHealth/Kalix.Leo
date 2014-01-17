@@ -51,7 +51,7 @@ namespace Kalix.Leo.Lucene.Analysis
 
         public override TokenStream TokenStream(string fieldName, TextReader reader)
         {
-            return new PorterStemFilter(new ISOLatin1AccentFilter(new StopFilter(false, new LowerCaseFilter(new WhitespaceTokenizer(reader)), _words)));
+            return new PorterStemFilter(new ASCIIFoldingFilter(new StopFilter(false, new LowerCaseFilter(new WhitespaceTokenizer(reader)), _words)));
         }
     }
 }

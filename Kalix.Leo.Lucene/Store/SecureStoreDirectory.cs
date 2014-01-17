@@ -2,6 +2,7 @@
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -90,7 +91,7 @@ namespace Kalix.Leo.Lucene.Store
             return new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
             {
                 // Use the original store metadata except for size/modified
-                var metadata = await _store.GetMetadata(loc);
+                var metadata = await _store.GetMetadata(loc) ?? new Metadata();
                 metadata.Size = data.Metadata.Size;
                 metadata.LastModified = data.Metadata.LastModified;
 
@@ -98,21 +99,34 @@ namespace Kalix.Leo.Lucene.Store
             });
         }
 
+        private Dictionary<string, SecureStoreLock> _locks = new Dictionary<string, SecureStoreLock>();
         public override Lock MakeLock(string name)
         {
-            return new SecureStoreLock(_store, GetLocation(name));
+            lock (_locks)
+            {
+                if (!_locks.ContainsKey(name))
+                {
+                    _locks.Add(name, new SecureStoreLock(_store, GetLocation(name)));
+                }
+
+                return _locks[name];
+            }
+        }
+
+        public override void ClearLock(string name)
+        {
+            lock (_locks)
+            {
+                if (_locks.ContainsKey(name))
+                {
+                    _locks[name].Release();
+                }
+            }
         }
 
         public override string GetLockId()
         {
             return _container;
-        }
-
-        public override void ClearLock(string name)
-        {
-            // This is not supported... 
-            // A lock should only last as long as it is supported
-            throw new NotImplementedException();
         }
 
         private StoreLocation GetLocation(string name)

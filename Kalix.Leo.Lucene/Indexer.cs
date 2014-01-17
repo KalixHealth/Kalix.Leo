@@ -6,7 +6,6 @@ using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
@@ -30,13 +29,17 @@ namespace Kalix.Leo.Lucene
             _writer = new Lazy<IndexWriter>(() => new IndexWriter(_directory, _analyzer, IndexWriter.MaxFieldLength.UNLIMITED));
         }
 
-        public Task WriteToIndex(Func<IndexWriter, Analyzer, Task> doWritesFunc)
+        public async Task WriteToIndex(IObservable<Document> documents)
         {
-            return Task.Run(async () =>
-            {
-                await doWritesFunc(_writer.Value, _analyzer).ConfigureAwait(false);
-                _writer.Value.Commit();
-            });          
+            await documents
+                .Do((d) =>
+                {
+                    _writer.Value.AddDocument(d);
+                },
+                () =>
+                {
+                    _writer.Value.Commit();
+                });   
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
@@ -45,27 +48,39 @@ namespace Kalix.Leo.Lucene
             {
                 return Task.Run(() =>
                 {
-                    var reader = _writer.Value.GetReader();
-                    var searcher = new IndexSearcher(reader);
-
-                    try
+                    using(var reader = _writer.Value.GetReader())
+                    using (var searcher = new IndexSearcher(reader))
                     {
-                        var docs = doSearchFunc(searcher);
-
-                        foreach (var doc in docs.ScoreDocs)
+                        try
                         {
-                            obs.OnNext(searcher.Doc(doc.Doc));
+                            var docs = doSearchFunc(searcher);
+
+                            foreach (var doc in docs.ScoreDocs)
+                            {
+                                obs.OnNext(searcher.Doc(doc.Doc));
+                                if (ct.IsCancellationRequested)
+                                {
+                                    break;
+                                }
+                            }
+
+                            obs.OnCompleted();
                         }
-
-                        obs.OnCompleted();
+                        catch (Exception e)
+                        {
+                            obs.OnError(e);
+                        }
                     }
-                    catch (Exception e)
-                    {
-                        obs.OnError(e);
-                    }
-
-                    return new CompositeDisposable(reader, searcher);
                 }, ct);
+            });
+        }
+
+        public Task Clear()
+        {
+            return Task.Run(() =>
+            {
+                _writer.Value.DeleteAll();
+                _writer.Value.Commit();
             });
         }
 

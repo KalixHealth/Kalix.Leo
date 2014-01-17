@@ -5,7 +5,7 @@ using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo.Lucene.Tests
+namespace Kalix.Leo.Lucene.Tests.Store
 {
     [TestFixture]
     public class EncryptedFileCacheTests

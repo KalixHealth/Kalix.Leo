@@ -22,15 +22,12 @@ namespace Kalix.Leo.Lucene.Store
         {
             _directory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
-            Directory.CreateDirectory(_directory);
-            if (!EncryptFile(_directory))
-            {
-                throw new FileLoadException("Could not set encryption on directory");
-            }
+            CheckDirectoryExists(new DirectoryInfo(_directory));
         }
 
-        public async Task UpdateIfModified(string key, Task<DataWithMetadata> data = null)
+        public async Task<bool> UpdateIfModified(string key, Task<DataWithMetadata> data = null)
         {
+            var result = false;
             var path = Path.Combine(_directory, key);
             if(data == null)
             {
@@ -40,22 +37,38 @@ namespace Kalix.Leo.Lucene.Store
             else
             {
                 var info = new FileInfo(path);
-                using (var actualData = await data.ConfigureAwait(false))
+                CheckDirectoryExists(info.Directory);
+
+                var actualData = await data;
+                if(actualData == null)
                 {
-                    if (!actualData.Metadata.LastModified.HasValue || !info.Exists || info.LastWriteTimeUtc < actualData.Metadata.LastModified.Value)
-                        using (var fs = info.OpenWrite())
+                    // Create an empty file
+                    File.WriteAllBytes(path, new byte[0]);
+                }
+                else
+                {
+                    using (actualData)
+                    {
+                        if (!actualData.Metadata.LastModified.HasValue || !info.Exists || info.LastWriteTimeUtc < actualData.Metadata.LastModified.Value)
                         {
-                            await actualData
-                                .Stream
-                                .Select(async b =>
-                                {
-                                    await fs.WriteAsync(b, 0, b.Length).ConfigureAwait(false);
-                                    return Unit.Default;
-                                })
-                                .Merge();
+                            using (var fs = info.OpenWrite())
+                            {
+                                await actualData
+                                    .Stream
+                                    .Select(async b =>
+                                    {
+                                        await fs.WriteAsync(b, 0, b.Length).ConfigureAwait(false);
+                                        return Unit.Default;
+                                    })
+                                    .Merge();
+
+                                result = true;
+                            }
                         }
+                    }
                 }
             }
+            return result;
         }
 
         public Task<DataWithMetadata> LoadAllData(string key)
@@ -84,17 +97,34 @@ namespace Kalix.Leo.Lucene.Store
         {
             var path = Path.Combine(_directory, key);
             var info = new FileInfo(path);
+            CheckDirectoryExists(info.Directory);
 
-            var fs = info.OpenRead();
+            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
             if (initialPosition > 0) { fs.Seek(initialPosition, SeekOrigin.Begin); }
 
             return Task.FromResult<Stream>(fs);
         }
 
+        private static void CheckDirectoryExists(DirectoryInfo directory)
+        {
+            if (!directory.Exists)
+            {
+                directory.Create();
+                if (!EncryptFile(directory.FullName))
+                {
+                    throw new FileLoadException("Could not set encryption on directory: " + directory.FullName);
+                }
+            }
+        }
+
         public Task Delete(string key)
         {
             var path = Path.Combine(_directory, key);
-            File.Delete(path);
+            var info = new FileInfo(path);
+            if (info.Exists)
+            {
+                info.Delete();
+            }
             return Task.FromResult(0);
         }
 

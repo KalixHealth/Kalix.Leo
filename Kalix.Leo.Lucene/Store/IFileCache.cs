@@ -16,7 +16,7 @@ namespace Kalix.Leo.Lucene.Store
         /// </summary>
         /// <param name="key">Relative path the file</param>
         /// <param name="data">Data to save, can be null if we need to create a new empty cache file</param>
-        Task UpdateIfModified(string key, Task<DataWithMetadata> data = null);
+        Task<bool> UpdateIfModified(string key, Task<DataWithMetadata> data = null);
 
         /// <summary>
         /// Get a stream and metadata from the file

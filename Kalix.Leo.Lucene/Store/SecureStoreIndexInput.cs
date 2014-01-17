@@ -12,7 +12,6 @@ namespace Kalix.Leo.Lucene.Store
         private readonly string _cachePath;
         private readonly Lazy<Stream> _stream;
 
-        private Task _updateTask;
         private bool _hasCloned;
         private bool _isDisposed;
 
@@ -21,27 +20,31 @@ namespace Kalix.Leo.Lucene.Store
             _cache = cache;
             _cachePath = cachePath;
 
-            _updateTask = _cache.UpdateIfModified(_cachePath, store.LoadData(location));
-            _stream = new Lazy<Stream>(() => GetSyncVal(_updateTask
-                .ContinueWith(t => _cache.GetReadWriteStream(_cachePath))
-                .Unwrap()
-                // Buffered stream is much better for IO bound operations
-                .ContinueWith(t => new BufferedStream(t.Result))));  
+            var hasFile = GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location)));
+            if(!hasFile)
+            {
+                throw new FileNotFoundException("Input file does not exist: " + cachePath);
+            }
+
+            _stream = new Lazy<Stream>(() => 
+                GetSyncVal(_cache
+                    .GetReadWriteStream(_cachePath)
+                    .ContinueWith(t => new BufferedStream(t.Result)))
+            );  
         }
 
         // Cloning method, makes sure that it is still trying to load from the same data/cache
         // however the pointer can be different!
-        protected SecureStoreIndexInput(IFileCache cache, string cachePath, long pointer, Task updateTask)
+        protected SecureStoreIndexInput(IFileCache cache, string cachePath, long pointer)
         {
             _cache = cache;
             _cachePath = cachePath;
-            _updateTask = updateTask;
 
-            _stream = new Lazy<Stream>(() => GetSyncVal(_updateTask
-                .ContinueWith(t => _cache.GetReadWriteStream(_cachePath, pointer))
-                .Unwrap()
-                // Buffered stream is much better for IO bound operations
-                .ContinueWith(t => new BufferedStream(t.Result))));
+            _stream = new Lazy<Stream>(() =>
+                GetSyncVal(_cache
+                    .GetReadWriteStream(_cachePath)
+                    .ContinueWith(t => new BufferedStream(t.Result)))
+            );  
         }
 
         public override long FilePointer
@@ -72,7 +75,7 @@ namespace Kalix.Leo.Lucene.Store
         public override object Clone()
         {
             _hasCloned = true;
-            return new SecureStoreIndexInput(_cache, _cachePath, FilePointer, _updateTask);
+            return new SecureStoreIndexInput(_cache, _cachePath, FilePointer);
         }
 
         protected override void Dispose(bool disposing)
@@ -85,7 +88,6 @@ namespace Kalix.Leo.Lucene.Store
                     _stream.Value.Dispose();
                 }
 
-                _updateTask.Dispose();
                 _isDisposed = true;
             }
         }
@@ -100,9 +102,23 @@ namespace Kalix.Leo.Lucene.Store
             else
             {
                 val = default(T);
-                using (var w = AsyncHelper.Wait)
+
+                try
                 {
-                    w.Run(task.ContinueWith(t => { val = t.Result; }));
+                    using (var w = AsyncHelper.Wait)
+                    {
+                        w.Run(task.ContinueWith(t => { val = t.Result; }));
+                    }
+                }
+                catch(AggregateException e)
+                {
+                    Exception ex = e;
+                    // Unwrap aggregate exceptions
+                    while(ex is AggregateException)
+                    {
+                        ex = ex.InnerException;
+                    }
+                    throw ex;
                 }
             }
             return val;

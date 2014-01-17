@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Streams;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -60,7 +61,9 @@ namespace System.IO
 
         public static IObservable<byte[]> ToObservable(this Stream readStream, int bufferSize)
         {
-            return ReadStream(readStream, bufferSize).ToObservable(Scheduler.Default);
+            return ReadStream(readStream, bufferSize)
+                .ToObservable(Scheduler.Default)
+                .BufferBytes(bufferSize); // Make sure the data is actually normalised
         }
 
         public static async Task UseWriteStream(this IObserver<byte[]> observer, Func<Stream, Task> writeStreamScope, Action firstHit = null)
@@ -69,7 +72,7 @@ namespace System.IO
             {
                 using (var stream = new ObserverWriteStream(observer, firstHit))
                 {
-                    await writeStreamScope(stream);
+                    await writeStreamScope(stream).ConfigureAwait(false);
                     observer.OnCompleted();
                 }
             }
@@ -87,9 +90,17 @@ namespace System.IO
                 int bytesRead = stream.Read(buffer, 0, bufferSize);
                 while (bytesRead > 0)
                 {
-                    var data = new byte[bytesRead];
-                    Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                    yield return data;
+                    if (bytesRead == buffer.Length)
+                    {
+                        yield return buffer;
+                        buffer = new byte[bufferSize];
+                    }
+                    else
+                    {
+                        var data = new byte[bytesRead];
+                        Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                        yield return data;
+                    }
 
                     bytesRead = stream.Read(buffer, 0, bufferSize);
                 }

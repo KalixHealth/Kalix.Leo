@@ -22,7 +22,7 @@ namespace Kalix.Leo
 
         public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
         {
-            if (_store == null) { throw new ArgumentNullException("writeStore"); }
+            if (store == null) { throw new ArgumentNullException("store"); }
 
             _store = store;
             _backupQueue = backupQueue;
@@ -86,6 +86,8 @@ namespace Kalix.Leo
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
         {
             var data = await _store.LoadData(location, snapshot);
+            if (data == null) { return null; }
+
             var metadata = data.Metadata;
             var stream = data.Stream;
 
