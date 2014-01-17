@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace System.IO
 {
@@ -11,10 +10,52 @@ namespace System.IO
     {
         public static IObservable<byte[]> BufferBytes(this IObservable<byte[]> stream, int bytesPerPacket)
         {
-            return stream
-                .SelectMany(b => b)
-                .Buffer(bytesPerPacket)
-                .Select(b => b.ToArray());
+            return Observable.Create<byte[]>(obs =>
+            {
+                var buffer = new byte[bytesPerPacket];
+                int position = 0;
+
+                return stream.Subscribe((b) =>
+                {
+                    var count = b.Length;
+                    var offset = 0;
+
+                    while (count > 0)
+                    {
+                        var dataToRead = buffer.Length - position;
+                        if (dataToRead > count)
+                        {
+                            dataToRead = count;
+                        }
+
+                        Buffer.BlockCopy(b, offset, buffer, position, dataToRead);
+
+                        count -= dataToRead;
+                        offset += dataToRead;
+                        position += dataToRead;
+
+                        if (position >= buffer.Length)
+                        {
+                            obs.OnNext(buffer);
+                            buffer = new byte[bytesPerPacket];
+                            position = 0;
+                        }
+                    }
+                },
+                (e) => { obs.OnError(e); },
+                () =>
+                {
+                    if (position > 0)
+                    {
+                        // buffer will never be completely full at this point
+                        // always have to copy it over!
+                        var lastBytes = new byte[position];
+                        Buffer.BlockCopy(buffer, 0, lastBytes, 0, position);
+                        obs.OnNext(lastBytes);
+                    }
+                    obs.OnCompleted();
+                });
+            });
         }
 
         public static IObservable<byte[]> ToObservable(this Stream readStream, int bufferSize)
