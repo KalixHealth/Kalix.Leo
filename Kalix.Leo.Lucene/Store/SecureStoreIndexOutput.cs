@@ -74,9 +74,18 @@ namespace Kalix.Leo.Lucene.Store
                 // Make sure to save it all back down
                 using (var w = AsyncHelper.Wait)
                 {
-                    w.Run(_cache.LoadAllData(_cachePath).ContinueWith(t => _saveTask(t.Result)).Unwrap());
+                    w.Run(CopyDataFromCache());
                 }
+
                 _isDisposed = true;
+            }
+        }
+
+        private async Task CopyDataFromCache()
+        {
+            using(var data = await _cache.LoadAllData(_cachePath))
+            {
+                await _saveTask(data);
             }
         }
 

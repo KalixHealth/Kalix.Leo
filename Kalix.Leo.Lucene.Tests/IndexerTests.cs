@@ -34,8 +34,8 @@ namespace Kalix.Leo.Lucene.Tests
         [TearDown]
         public void TearDown()
         {
+            _indexer.DeleteAll();
             _indexer.Dispose();
-            _store.PermanentDeleteContainer("testindexer");
         }
 
         [Test]
@@ -75,10 +75,10 @@ namespace Kalix.Leo.Lucene.Tests
             _indexer.WriteToIndex(CreateIpsumDocs(30000)).Wait();
 
             var parser = new TermQuery(new Term("words", "ipsum"));
-            var stream1 = _indexer.SearchDocuments(s => s.Search(parser, 20)).Repeat();
+            var stream1 = _indexer.SearchDocuments(s => s.Search(parser, 20));
 
             var parser2 = new TermQuery(new Term("words", "lorem"));
-            var stream2 = _indexer.SearchDocuments(s => s.Search(parser2, 20)).Repeat();
+            var stream2 = _indexer.SearchDocuments(s => s.Search(parser2, 20));
 
             stream1
                 .Merge(stream2)

@@ -4,6 +4,7 @@ using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Path = System.IO.Path;
@@ -16,14 +17,14 @@ namespace Kalix.Leo.Lucene.Store
         private readonly string _container;
         private readonly IFileCache _cache;
         private readonly SecureStoreOptions _options;
-
-        private bool _isDisposed;
+        private readonly CompositeDisposable _disposables;
 
         public SecureStoreDirectory(ISecureStore store, string container, IFileCache cache)
         {
             _container = container;
             _cache = cache;
             _store = store;
+            _disposables = new CompositeDisposable();
 
             _options = SecureStoreOptions.None;
             if (_store.CanEncrypt)
@@ -82,13 +83,15 @@ namespace Kalix.Leo.Lucene.Store
 
         public override IndexInput OpenInput(string name)
         {
-            return new SecureStoreIndexInput(_cache, _store, GetLocation(name), GetCachePath(name));
+            var input = new SecureStoreIndexInput(_cache, _store, GetLocation(name), GetCachePath(name), _disposables);
+            _disposables.Add(input);
+            return input;
         }
 
         public override IndexOutput CreateOutput(string name)
         {
             var loc = GetLocation(name);
-            return new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
+            var output = new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
             {
                 // Use the original store metadata except for size/modified
                 var metadata = await _store.GetMetadata(loc) ?? new Metadata();
@@ -97,6 +100,9 @@ namespace Kalix.Leo.Lucene.Store
 
                 await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata, () => data.Dispose()), null, _options);
             });
+
+            _disposables.Add(output);
+            return output;
         }
 
         private Dictionary<string, SecureStoreLock> _locks = new Dictionary<string, SecureStoreLock>();
@@ -141,10 +147,15 @@ namespace Kalix.Leo.Lucene.Store
 
         protected override void Dispose(bool disposing)
         {
-            if(!_isDisposed)
+            if (!_disposables.IsDisposed)
             {
+                foreach(var l in _locks.Values)
+                {
+                    l.Dispose();
+                }
+
+                _disposables.Dispose();
                 _cache.Dispose();
-                _isDisposed = true;
             }
         }
 

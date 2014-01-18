@@ -86,14 +86,34 @@ namespace Kalix.Leo.Azure.Storage
             // May not have had a blob pushed...
             if (leaseId == null)
             {
-                using (var stream = new MemoryStream(new byte[1]))
+                try
                 {
-                    await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                    using (var stream = new MemoryStream(new byte[1]))
+                    {
+                        await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                    }
+                    leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
+                    if (_trace)
+                    {
+                        Trace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
+                    }
                 }
-                leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
-                if (_trace)
+                catch (StorageException e)
                 {
-                    Trace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
+                    // If we have a conflict this blob is already locked...
+                    if (e.RequestInformation.HttpStatusCode == 409)
+                    {
+                        return null;
+                    }
+
+                    if (e.RequestInformation.HttpStatusCode == 404)
+                    {
+                        leaseId = null;
+                    }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
 
@@ -220,6 +240,7 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     return false;
                 }
+
                 throw;
             }
 

@@ -6,7 +6,9 @@ using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene
@@ -55,34 +57,35 @@ namespace Kalix.Leo.Lucene
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
         {
-            return Observable.Create<Document>((obs, ct) =>
+            return Observable.Create<Document>(obs =>
             {
-                return Task.Run(() =>
+                var reader = GetThrottledReader();
+                var searcher = new IndexSearcher(reader);
+                var cts = new CancellationTokenSource();
+                var token = cts.Token;
+
+                Task.Run(() =>
                 {
-                    using (var reader = GetThrottledReader())
-                    using (var searcher = new IndexSearcher(reader))
+                    try
                     {
-                        try
-                        {
-                            var docs = doSearchFunc(searcher);
+                        var docs = doSearchFunc(searcher);
 
-                            foreach (var doc in docs.ScoreDocs)
-                            {
-                                obs.OnNext(searcher.Doc(doc.Doc));
-                                if (ct.IsCancellationRequested)
-                                {
-                                    break;
-                                }
-                            }
-
-                            obs.OnCompleted();
-                        }
-                        catch (Exception e)
+                        foreach (var doc in docs.ScoreDocs)
                         {
-                            obs.OnError(e);
+                            obs.OnNext(searcher.Doc(doc.Doc));
+                            token.ThrowIfCancellationRequested();
                         }
+
+                        obs.OnCompleted();
                     }
-                }, ct);
+                    catch (Exception e)
+                    {
+                        obs.OnError(e);
+                    }
+                }, token);
+
+                var disposable = new CompositeDisposable(searcher, reader, cts);
+                return disposable;
             });
         }
 
@@ -103,6 +106,11 @@ namespace Kalix.Leo.Lucene
         {
             lock(_readerLock)
             {
+                if(_isDisposed)
+                {
+                    throw new ObjectDisposedException("Indexer");
+                }
+
                 if(_currentReader == null || _nextRead < DateTime.UtcNow)
                 {
                     if(_currentReader != null) { _currentReader.Dispose(); }

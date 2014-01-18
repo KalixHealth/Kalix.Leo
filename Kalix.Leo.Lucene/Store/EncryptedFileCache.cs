@@ -4,6 +4,7 @@ using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Store
@@ -99,7 +100,7 @@ namespace Kalix.Leo.Lucene.Store
             var info = new FileInfo(path);
             CheckDirectoryExists(info.Directory);
 
-            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
             if (initialPosition > 0) { fs.Seek(initialPosition, SeekOrigin.Begin); }
 
             return Task.FromResult<Stream>(fs);
@@ -111,7 +112,7 @@ namespace Kalix.Leo.Lucene.Store
             var info = new FileInfo(path);
             CheckDirectoryExists(info.Directory);
 
-            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read);
+            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             if (initialPosition > 0) { fs.Seek(initialPosition, SeekOrigin.Begin); }
 
             return Task.FromResult<Stream>(fs);
@@ -144,7 +145,23 @@ namespace Kalix.Leo.Lucene.Store
         {
             if (!_isDisposed)
             {
-                Directory.Delete(_directory, true); // Delete the cache entirely
+                // This is ugly... i know :(
+                // Only way to retry... this should only happen when things are shutting down though...
+                int retries = 3;
+                while (true)
+                {
+                    try
+                    {
+                        Directory.Delete(_directory, true); // Delete the cache entirely
+                        break; // success!
+                    }
+                    catch
+                    {
+                        if (--retries == 0) throw;
+                        else Thread.Sleep(1000);
+                    }
+                }
+                
                 _isDisposed = true;
             }
         }
