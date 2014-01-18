@@ -374,6 +374,18 @@ namespace Kalix.Leo.Azure.Storage
                 ct.ThrowIfCancellationRequested(); // Just in case...
                 observer.OnCompleted();
             }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    // If we get an error we do not have any blobs!
+                    observer.OnCompleted();
+                }
+                else
+                {
+                    observer.OnError(e);
+                }
+            }
             catch (Exception e)
             {
                 observer.OnError(e);

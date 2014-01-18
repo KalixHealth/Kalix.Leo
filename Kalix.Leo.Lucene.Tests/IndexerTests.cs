@@ -1,10 +1,16 @@
 ﻿using Kalix.Leo.Azure.Storage;
 using Kalix.Leo.Storage;
 using Lucene.Net.Documents;
+using Lucene.Net.Index;
+using Lucene.Net.QueryParsers;
+using Lucene.Net.Search;
 using Microsoft.WindowsAzure.Storage;
 using NUnit.Framework;
+using System;
 using System.Diagnostics;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Tests
 {
@@ -33,9 +39,58 @@ namespace Kalix.Leo.Lucene.Tests
         }
 
         [Test]
-        public void Write100000EntriesNoErrors()
+        public void Write100000EntriesAndSearchAtSameTimeNoErrors()
         {
-            var docs = Observable.Range(0, 100000)
+            var docs = CreateIpsumDocs(100000);
+
+            bool hasErrored = false;
+            int numDocs = 0;
+
+            using (var reading = Observable.Interval(TimeSpan.FromSeconds(2))
+                .SelectMany(t => _indexer.SearchDocuments(i =>
+                {
+                    var query = new TermQuery(new Term("words", "ipsum"));
+                    return i.Search(query, 20);
+                }))
+                .Subscribe(d => { numDocs++; }, e => { hasErrored = true; }, () => { }))
+            {
+                _indexer.WriteToIndex(docs).Wait();
+            }
+
+            Assert.IsFalse(hasErrored);
+        }
+
+        [Test]
+        public void CanWriteFromTwoIndexes()
+        {
+            var task1 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
+            var task2 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
+
+            Task.WhenAll(task1, task2).Wait();
+        }
+
+        [Test]
+        public void CanReadFromTwoIndexes()
+        {
+            _indexer.WriteToIndex(CreateIpsumDocs(30000)).Wait();
+
+            var parser = new TermQuery(new Term("words", "ipsum"));
+            var stream1 = _indexer.SearchDocuments(s => s.Search(parser, 20)).Repeat();
+
+            var parser2 = new TermQuery(new Term("words", "lorem"));
+            var stream2 = _indexer.SearchDocuments(s => s.Search(parser2, 20)).Repeat();
+
+            stream1
+                .Merge(stream2)
+                .Take(30000)
+                .LastOrDefaultAsync()
+                .Wait();
+        }
+
+        private IObservable<Document> CreateIpsumDocs(int number)
+        {
+            return Observable.Range(0, number)
+                .ObserveOn(Scheduler.Default)
                 .Select(i =>
                 {
                     if(i % 10000 == 0)
@@ -48,8 +103,6 @@ namespace Kalix.Leo.Lucene.Tests
                     doc.Add(new Field("words", Ipsum.GetPhrase(20), Field.Store.NO, Field.Index.ANALYZED, Field.TermVector.NO));
                     return doc;
                 });
-
-            _indexer.WriteToIndex(docs).Wait();
         }
     }
 }

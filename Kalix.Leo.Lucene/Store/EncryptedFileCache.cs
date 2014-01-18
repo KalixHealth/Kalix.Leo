@@ -105,6 +105,18 @@ namespace Kalix.Leo.Lucene.Store
             return Task.FromResult<Stream>(fs);
         }
 
+        public Task<Stream> GetReadonlyStream(string key, long initialPosition = 0)
+        {
+            var path = Path.Combine(_directory, key);
+            var info = new FileInfo(path);
+            CheckDirectoryExists(info.Directory);
+
+            var fs = info.Open(FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read);
+            if (initialPosition > 0) { fs.Seek(initialPosition, SeekOrigin.Begin); }
+
+            return Task.FromResult<Stream>(fs);
+        }
+
         private static void CheckDirectoryExists(DirectoryInfo directory)
         {
             if (!directory.Exists)
@@ -130,9 +142,9 @@ namespace Kalix.Leo.Lucene.Store
 
         public void Dispose()
         {
-            if (_isDisposed)
+            if (!_isDisposed)
             {
-                Directory.Delete(_directory);
+                Directory.Delete(_directory, true); // Delete the cache entirely
                 _isDisposed = true;
             }
         }

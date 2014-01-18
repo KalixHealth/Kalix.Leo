@@ -17,14 +17,24 @@ namespace Kalix.Leo.Lucene
         private readonly IFileCache _cache;
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
+        private readonly int _readThrottleTimeMs;
 
         private bool _isDisposed;
 
-        public Indexer(ISecureStore store, string container)
+        /// <summary>
+        /// Create a lucene index over the top of a secure store, using an encrypted file cache and english analyzer
+        /// Only one instance should be used for both indexing and searching (on any number of threads) for best results
+        /// </summary>
+        /// <param name="store">Store to have the Indexer on top of</param>
+        /// <param name="container">Container to put the index</param>
+        /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
+        /// <param name="RAMSize">The max amount of memory to use before flushing when writing</param>
+        public Indexer(ISecureStore store, string container, int readIndexThottleMs = 5000, int RAMSize = 20971520)
         {
             _cache = new EncryptedFileCache();
             _directory = new SecureStoreDirectory(store, container, _cache);
             _analyzer = new EnglishAnalyzer();
+            _readThrottleTimeMs = readIndexThottleMs;
 
             _writer = new Lazy<IndexWriter>(() => new IndexWriter(_directory, _analyzer, IndexWriter.MaxFieldLength.UNLIMITED));
         }
@@ -39,7 +49,8 @@ namespace Kalix.Leo.Lucene
                 () =>
                 {
                     _writer.Value.Commit();
-                });   
+                })
+                .LastOrDefaultAsync();   
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
@@ -48,7 +59,7 @@ namespace Kalix.Leo.Lucene
             {
                 return Task.Run(() =>
                 {
-                    using(var reader = _writer.Value.GetReader())
+                    using (var reader = GetThrottledReader())
                     using (var searcher = new IndexSearcher(reader))
                     {
                         try
@@ -75,7 +86,7 @@ namespace Kalix.Leo.Lucene
             });
         }
 
-        public Task Clear()
+        public Task DeleteAll()
         {
             return Task.Run(() =>
             {
@@ -84,10 +95,40 @@ namespace Kalix.Leo.Lucene
             });
         }
 
+        private IndexReader _currentReader;
+        private object _readerLock = new object();
+        private DateTime _nextRead = DateTime.MinValue;
+
+        private IndexReader GetThrottledReader()
+        {
+            lock(_readerLock)
+            {
+                if(_currentReader == null || _nextRead < DateTime.UtcNow)
+                {
+                    if(_currentReader != null) { _currentReader.Dispose(); }
+
+                    _currentReader = _writer.Value.GetReader();
+                    _nextRead = DateTime.UtcNow.AddMilliseconds(_readThrottleTimeMs);
+                }
+                
+                return _currentReader.Clone(true);
+            }
+        }
+
         public void Dispose()
         {
             if(!_isDisposed)
             {
+                lock (_readerLock)
+                {
+                    _isDisposed = true;
+                    if (_currentReader != null)
+                    {
+                        _currentReader.Dispose();
+                        _currentReader = null;
+                    }
+                }
+
                 if(_writer.IsValueCreated)
                 {
                     _writer.Value.Dispose();
@@ -96,7 +137,6 @@ namespace Kalix.Leo.Lucene
                 _analyzer.Dispose();
                 _directory.Dispose();
                 _cache.Dispose();
-                _isDisposed = true;
             }
         }
     }

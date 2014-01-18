@@ -34,6 +34,14 @@ namespace Kalix.Leo.Lucene.Store
         Task<Stream> GetReadWriteStream(string key, long initialPosition = 0);
 
         /// <summary>
+        /// Gets a readonly stream, should be able to open stream on a file that had the readwrite method called on it...
+        /// </summary>
+        /// <param name="key">Relative path to the file</param>
+        /// <param name="initialPosition">Initial position that the stream should be pointing at</param>
+        /// <returns>Stream to read data from</returns>
+        Task<Stream> GetReadonlyStream(string key, long initialPosition = 0);
+
+        /// <summary>
         /// Remove a file
         /// </summary>
         /// <param name="key">Relative path to cache the data</param>

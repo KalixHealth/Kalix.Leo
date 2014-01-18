@@ -20,15 +20,18 @@ namespace Kalix.Leo.Lucene.Store
             _cache = cache;
             _cachePath = cachePath;
 
-            var hasFile = GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location)));
-            if(!hasFile)
-            {
-                throw new FileNotFoundException("Input file does not exist: " + cachePath);
-            }
+            // If we uncomment this code then we do not have initial repeat calls for the initial segment
+            // However it breaks when it tries to get later segments
+            // Problem with the lucene IndexSearcher Implementation
+            /*var hasFile = */GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location)));
+            //if (!hasFile)
+            //{
+            //    throw new FileNotFoundException("Input file does not exist: " + cachePath);
+            //}
 
             _stream = new Lazy<Stream>(() => 
                 GetSyncVal(_cache
-                    .GetReadWriteStream(_cachePath)
+                    .GetReadonlyStream(_cachePath)
                     .ContinueWith(t => new BufferedStream(t.Result)))
             );  
         }
@@ -42,7 +45,7 @@ namespace Kalix.Leo.Lucene.Store
 
             _stream = new Lazy<Stream>(() =>
                 GetSyncVal(_cache
-                    .GetReadWriteStream(_cachePath)
+                    .GetReadonlyStream(_cachePath)
                     .ContinueWith(t => new BufferedStream(t.Result)))
             );  
         }
