@@ -48,9 +48,12 @@ namespace Kalix.Leo.Streams
         public override void Write(byte[] buffer, int offset, int count)
         {
             var dummy = _firstHit.Value;
-            var data = new byte[count];
-            Buffer.BlockCopy(buffer, offset, data, 0, count);
-            _observer.OnNext(data);
+            if (count > 0)
+            {
+                var data = new byte[count];
+                Buffer.BlockCopy(buffer, offset, data, 0, count);
+                _observer.OnNext(data);
+            }
         }
 
         public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)

@@ -145,23 +145,7 @@ namespace Kalix.Leo.Lucene.Store
         {
             if (!_isDisposed)
             {
-                // This is ugly... i know :(
-                // Only way to retry... this should only happen when things are shutting down though...
-                int retries = 3;
-                while (true)
-                {
-                    try
-                    {
-                        Directory.Delete(_directory, true); // Delete the cache entirely
-                        break; // success!
-                    }
-                    catch
-                    {
-                        if (--retries == 0) throw;
-                        else Thread.Sleep(1000);
-                    }
-                }
-                
+                Directory.Delete(_directory, true); // Delete the cache entirely
                 _isDisposed = true;
             }
         }

@@ -4,14 +4,13 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{74B58639-E668-47F2-83AD-1987BBD49F58}</ProjectGuid>
+    <ProjectGuid>{28E216BE-435F-452C-B34F-4842DFAAF493}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Kalix.Leo</RootNamespace>
-    <AssemblyName>Kalix.Leo.Core</AssemblyName>
+    <RootNamespace>Kalix.Leo.Tests</RootNamespace>
+    <AssemblyName>Kalix.Leo.Tests</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile>Profile78</TargetFrameworkProfile>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
     <RestorePackages>true</RestorePackages>
   </PropertyGroup>
@@ -32,63 +31,43 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject />
-  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\packages\Newtonsoft.Json.5.0.8\lib\portable-net45+wp80+win8\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="nunit.framework">
+      <HintPath>..\packages\NUnit.2.6.3\lib\nunit.framework.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Reactive.Core">
-      <HintPath>..\packages\Rx-Core.2.2.2\lib\portable-windows8+net45+wp8\System.Reactive.Core.dll</HintPath>
+      <HintPath>..\packages\Rx-Core.2.2.2\lib\net45\System.Reactive.Core.dll</HintPath>
     </Reference>
     <Reference Include="System.Reactive.Interfaces">
-      <HintPath>..\packages\Rx-Interfaces.2.2.2\lib\portable-windows8+net45+wp8\System.Reactive.Interfaces.dll</HintPath>
+      <HintPath>..\packages\Rx-Interfaces.2.2.2\lib\net45\System.Reactive.Interfaces.dll</HintPath>
     </Reference>
     <Reference Include="System.Reactive.Linq">
-      <HintPath>..\packages\Rx-Linq.2.2.2\lib\portable-windows8+net45+wp8\System.Reactive.Linq.dll</HintPath>
-    </Reference>
-    <Reference Include="Zlib.Portable">
-      <HintPath>..\packages\Zlib.Portable.1.9.2\lib\portable-net4+sl4+wp71+win8\Zlib.Portable.dll</HintPath>
+      <HintPath>..\packages\Rx-Linq.2.2.2\lib\net45\System.Reactive.Linq.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BackupListener.cs" />
-    <Compile Include="Compression\DeflateCompressor.cs" />
-    <Compile Include="Compression\ICompressor.cs" />
-    <Compile Include="Encryption\IEncryptor.cs" />
-    <Compile Include="IBackupListener.cs" />
-    <Compile Include="IIndexListener.cs" />
-    <Compile Include="Indexing\IIndexer.cs" />
-    <Compile Include="IndexListener.cs" />
-    <Compile Include="ISecureStore.cs" />
-    <Compile Include="MetadataConstants.cs" />
-    <Compile Include="Queue\IQueue.cs" />
-    <Compile Include="Queue\IQueueMessage.cs" />
-    <Compile Include="SecureStoreOptions.cs" />
-    <Compile Include="SecureStore.cs" />
-    <Compile Include="Storage\Metadata.cs" />
-    <Compile Include="Storage\ObjectWithMetadata.cs" />
-    <Compile Include="Storage\DataWithMetadata.cs" />
-    <Compile Include="Storage\IOptimisticStore.cs" />
-    <Compile Include="Storage\IStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Storage\IUniqueIdGenerator.cs" />
-    <Compile Include="Snapshot.cs" />
-    <Compile Include="Storage\UniqueIdGenerator.cs" />
-    <Compile Include="StoreDataDetails.cs" />
-    <Compile Include="StoreLocation.cs" />
-    <Compile Include="Streams\ObserverWriteStream.cs" />
-    <Compile Include="Streams\StreamExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup />
-  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
+  <ItemGroup>
+    <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj">
+      <Project>{74b58639-e668-47f2-83ad-1987bbd49f58}</Project>
+      <Name>Kalix.Leo.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Kalix.Leo\Kalix.Leo.csproj">
+      <Project>{27416d6c-0bdf-4dd1-849c-d2431a023e3b}</Project>
+      <Name>Kalix.Leo</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

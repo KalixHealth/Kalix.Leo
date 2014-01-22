@@ -45,7 +45,7 @@ namespace Kalix.Leo.Amazon.Storage
                 int partNumber = 1;
 
                 await data.Stream
-                    .BufferBytes(ReadWriteBufferSize)
+                    .BufferBytes(ReadWriteBufferSize, false)
                     .Select(async b =>
                     {
                         if (firstHit == null)

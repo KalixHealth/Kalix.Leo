@@ -28,6 +28,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene", "Kalix.L
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene.Tests", "Kalix.Leo.Lucene.Tests\Kalix.Leo.Lucene.Tests.csproj", "{C68B0680-B5D3-4D6B-993A-4844E94E4C84}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo", "Kalix.Leo\Kalix.Leo.csproj", "{27416D6C-0BDF-4DD1-849C-D2431A023E3B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Tests", "Kalix.Leo.Tests\Kalix.Leo.Tests.csproj", "{28E216BE-435F-452C-B34F-4842DFAAF493}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -66,6 +70,14 @@ Global
 		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28E216BE-435F-452C-B34F-4842DFAAF493}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28E216BE-435F-452C-B34F-4842DFAAF493}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28E216BE-435F-452C-B34F-4842DFAAF493}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28E216BE-435F-452C-B34F-4842DFAAF493}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -75,5 +87,6 @@ Global
 		{EC411333-995F-423A-8700-A98962D79928} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 		{C68B0680-B5D3-4D6B-993A-4844E94E4C84} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
+		{28E216BE-435F-452C-B34F-4842DFAAF493} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 	EndGlobalSection
 EndGlobal

@@ -2,7 +2,6 @@
 using Kalix.Leo.Storage;
 using Lucene.Net.Documents;
 using Lucene.Net.Index;
-using Lucene.Net.QueryParsers;
 using Lucene.Net.Search;
 using Microsoft.WindowsAzure.Storage;
 using NUnit.Framework;
@@ -15,10 +14,10 @@ using System.Threading.Tasks;
 namespace Kalix.Leo.Lucene.Tests
 {
     [TestFixture]
-    public class IndexerTests
+    public class LuceneIndexerTests
     {
         protected IOptimisticStore _store;
-        protected Indexer _indexer;
+        protected LuceneIndexer _indexer;
 
         [SetUp]
         public void Init()
@@ -28,13 +27,13 @@ namespace Kalix.Leo.Lucene.Tests
             _store.CreateContainerIfNotExists("testindexer");
 
             var store = new SecureStore(_store);
-            _indexer = new Indexer(store, "testindexer");
+            _indexer = new LuceneIndexer(store, "testindexer");
         }
 
         [TearDown]
         public void TearDown()
         {
-            _indexer.DeleteAll();
+            _indexer.DeleteAll().Wait();
             _indexer.Dispose();
         }
 
@@ -43,7 +42,7 @@ namespace Kalix.Leo.Lucene.Tests
         {
             var docs = CreateIpsumDocs(100000);
 
-            bool hasErrored = false;
+            string error = null;
             int numDocs = 0;
 
             using (var reading = Observable.Interval(TimeSpan.FromSeconds(2))
@@ -52,12 +51,12 @@ namespace Kalix.Leo.Lucene.Tests
                     var query = new TermQuery(new Term("words", "ipsum"));
                     return i.Search(query, 20);
                 }))
-                .Subscribe(d => { numDocs++; }, e => { hasErrored = true; }, () => { }))
+                .Subscribe(d => { numDocs++; }, e => { error = e.GetBaseException().Message; }, () => { }))
             {
                 _indexer.WriteToIndex(docs).Wait();
             }
 
-            Assert.IsFalse(hasErrored);
+            Assert.AreEqual(null, error);
         }
 
         [Test]

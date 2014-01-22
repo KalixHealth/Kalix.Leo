@@ -158,7 +158,7 @@ namespace Kalix.Leo.Azure.Storage
                 int partNumber = 1;
 
                 await data.Stream
-                    .BufferBytes(AzureBlockSize)
+                    .BufferBytes(AzureBlockSize, true)
                     .Select(async b =>
                     {
                         if (firstHit == null)

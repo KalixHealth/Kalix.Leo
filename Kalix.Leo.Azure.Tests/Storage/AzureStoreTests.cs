@@ -141,7 +141,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 using (var result = _store.LoadData(_location).Result)
                 {
-                    Assert.IsTrue(data.SequenceEqual(result.Stream.ToEnumerable().SelectMany(b => b)));
+                    var resData = result.Stream.ToEnumerable().SelectMany(b => b).ToArray();
+                    Assert.IsTrue(data.SequenceEqual(resData));
                 }
             }
         }

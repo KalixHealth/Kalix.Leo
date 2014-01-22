@@ -76,7 +76,7 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IndexerTests.cs" />
+    <Compile Include="LuceneIndexerTests.cs" />
     <Compile Include="netfx\Testing\Ipsum.cs" />
     <Compile Include="Store\EncryptedFileCacheTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

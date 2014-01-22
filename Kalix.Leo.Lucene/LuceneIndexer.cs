@@ -13,14 +13,16 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene
 {
-    public class Indexer : IDisposable
+    public class LuceneIndexer : IDisposable, ILuceneIndexer
     {
-        private readonly Lazy<IndexWriter> _writer;
-        private readonly IFileCache _cache;
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
+        private readonly IDisposable _writeWatcher;
         private readonly int _readThrottleTimeMs;
 
+        private double _RAMSizeMb;
+        private Lazy<IndexWriter> _writer;
+        private bool _needsWrite;
         private bool _isDisposed;
 
         /// <summary>
@@ -30,15 +32,39 @@ namespace Kalix.Leo.Lucene
         /// <param name="store">Store to have the Indexer on top of</param>
         /// <param name="container">Container to put the index</param>
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
-        /// <param name="RAMSize">The max amount of memory to use before flushing when writing</param>
-        public Indexer(ISecureStore store, string container, int readIndexThottleMs = 5000, int RAMSize = 20971520)
+        /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
+        /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
+        public LuceneIndexer(ISecureStore store, string container, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
+            : this(new SecureStoreDirectory(store, container, new EncryptedFileCache()), new EnglishAnalyzer(), readIndexThottleMs, writeIndexThottleMs, RAMSizeMb)
         {
-            _cache = new EncryptedFileCache();
-            _directory = new SecureStoreDirectory(store, container, _cache);
-            _analyzer = new EnglishAnalyzer();
-            _readThrottleTimeMs = readIndexThottleMs;
+        }
 
-            _writer = new Lazy<IndexWriter>(() => new IndexWriter(_directory, _analyzer, IndexWriter.MaxFieldLength.UNLIMITED));
+        /// <summary>
+        /// Lower level constructor, put in your own cache, (lucene) directory and (lucene) analyzer
+        /// </summary>
+        /// <param name="directory">Lucene directory of your files</param>
+        /// <param name="analyzer">Analyzer you want to use for your indexing/searching</param>
+        /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
+        /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
+        /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
+        public LuceneIndexer(Directory directory, Analyzer analyzer, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
+        {
+            _directory = directory;
+            _analyzer = analyzer;
+            _readThrottleTimeMs = readIndexThottleMs;
+            _RAMSizeMb = RAMSizeMb;
+
+            _writeWatcher = Observable.Interval(TimeSpan.FromMilliseconds(writeIndexThottleMs))
+                .Subscribe(i =>
+                {
+                    if (_needsWrite && _writer.IsValueCreated)
+                    {
+                        SafeWrite(() => _writer.Value.Commit());
+                        _needsWrite = false;
+                    }
+                });
+
+            RebuildWriter();
         }
 
         public async Task WriteToIndex(IObservable<Document> documents)
@@ -46,11 +72,12 @@ namespace Kalix.Leo.Lucene
             await documents
                 .Do((d) =>
                 {
-                    _writer.Value.AddDocument(d);
+                    SafeWrite(() => _writer.Value.AddDocument(d));
                 },
                 () =>
                 {
-                    _writer.Value.Commit();
+                    SafeWrite(() => _writer.Value.PrepareCommit());
+                    _needsWrite = true;
                 })
                 .LastOrDefaultAsync();   
         }
@@ -93,8 +120,32 @@ namespace Kalix.Leo.Lucene
         {
             return Task.Run(() =>
             {
-                _writer.Value.DeleteAll();
-                _writer.Value.Commit();
+                SafeWrite(() => _writer.Value.DeleteAll());
+                SafeWrite(() => _writer.Value.Commit());
+            });
+        }
+
+        private void SafeWrite(Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (OutOfMemoryException)
+            {
+                // rebuild the writer when out of memory
+                RebuildWriter();
+                throw;
+            }
+        }
+
+        private void RebuildWriter()
+        {
+            _writer = new Lazy<IndexWriter>(() =>
+            {
+                var writer = new IndexWriter(_directory, _analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
+                writer.SetRAMBufferSizeMB(_RAMSizeMb);
+                return writer;
             });
         }
 
@@ -144,7 +195,6 @@ namespace Kalix.Leo.Lucene
 
                 _analyzer.Dispose();
                 _directory.Dispose();
-                _cache.Dispose();
             }
         }
     }

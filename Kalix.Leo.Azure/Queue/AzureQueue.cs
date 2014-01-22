@@ -1,10 +1,11 @@
-﻿using Microsoft.ServiceBus;
+﻿using Kalix.Leo.Queue;
+using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo.Queue.Messaging
+namespace Kalix.Leo.Azure.Queue
 {
     public class AzureQueue : IQueue
     {
@@ -32,9 +33,9 @@ namespace Kalix.Leo.Queue.Messaging
             return client.SendAsync(message);
         }
 
-        public IObservable<string> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
+        public IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            return Observable.Create<string>(observer =>
+            return Observable.Create<IQueueMessage>(observer =>
             {
                 // By default use the number of processors
                 var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
@@ -55,8 +56,8 @@ namespace Kalix.Leo.Queue.Messaging
 
                 client.OnMessage((m) =>
                 {
-                    var data = m.GetBody<string>();
-                    observer.OnNext(data);
+                    var message = new AzureQueueMessage(m);
+                    observer.OnNext(message);
                 }, options);
 
                 // Return the method to call on dispose
@@ -71,7 +72,7 @@ namespace Kalix.Leo.Queue.Messaging
             });
         }
 
-        public async Task CreateQueueIfExists()
+        public async Task CreateQueueIfNotExists()
         {
             var ns = NamespaceManager.CreateFromConnectionString(_serviceBusConnectionString);
             if (await ns.QueueExistsAsync(_queue))
