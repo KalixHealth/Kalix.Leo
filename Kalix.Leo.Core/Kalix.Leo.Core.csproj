@@ -55,23 +55,25 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BackupListener.cs" />
+    <Compile Include="Listeners\BackupListener.cs" />
     <Compile Include="Compression\DeflateCompressor.cs" />
     <Compile Include="Compression\ICompressor.cs" />
     <Compile Include="Encryption\IEncryptor.cs" />
-    <Compile Include="IBackupListener.cs" />
-    <Compile Include="IIndexListener.cs" />
+    <Compile Include="Listeners\IBackupListener.cs" />
+    <Compile Include="Listeners\IIndexListener.cs" />
+    <Compile Include="IMetadata.cs" />
     <Compile Include="Indexing\IIndexer.cs" />
-    <Compile Include="IndexListener.cs" />
-    <Compile Include="ISecureStore.cs" />
+    <Compile Include="Listeners\IndexListener.cs" />
+    <Compile Include="Storage\ISecureStore.cs" />
     <Compile Include="MetadataConstants.cs" />
     <Compile Include="Queue\IQueue.cs" />
     <Compile Include="Queue\IQueueMessage.cs" />
-    <Compile Include="SecureStoreOptions.cs" />
-    <Compile Include="SecureStore.cs" />
+    <Compile Include="Storage\SecureStoreOptions.cs" />
+    <Compile Include="Storage\SecureStore.cs" />
+    <Compile Include="Storage\LocationWithMetadata.cs" />
     <Compile Include="Storage\Metadata.cs" />
     <Compile Include="Storage\ObjectWithMetadata.cs" />
-    <Compile Include="Storage\DataWithMetadata.cs" />
+    <Compile Include="DataWithMetadata.cs" />
     <Compile Include="Storage\IOptimisticStore.cs" />
     <Compile Include="Storage\IStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -79,7 +81,7 @@
     <Compile Include="Snapshot.cs" />
     <Compile Include="Storage\UniqueIdGenerator.cs" />
     <Compile Include="StoreDataDetails.cs" />
-    <Compile Include="StoreLocation.cs" />
+    <Compile Include="Storage\StoreLocation.cs" />
     <Compile Include="Streams\ObserverWriteStream.cs" />
     <Compile Include="Streams\StreamExtensions.cs" />
   </ItemGroup>

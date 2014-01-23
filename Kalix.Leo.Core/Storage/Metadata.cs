@@ -3,12 +3,6 @@ using System.Collections.Generic;
 
 namespace Kalix.Leo.Storage
 {
-    public interface IMetadata : IDictionary<string, string>
-    {
-        DateTime? LastModified { get; set; }
-        long? Size { get; set; }
-    }
-
     public class Metadata : Dictionary<string, string>, IMetadata
     {
         public Metadata() { }

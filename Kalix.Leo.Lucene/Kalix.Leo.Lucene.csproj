@@ -55,9 +55,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analysis\EnglishAnalyzer.cs" />
-    <Compile Include="BaseIndexer.cs" />
-    <Compile Include="ILuceneIndexer.cs" />
-    <Compile Include="LuceneIndexer.cs" />
+    <Compile Include="ILuceneIndex.cs" />
+    <Compile Include="LuceneIndex.cs" />
     <Compile Include="Store\EncryptedFileCache.cs" />
     <Compile Include="Store\IFileCache.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -65,7 +64,6 @@
     <Compile Include="Store\SecureStoreIndexInput.cs" />
     <Compile Include="Store\SecureStoreIndexOutput.cs" />
     <Compile Include="Store\SecureStoreLock.cs" />
-    <Compile Include="TypedIndexer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

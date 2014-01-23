@@ -6,7 +6,7 @@ using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Listeners
 {
     public class BackupListener : IBackupListener
     {

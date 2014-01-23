@@ -1,4 +1,5 @@
 ﻿using AsyncBridge;
+using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.IO;

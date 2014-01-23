@@ -1,4 +1,4 @@
-﻿namespace Kalix.Leo
+﻿namespace Kalix.Leo.Storage
 {
     /// <summary>
     /// Index of a specific store record

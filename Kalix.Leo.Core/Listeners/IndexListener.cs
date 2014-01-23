@@ -3,45 +3,51 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Listeners
 {
     public class IndexListener : IIndexListener
     {
         private readonly IQueue _indexQueue;
-        private readonly Dictionary<string, IIndexer> _indexers;
+        private readonly Dictionary<string, IIndexer> _typeIndexers;
+        private readonly Dictionary<string, IIndexer> _pathIndexers;
         private readonly Func<string, Type> _typeResolver;
-        private IIndexer _fallback;
 
         public IndexListener(IQueue indexQueue, Func<string, Type> typeResolver = null)
         {
             _indexQueue = indexQueue;
-            _indexers = new Dictionary<string, IIndexer>();
+            _typeIndexers = new Dictionary<string, IIndexer>();
+            _pathIndexers = new Dictionary<string, IIndexer>();
             _typeResolver = typeResolver ?? (s => Type.GetType(s, false));
         }
 
-        public void RegisterFallbackIndexer(IIndexer indexer)
+        public void RegisterPathIndexer(string basePath, IIndexer indexer)
         {
-            if(_fallback != null)
+            if (_pathIndexers.ContainsKey(basePath))
             {
-                throw new InvalidOperationException("Already have a fallback indexer");
+                throw new InvalidOperationException("Already have a indexer for base path: " + basePath);
             }
 
-            _fallback = indexer;
+            _pathIndexers[basePath] = indexer;
         }
 
         public void RegisterTypeIndexer<T>(IIndexer indexer)
         {
-            var type = typeof(T).FullName;
-            if (_indexers.ContainsKey(type)) 
+            RegisterTypeIndexer(typeof(T), indexer);
+        }
+
+        public void RegisterTypeIndexer(Type type, IIndexer indexer)
+        {
+            if (_typeIndexers.ContainsKey(type.FullName))
             {
                 throw new InvalidOperationException("Already have a indexer for type: " + type);
             }
 
-            _indexers[type] = indexer;
+            _typeIndexers[type.FullName] = indexer;
         }
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
@@ -68,21 +74,26 @@ namespace Kalix.Leo
                 if(details.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
                 {
                     var type = details.Metadata[MetadataConstants.TypeMetadataKey];
-                    if(_indexers.ContainsKey(type))
+                    if(_typeIndexers.ContainsKey(type))
                     {
-                        await _indexers[type].Index(details);
+                        await _typeIndexers[type].Index(details);
                         hasData = true;
                     }
                 }
                 
                 if(!hasData)
                 {
-                    if(_fallback == null)
+                    var key = _pathIndexers.Keys.Where(k => details.BasePath.StartsWith(k)).FirstOrDefault();
+                    if (key != null)
                     {
-                        throw new InvalidOperationException("No fallback indexer is registered, data could not be indexed: container=" + details.Container);
+                        await _pathIndexers[key].Index(details);
+                        hasData = true;
                     }
+                }
 
-                    await _fallback.Index(details);
+                if(!hasData)
+                {
+                    throw new InvalidOperationException("Could not find indexer for record: container=" + details.Container + ", path=" + details.BasePath);
                 }
 
                 await message.Complete();

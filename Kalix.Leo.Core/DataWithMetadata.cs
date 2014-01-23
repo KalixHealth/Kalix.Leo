@@ -1,6 +1,7 @@
-﻿using System;
+﻿using Kalix.Leo.Storage;
+using System;
 
-namespace Kalix.Leo.Storage
+namespace Kalix.Leo
 {
     public sealed class DataWithMetadata : IDisposable
     {

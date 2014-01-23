@@ -1,13 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Kalix.Leo.Storage;
+using System;
 
 namespace Kalix.Leo
 {
     public class Snapshot
     {
         public string Id { get; set; }
-        public DateTime Modified { get; set; }
 
-        public IDictionary<string, string> Metadata { get; set; }
+        public IMetadata Metadata { get; set; }
     }
 }

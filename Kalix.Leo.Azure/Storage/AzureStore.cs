@@ -337,12 +337,11 @@ namespace Kalix.Leo.Azure.Storage
                 .Select(b => new Snapshot
                 {
                     Id = b.SnapshotTime.Value.UtcDateTime.Ticks.ToString(),
-                    Modified = b.SnapshotTime.Value.UtcDateTime,
                     Metadata = GetActualMetadata(b)
                 });
         }
 
-        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
@@ -365,7 +364,9 @@ namespace Kalix.Leo.Azure.Storage
                             path = Path.GetDirectoryName(path);
                         }
                     }
-                    return new StoreLocation(container, path, id);
+                    
+                    var loc = new StoreLocation(container, path, id);
+                    return new LocationWithMetadata(loc, GetActualMetadata(b));
                 });
         }
 
@@ -465,9 +466,9 @@ namespace Kalix.Leo.Azure.Storage
         {
             var metadata = new Metadata(blob.Metadata);
 
-            if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey) && blob.Properties.LastModified.HasValue)
+            if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey) && (blob.Properties.LastModified.HasValue || blob.SnapshotTime.HasValue))
             {
-                metadata[MetadataConstants.ModifiedMetadataKey] = blob.Properties.LastModified.Value.UtcDateTime.Ticks.ToString();
+                metadata[MetadataConstants.ModifiedMetadataKey] = blob.SnapshotTime.HasValue ? blob.SnapshotTime.Value.UtcTicks.ToString() : blob.Properties.LastModified.Value.UtcTicks.ToString();
             }
 
             if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))

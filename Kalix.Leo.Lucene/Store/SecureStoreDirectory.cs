@@ -15,13 +15,15 @@ namespace Kalix.Leo.Lucene.Store
     {
         private readonly ISecureStore _store;
         private readonly string _container;
+        private readonly string _basePath;
         private readonly IFileCache _cache;
         private readonly SecureStoreOptions _options;
         private readonly CompositeDisposable _disposables;
 
-        public SecureStoreDirectory(ISecureStore store, string container, IFileCache cache)
+        public SecureStoreDirectory(ISecureStore store, string container, string basePath, IFileCache cache)
         {
             _container = container;
+            _basePath = basePath ?? string.Empty;
             _cache = cache;
             _store = store;
             _disposables = new CompositeDisposable();
@@ -68,9 +70,11 @@ namespace Kalix.Leo.Lucene.Store
 
         public override string[] ListAll()
         {
+            int basePathLength = string.IsNullOrEmpty(_basePath) ? 0 : _basePath.Length + 1;
+
             return _store
-                .FindFiles(_container)
-                .Select(s => s.BasePath)
+                .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + Path.DirectorySeparatorChar))
+                .Select(s => s.Location.BasePath.Substring(basePathLength))
                 .ToEnumerable()
                 .ToArray(); // This will block until executed
         }
@@ -132,17 +136,17 @@ namespace Kalix.Leo.Lucene.Store
 
         public override string GetLockId()
         {
-            return _container;
+            return Path.Combine(_container, _basePath);
         }
 
         private StoreLocation GetLocation(string name)
         {
-            return new StoreLocation(_container, name);
+            return new StoreLocation(_container, Path.Combine(_basePath, name));
         }
 
         private string GetCachePath(string name)
         {
-            return _container + Path.DirectorySeparatorChar + name;
+            return Path.Combine(_container, _basePath, name);
         }
 
         protected override void Dispose(bool disposing)

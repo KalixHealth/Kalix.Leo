@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Listeners
 {
     public interface IBackupListener
     {

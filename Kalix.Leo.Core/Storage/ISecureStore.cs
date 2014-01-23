@@ -1,9 +1,7 @@
-﻿using Kalix.Leo.Storage;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Storage
 {
     public interface ISecureStore
     {
@@ -23,7 +21,10 @@ namespace Kalix.Leo
         Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All);
 
         IObservable<Snapshot> FindSnapshots(StoreLocation location);
-        IObservable<StoreLocation> FindFiles(string container, string prefix = null);
+        IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null);
+
+        Task ReIndexAll(string container, string prefix = null);
+        Task BackupAll(string container, string prefix = null);
 
         Task<IDisposable> Lock(StoreLocation location);
 

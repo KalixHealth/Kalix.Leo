@@ -46,8 +46,8 @@ namespace Kalix.Leo.Storage
         /// </summary>
         /// <param name="container">Container to search</param>
         /// <param name="prefix">Prefix of the path to filter by</param>
-        /// <returns>List of files</returns>
-        IObservable<StoreLocation> FindFiles(string container, string prefix = null);
+        /// <returns>List of files & metadata</returns>
+        IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null);
 
         /// <summary>
         /// Marks the file as deleted, but snapshots are still available

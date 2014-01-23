@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace Kalix.Leo.Storage
+﻿namespace Kalix.Leo.Storage
 {
     public sealed class ObjectWithMetadata<T>
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Storage
 {
     /// <summary>
     /// Pipeline options for a record that will be securely stored

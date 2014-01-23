@@ -1,7 +1,6 @@
 ﻿using Kalix.Leo.Compression;
 using Kalix.Leo.Encryption;
 using Kalix.Leo.Queue;
-using Kalix.Leo.Storage;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -10,7 +9,7 @@ using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo
+namespace Kalix.Leo.Storage
 {
     public class SecureStore : ISecureStore
     {
@@ -56,9 +55,35 @@ namespace Kalix.Leo
             return _store.FindSnapshots(location);
         }
 
-        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             return _store.FindFiles(container, prefix);
+        }
+
+        public async Task ReIndexAll(string container, string prefix = null)
+        {
+            if (_indexQueue == null)
+            {
+                throw new InvalidOperationException("Index queue has not been defined");
+            }
+
+            await FindFiles(container, prefix)
+                .SelectMany(f => 
+                    Observable.FromAsync(() => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
+                );
+        }
+
+        public async Task BackupAll(string container, string prefix = null)
+        {
+            if (_backupQueue == null)
+            {
+                throw new InvalidOperationException("Backup queue has not been defined");
+            }
+
+            await FindFiles(container, prefix)
+                .SelectMany(f =>
+                    Observable.FromAsync(() => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
+                );
         }
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null)
@@ -201,11 +226,21 @@ namespace Kalix.Leo
 
             if(options.HasFlag(SecureStoreOptions.Backup))
             {
+                if(_backupQueue == null)
+                {
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                }
+
                 tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
             }
 
             if (options.HasFlag(SecureStoreOptions.Index))
             {
+                if (_indexQueue == null)
+                {
+                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                }
+
                 tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
             }
 
@@ -217,15 +252,46 @@ namespace Kalix.Leo
             return location;
         }
 
-        public Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All)
         {
+            var metadata = await _store.GetMetadata(location);
+            if (metadata == null) { return; }
+
             if (options.HasFlag(SecureStoreOptions.KeepDeletes))
             {
-                return _store.SoftDelete(location);
+                await _store.SoftDelete(location);
             }
             else
             {
-                return _store.PermanentDelete(location);
+                await _store.PermanentDelete(location);
+            }
+
+            // The rest of the tasks are done asyncly
+            var tasks = new List<Task>();
+
+            if (options.HasFlag(SecureStoreOptions.Backup))
+            {
+                if (_backupQueue == null)
+                {
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                }
+
+                tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
+            }
+
+            if (options.HasFlag(SecureStoreOptions.Index))
+            {
+                if (_indexQueue == null)
+                {
+                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                }
+
+                tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
+            }
+
+            if (tasks.Count > 0)
+            {
+                await Task.WhenAll(tasks);
             }
         }
 

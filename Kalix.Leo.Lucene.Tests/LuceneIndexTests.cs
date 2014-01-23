@@ -14,10 +14,10 @@ using System.Threading.Tasks;
 namespace Kalix.Leo.Lucene.Tests
 {
     [TestFixture]
-    public class LuceneIndexerTests
+    public class LuceneIndexTests
     {
         protected IOptimisticStore _store;
-        protected LuceneIndexer _indexer;
+        protected LuceneIndex _indexer;
 
         [SetUp]
         public void Init()
@@ -27,7 +27,7 @@ namespace Kalix.Leo.Lucene.Tests
             _store.CreateContainerIfNotExists("testindexer");
 
             var store = new SecureStore(_store);
-            _indexer = new LuceneIndexer(store, "testindexer");
+            _indexer = new LuceneIndex(store, "testindexer", "basePath");
         }
 
         [TearDown]

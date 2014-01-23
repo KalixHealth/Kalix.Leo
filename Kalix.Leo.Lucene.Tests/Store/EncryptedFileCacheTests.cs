@@ -1,5 +1,4 @@
 ﻿using Kalix.Leo.Lucene.Store;
-using Kalix.Leo.Storage;
 using NUnit.Framework;
 using System;
 using System.Reactive.Linq;

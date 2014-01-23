@@ -182,13 +182,13 @@ namespace Kalix.Leo.Amazon.Storage
                 .Merge();
         }
 
-        public IObservable<StoreLocation> FindFiles(string container, string prefix = null)
+        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             var containerPrefix = container + "\\";
             return Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, containerPrefix + (prefix ?? string.Empty).Replace("/", "\\"), ct))
                 .Where(v => v.IsLatest)
-                .Select(v =>
+                .Select(async v =>
                 {
                     var path = v.Key.Remove(0, containerPrefix.Length);
                     long? id = null;
@@ -201,8 +201,12 @@ namespace Kalix.Leo.Amazon.Storage
                             path = Path.GetDirectoryName(path);
                         }
                     }
-                    return new StoreLocation(container, path, id);
-                });
+                    
+                    var loc = new StoreLocation(container, path, id);
+                    var snapshot = await GetSnapshotFromVersion(v);
+                    return new LocationWithMetadata(loc, snapshot.Metadata);
+                })
+                .Merge();
         }
 
         public Task SoftDelete(StoreLocation location)
@@ -311,7 +315,6 @@ namespace Kalix.Leo.Amazon.Storage
             return new Snapshot
             {
                 Id = version.VersionId,
-                Modified = version.LastModified,
                 Metadata = ActualMetadata(res.Metadata, res.LastModified, res.ContentLength)
             };
         }
