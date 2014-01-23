@@ -164,10 +164,11 @@ namespace System.IO
             using (stream)
             {
                 var buffer = new byte[bufferSize];
-                int bytesRead = stream.Read(buffer, 0, bufferSize);
-                while (bytesRead > 0)
+                
+                int bytesRead;
+                while ((bytesRead = stream.Read(buffer, 0, bufferSize)) > 0)
                 {
-                    if (bytesRead == buffer.Length)
+                    if (bytesRead == bufferSize)
                     {
                         yield return buffer;
                         buffer = new byte[bufferSize];
@@ -178,8 +179,6 @@ namespace System.IO
                         Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
                         yield return data;
                     }
-
-                    bytesRead = stream.Read(buffer, 0, bufferSize);
                 }
             }
         }
