@@ -5,6 +5,7 @@ using System;
 using System.Linq;
 using System.Reactive.Disposables;
 using System.Reflection;
+using System.Runtime.Caching;
 
 namespace Kalix.Leo
 {
@@ -13,6 +14,10 @@ namespace Kalix.Leo
         private readonly LeoEngineConfiguration _config;
         private readonly IBackupListener _backupListener;
         private readonly IIndexListener _indexListener;
+        
+        private readonly MemoryCache _cache;
+        private readonly CacheItemPolicy _cachePolicy;
+        private readonly string _baseName;
 
         private bool _listenersStarted;
         private CompositeDisposable _disposables;
@@ -23,9 +28,27 @@ namespace Kalix.Leo
             _disposables = new CompositeDisposable();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
             _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.TypeResolver) : null;
-
-            if (_indexListener != null && config.Objects != null)
+            _cache = MemoryCache.Default;
+            _cachePolicy = new CacheItemPolicy
             {
+                Priority = CacheItemPriority.Default,
+                SlidingExpiration = TimeSpan.FromHours(1)
+            };
+
+            _baseName = "LeoEngine::" + config.UniqueName + "::";
+
+            if (_indexListener != null)
+            {
+                if (config.Objects == null)
+                {
+                    throw new ArgumentNullException("You have not initialised any objects");
+                }
+
+                if (config.Objects.Select(o => o.BasePath).Distinct().Count() != config.Objects.Count())
+                {
+                    throw new ArgumentException("Must have unique base paths accross all objects");
+                }
+
                 foreach (var obj in config.Objects.Where(o => o.Type != null && o.Indexer != null))
                 {
                     _indexListener.RegisterTypeIndexer(obj.Type, new ItemPartitionIndexer(obj.Indexer, c => GetPartitionByType(obj.Type, c).Indexer));
@@ -45,8 +68,14 @@ namespace Kalix.Leo
             {
                 throw new InvalidOperationException("The object type '" + typeof(T).FullName + "' is not registered");
             }
-
-            return new ObjectPartition<T>(_config, container, config);
+            var key = _baseName + config.BasePath + "::" + container;
+            var cacheVal = _cache.Get(key) as ObjectPartition<T>;
+            if (cacheVal == null)
+            {
+                cacheVal = new ObjectPartition<T>(_config, container, config);
+                _cache.Set(key, cacheVal, _cachePolicy); 
+            }
+            return cacheVal;
         }
 
         public IDocumentPartition GetDocumentPartition(string basePath, string container)
@@ -57,7 +86,14 @@ namespace Kalix.Leo
                 throw new InvalidOperationException("The document type with base path '" + basePath + "' is not registered");
             }
 
-            return new DocumentPartition(_config, container, config);
+            var key = _baseName + config.BasePath + "::" + container;
+            var cacheVal = _cache.Get(key) as DocumentPartition;
+            if (cacheVal == null)
+            {
+                cacheVal = new DocumentPartition(_config, container, config);
+                _cache.Set(key, cacheVal, _cachePolicy);
+            }
+            return cacheVal;
         }
 
         public void StartListeners(int? messagesToProcessInParallel = null)

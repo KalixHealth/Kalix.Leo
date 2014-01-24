@@ -27,7 +27,7 @@ namespace Kalix.Leo.Lucene.Tests
             _store.CreateContainerIfNotExists("testindexer");
 
             var store = new SecureStore(_store);
-            _indexer = new LuceneIndex(store, "testindexer", "basePath");
+            _indexer = new LuceneIndex(store, "testindexer", "basePath", null);
         }
 
         [TearDown]

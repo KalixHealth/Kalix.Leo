@@ -9,6 +9,8 @@ namespace Kalix.Leo.Configuration
         public string BasePath { get; set; }
 
         public ILeoIndexer Indexer { get; set; }
+        public bool DoEncrypt { get; set; }
         public bool DoBackup { get; set; }
+        public bool DoCompress { get; set; }
     }
 }

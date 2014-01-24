@@ -18,12 +18,12 @@ namespace Kalix.Leo
         public Task Save(string path, IObservable<byte[]> data, IMetadata metadata = null)
         {
             var obj = new DataWithMetadata(data, metadata);
-            return _store.SaveData(GetLocation(path), obj, null, _options);
+            return _store.SaveData(GetLocation(path), obj, null, _encryptor.Value, _options);
         }
 
         public Task<DataWithMetadata> Load(string path, string snapshot = null)
         {
-            return _store.LoadData(GetLocation(path), snapshot);
+            return _store.LoadData(GetLocation(path), snapshot, _encryptor.Value);
         }
 
         public Task<IMetadata> GetMetadata(string path, string snapshot = null)

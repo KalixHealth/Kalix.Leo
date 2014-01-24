@@ -18,22 +18,18 @@ namespace Kalix.Leo.Storage
         /// </summary>
         Index = 2,
         /// <summary>
-        /// Encrypt this record when saving
-        /// </summary>
-        Encrypt = 4,
-        /// <summary>
         /// Compress this record when saving
         /// </summary>
-        Compress = 8,
+        Compress = 5,
         /// <summary>
         /// Generate an id if the record has no id
         /// </summary>
-        GenerateId = 16,
+        GenerateId = 8,
         /// <summary>
         /// When deleting records do not actually delete the record
         /// </summary>
-        KeepDeletes = 32,
+        KeepDeletes = 16,
 
-        All = Backup | Index | Encrypt | Compress | GenerateId | KeepDeletes
+        All = Backup | Index | Compress | GenerateId | KeepDeletes
     }
 }

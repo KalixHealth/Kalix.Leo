@@ -1,4 +1,5 @@
 ﻿using AsyncBridge;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
@@ -16,23 +17,21 @@ namespace Kalix.Leo.Lucene.Store
         private readonly ISecureStore _store;
         private readonly string _container;
         private readonly string _basePath;
+        private readonly IEncryptor _encryptor;
         private readonly IFileCache _cache;
         private readonly SecureStoreOptions _options;
         private readonly CompositeDisposable _disposables;
 
-        public SecureStoreDirectory(ISecureStore store, string container, string basePath, IFileCache cache)
+        public SecureStoreDirectory(ISecureStore store, string container, string basePath, IFileCache cache, IEncryptor encryptor)
         {
             _container = container;
             _basePath = basePath ?? string.Empty;
             _cache = cache;
             _store = store;
             _disposables = new CompositeDisposable();
+            _encryptor = encryptor;
 
             _options = SecureStoreOptions.None;
-            if (_store.CanEncrypt)
-            {
-                _options = SecureStoreOptions.Encrypt;
-            }
             if (_store.CanCompress)
             {
                 _options = _options | SecureStoreOptions.Compress;
@@ -87,7 +86,7 @@ namespace Kalix.Leo.Lucene.Store
 
         public override IndexInput OpenInput(string name)
         {
-            var input = new SecureStoreIndexInput(_cache, _store, GetLocation(name), GetCachePath(name), _disposables);
+            var input = new SecureStoreIndexInput(_cache, _store, _encryptor, GetLocation(name), GetCachePath(name), _disposables);
             _disposables.Add(input);
             return input;
         }
@@ -102,7 +101,7 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.Size = data.Metadata.Size;
                 metadata.LastModified = data.Metadata.LastModified;
 
-                await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata, () => data.Dispose()), null, _options);
+                await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata, () => data.Dispose()), null, _encryptor, _options);
             });
 
             _disposables.Add(output);

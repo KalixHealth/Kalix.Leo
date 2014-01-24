@@ -26,13 +26,13 @@ namespace Kalix.Leo
         public async Task<long> Save(long? id, T data, IMetadata metadata = null)
         {
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id), obj, _idGenerator.Value, _options);
+            var result = await _store.SaveObject(GetLocation(id), obj, _idGenerator.Value, _encryptor.Value, _options);
             return result.Id.Value;
         }
 
         public Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null)
         {
-            return _store.LoadObject<T>(GetLocation(id), snapshot);
+            return _store.LoadObject<T>(GetLocation(id), snapshot, _encryptor.Value);
         }
 
         public Task<IMetadata> GetMetadata(long id, string snapshot = null)

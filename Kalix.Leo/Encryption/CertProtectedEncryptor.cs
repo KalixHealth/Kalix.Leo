@@ -9,21 +9,35 @@ namespace Kalix.Leo.Encryption
 {
     public class CertProtectedEncryptor : IEncryptor
     {
+        private const AESKeySize DefaultKeySize = AESKeySize.AES256;
+
         private readonly Lazy<Task<AESEncryptor>> _encryptor;
+        private readonly string _partition;
 
         public CertProtectedEncryptor(IStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
         {
+            _partition = keyLocation.Container;
             _encryptor = new Lazy<Task<AESEncryptor>>(async () =>
             {
                 var data = await store.LoadData(keyLocation);
-                var blob = await data.Stream.SelectMany(s => s).ToArray();
+                byte[] blob;
+                if (data == null)
+                {
+                    // Have to create a new key
+                    blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
+                    await store.SaveData(keyLocation, new DataWithMetadata(Observable.Return(blob)));
+                }
+                else
+                {
+                    blob = await data.Stream.SelectMany(s => s).ToArray();
+                }
                 return AESBlob.CreateEncryptor(blob, rsaCert);
             });
         }
 
         public string Algorithm
         {
-            get { return "AES"; }
+            get { return "AES_" + _partition; }
         }
 
         public IObservable<byte[]> Encrypt(IObservable<byte[]> data)

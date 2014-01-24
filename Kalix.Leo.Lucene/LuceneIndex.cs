@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Lucene.Analysis;
+﻿using Kalix.Leo.Encryption;
+using Kalix.Leo.Lucene.Analysis;
 using Kalix.Leo.Lucene.Store;
 using Kalix.Leo.Storage;
 using Lucene.Net.Analysis;
@@ -35,8 +36,8 @@ namespace Kalix.Leo.Lucene
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
         /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
-        public LuceneIndex(ISecureStore store, string container, string basePath, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
-            : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache()), new EnglishAnalyzer(), readIndexThottleMs, writeIndexThottleMs, RAMSizeMb)
+        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
+            : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(), encryptor), new EnglishAnalyzer(), readIndexThottleMs, writeIndexThottleMs, RAMSizeMb)
         {
         }
 

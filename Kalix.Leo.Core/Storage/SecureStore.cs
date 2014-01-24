@@ -16,23 +16,16 @@ namespace Kalix.Leo.Storage
         private readonly IOptimisticStore _store;
         private readonly IQueue _backupQueue;
         private readonly IQueue _indexQueue;
-        private readonly IEncryptor _encryptor;
         private readonly ICompressor _compressor;
 
-        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IEncryptor encryptor = null, ICompressor compressor = null)
+        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, ICompressor compressor = null)
         {
             if (store == null) { throw new ArgumentNullException("store"); }
 
             _store = store;
             _backupQueue = backupQueue;
             _indexQueue = indexQueue;
-            _encryptor = encryptor;
             _compressor = compressor;
-        }
-
-        public bool CanEncrypt
-        {
-            get { return _encryptor != null; }
         }
 
         public bool CanCompress
@@ -86,9 +79,9 @@ namespace Kalix.Leo.Storage
                 );
         }
 
-        public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null)
+        public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
         {
-            using (var data = await LoadData(location, snapshot))
+            using (var data = await LoadData(location, snapshot, encryptor))
             {
                 if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
                 {
@@ -108,7 +101,7 @@ namespace Kalix.Leo.Storage
             }
         }
 
-        public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
+        public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
         {
             var data = await _store.LoadData(location, snapshot);
             if (data == null) { return null; }
@@ -119,12 +112,12 @@ namespace Kalix.Leo.Storage
             // First the decryptor sits on top
             if (metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey))
             {
-                if (metadata[MetadataConstants.EncryptionMetadataKey] != _encryptor.Algorithm)
+                if (metadata[MetadataConstants.EncryptionMetadataKey] != encryptor.Algorithm)
                 {
                     throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
                 }
 
-                stream = _encryptor.Decrypt(stream);
+                stream = encryptor.Decrypt(stream);
             }
 
             // Might need to decompress too!
@@ -146,16 +139,16 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task<StoreLocation> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public Task<StoreLocation> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IUniqueIdGenerator idGenerator = null, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), idGenerator, options);
+            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), idGenerator, encryptor, options);
         }
 
-        public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             var metadata = new Metadata(data.Metadata);
             var dataStream = data.Stream;
@@ -182,15 +175,10 @@ namespace Kalix.Leo.Storage
             }
 
             // Next is encryption
-            if(options.HasFlag(SecureStoreOptions.Encrypt))
+            if(encryptor != null)
             {
-                if(_encryptor == null)
-                {
-                    throw new ArgumentException("Encrypt option should not be used if no encryptor has been implemented", "options");
-                }
-
-                dataStream = _encryptor.Encrypt(dataStream);
-                metadata.Add(MetadataConstants.EncryptionMetadataKey, _encryptor.Algorithm);
+                dataStream = encryptor.Encrypt(dataStream);
+                metadata.Add(MetadataConstants.EncryptionMetadataKey, encryptor.Algorithm);
             }
             else
             {

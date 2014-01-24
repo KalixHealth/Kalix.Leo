@@ -1,4 +1,5 @@
 ﻿using AsyncBridge;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
@@ -17,7 +18,7 @@ namespace Kalix.Leo.Lucene.Store
 
         private bool _isDisposed;
 
-        public SecureStoreIndexInput(IFileCache cache, ISecureStore store, StoreLocation location, string cachePath, CompositeDisposable inputs)
+        public SecureStoreIndexInput(IFileCache cache, ISecureStore store, IEncryptor encryptor, StoreLocation location, string cachePath, CompositeDisposable inputs)
         {
             _cache = cache;
             _cachePath = cachePath;
@@ -26,7 +27,7 @@ namespace Kalix.Leo.Lucene.Store
             // If we uncomment this code then we do not have initial repeat calls for the initial segment
             // However it breaks when it tries to get later segments
             // Problem with the lucene IndexSearcher Implementation
-            /*var hasFile = */GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location)));
+            /*var hasFile = */GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location, null, encryptor)));
             //if (!hasFile)
             //{
             //    throw new FileNotFoundException("Input file does not exist: " + cachePath);
