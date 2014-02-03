@@ -2,32 +2,37 @@
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
+using System.IO;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
     public class ObjectPartition<T> : BasePartition, IObjectPartition<T>
+        where T : ObjectWithId
     {
         protected readonly Lazy<UniqueIdGenerator> _idGenerator;
 
         public ObjectPartition(LeoEngineConfiguration engineConfig, string container, ItemConfiguration config)
             : base(engineConfig, container, config)
         {
-            _options = _options | SecureStoreOptions.GenerateId;
-
             _idGenerator = new Lazy<UniqueIdGenerator>(() =>
             {
-                var loc = new StoreLocation(container, engineConfig.UniqueIdGeneratorPath);
+                var loc = new StoreLocation(container, Path.Combine(config.BasePath, engineConfig.UniqueIdGeneratorPath));
                 return new UniqueIdGenerator(engineConfig.BaseStore, loc, 5);
             });
         }
 
-        public async Task<long> Save(long? id, T data, IMetadata metadata = null)
+        public async Task<long> Save(T data, IMetadata metadata = null)
         {
+            if(!data.Id.HasValue)
+            {
+                data.Id = await _idGenerator.Value.NextId();
+            }
+
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id), obj, _idGenerator.Value, _encryptor.Value, _options);
-            return result.Id.Value;
+            await _store.SaveObject(GetLocation(data.Id.Value), obj, _encryptor.Value, _options);
+            return data.Id.Value;
         }
 
         public Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null)

@@ -22,14 +22,10 @@ namespace Kalix.Leo.Storage
         /// </summary>
         Compress = 5,
         /// <summary>
-        /// Generate an id if the record has no id
-        /// </summary>
-        GenerateId = 8,
-        /// <summary>
         /// When deleting records do not actually delete the record
         /// </summary>
-        KeepDeletes = 16,
+        KeepDeletes = 8,
 
-        All = Backup | Index | Compress | GenerateId | KeepDeletes
+        All = Backup | Index | Compress | KeepDeletes
     }
 }

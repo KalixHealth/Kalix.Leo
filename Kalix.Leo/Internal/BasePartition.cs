@@ -18,7 +18,7 @@ namespace Kalix.Leo.Internal
 
         public BasePartition(LeoEngineConfiguration engineConfig, string container, ItemConfiguration config)
         {
-            _store = engineConfig.SecureStore;
+            _store = new SecureStore(engineConfig.BaseStore, engineConfig.BackupQueue, engineConfig.IndexQueue, engineConfig.Compressor);
             _container = container;
             _config = config;
 
@@ -28,7 +28,7 @@ namespace Kalix.Leo.Internal
             if (config.DoCompress) { _options = _options | SecureStoreOptions.Compress; }
 
             _encryptor = new Lazy<IEncryptor>(() => config.DoEncrypt ? new CertProtectedEncryptor(engineConfig.BaseStore, new StoreLocation(engineConfig.KeyContainer, container), engineConfig.RsaCert) : null);
-            _index = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(engineConfig.IndexStore, container, config.BasePath, _encryptor.Value));
+            _index = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor.Value));
         }
 
         public ILuceneIndex Indexer

@@ -139,16 +139,16 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task<StoreLocation> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IUniqueIdGenerator idGenerator = null, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), idGenerator, encryptor, options);
+            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), encryptor, options);
         }
 
-        public async Task<StoreLocation> SaveData(StoreLocation location, DataWithMetadata data, IUniqueIdGenerator idGenerator = null, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             var metadata = new Metadata(data.Metadata);
             var dataStream = data.Stream;
@@ -187,21 +187,6 @@ namespace Kalix.Leo.Storage
             }
 
             /****************************************************
-             *  GENERATE ID
-             * ***************************************************/
-            // Update the location if we do not have an id yet
-            if(options.HasFlag(SecureStoreOptions.GenerateId) && !location.Id.HasValue)
-            {
-                if(idGenerator == null)
-                {
-                    throw new ArgumentException("GenerateId option should not be used if no idGenerator has been supplied", "options");
-                }
-
-                var id = await idGenerator.NextId();
-                location = new StoreLocation(location.Container, location.BasePath, id);
-            }
-
-            /****************************************************
              *  SAVE THE INITIAL DATA
              * ***************************************************/
             await _store.SaveData(location, new DataWithMetadata(dataStream, metadata));
@@ -236,8 +221,6 @@ namespace Kalix.Leo.Storage
             {
                 await Task.WhenAll(tasks);
             }
-
-            return location;
         }
 
         public async Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All)

@@ -17,6 +17,7 @@ namespace Kalix.Leo.Azure.Tests
         {
             if(!_containers.ContainsKey(name))
             {
+                //CloudStorageAccount.Parse("UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://ipv4.fiddler")
                 var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient();
                 var container = client.GetContainerReference(name);
                 container.CreateIfNotExists();

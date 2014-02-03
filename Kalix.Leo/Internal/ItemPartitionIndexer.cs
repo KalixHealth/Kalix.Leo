@@ -9,16 +9,18 @@ namespace Kalix.Leo.Internal
     {
         private readonly ILeoIndexer _indexer;
         private readonly Func<string, ILuceneIndex> _index;
+        private readonly ILeoEngine _engine;
 
-        public ItemPartitionIndexer(ILeoIndexer indexer, Func<string, ILuceneIndex> index)
+        public ItemPartitionIndexer(ILeoEngine engine, ILeoIndexer indexer, Func<string, ILuceneIndex> index)
         {
             _indexer = indexer;
             _index = index;
+            _engine = engine;
         }
 
         public Task Index(StoreDataDetails details)
         {
-            return _indexer.Index(details, _index(details.Container));
+            return _indexer.Index(details, _index(details.Container), _engine);
         }
     }
 }

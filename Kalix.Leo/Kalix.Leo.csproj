@@ -29,6 +29,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Release\Kalix.Leo.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="ICSharpCode.SharpZipLib">
@@ -73,6 +74,7 @@
     <Compile Include="LeoEngine.cs" />
     <Compile Include="Configuration\LeoEngineConfiguration.cs" />
     <Compile Include="ObjectPartition.cs" />
+    <Compile Include="ObjectWithId.cs" />
     <Compile Include="PathWithMetadata.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

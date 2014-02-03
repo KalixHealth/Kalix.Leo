@@ -36,7 +36,7 @@ namespace Kalix.Leo.Lucene
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
         /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
-        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
+        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, int readIndexThottleMs = 5000, int writeIndexThottleMs = 5000, double RAMSizeMb = 20)
             : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(), encryptor), new EnglishAnalyzer(), readIndexThottleMs, writeIndexThottleMs, RAMSizeMb)
         {
         }
@@ -49,7 +49,7 @@ namespace Kalix.Leo.Lucene
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
         /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
-        public LuceneIndex(Directory directory, Analyzer analyzer, int readIndexThottleMs = 5000, int writeIndexThottleMs = 30000, double RAMSizeMb = 20)
+        public LuceneIndex(Directory directory, Analyzer analyzer, int readIndexThottleMs = 5000, int writeIndexThottleMs = 5000, double RAMSizeMb = 20)
         {
             _directory = directory;
             _analyzer = analyzer;
@@ -78,7 +78,6 @@ namespace Kalix.Leo.Lucene
                 },
                 () =>
                 {
-                    SafeWrite(() => _writer.Value.PrepareCommit());
                     _needsWrite = true;
                 })
                 .LastOrDefaultAsync();   
@@ -150,7 +149,7 @@ namespace Kalix.Leo.Lucene
 
         private void RebuildWriter()
         {
-            if(_writer.IsValueCreated)
+            if(_writer != null && _writer.IsValueCreated)
             {
                 if (_needsWrite)
                 {

@@ -75,7 +75,7 @@ namespace Kalix.Leo.Azure.Queue
         public async Task CreateQueueIfNotExists()
         {
             var ns = NamespaceManager.CreateFromConnectionString(_serviceBusConnectionString);
-            if (await ns.QueueExistsAsync(_queue))
+            if (!await ns.QueueExistsAsync(_queue))
             {
                 var desc = new QueueDescription(_queue);
                 desc.SupportOrdering = false; // should learn to make stuff indepotent :)

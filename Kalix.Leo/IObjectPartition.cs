@@ -6,8 +6,9 @@ using System.Threading.Tasks;
 namespace Kalix.Leo
 {
     public interface IObjectPartition<T> : IBasePartition
+        where T : ObjectWithId
     {
-        Task<long> Save(long? id, T data, IMetadata metadata = null);
+        Task<long> Save(T data, IMetadata metadata = null);
         Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null);
         Task<IMetadata> GetMetadata(long id, string snapshot = null);
 

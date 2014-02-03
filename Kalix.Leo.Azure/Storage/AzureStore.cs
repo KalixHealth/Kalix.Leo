@@ -320,7 +320,10 @@ namespace Kalix.Leo.Azure.Storage
                 );
             });
 
-            data.Subscribe(cancellation.Token);
+            data
+                .Do(_ => { }, (e) => source.TrySetException(e), () => { }) // Catch any loose exceptions
+                .Subscribe(cancellation.Token);
+
             return source.Task;
         }
 
@@ -495,7 +498,7 @@ namespace Kalix.Leo.Azure.Storage
             {
                 if (!string.IsNullOrEmpty(location.BasePath))
                 {
-                    var dir = container.GetDirectoryReference(location.BasePath);
+                    var dir = container.GetDirectoryReference(SafePath.MakeSafeFilePath(location.BasePath));
                     blob = dir.GetBlockBlobReference(location.Id.ToString() + IdExtension, offset);
                 }
                 else
@@ -505,7 +508,7 @@ namespace Kalix.Leo.Azure.Storage
             }
             else
             {
-                blob = container.GetBlockBlobReference(location.BasePath, offset);
+                blob = container.GetBlockBlobReference(SafePath.MakeSafeFilePath(location.BasePath), offset);
             }
 
             return blob;

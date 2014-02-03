@@ -120,6 +120,15 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
+            public void NoContainerReturnsFalse()
+            {
+                using(var result = _store.LoadData(new StoreLocation("blahblahblah", "blah")).Result)
+                {
+                    Assert.IsNull(result);
+                }
+            }
+
+            [Test]
             public void FileMarkedAsDeletedReturnsNull()
             {
                 var data = Observable.Return(AzureTestsHelper.RandomData(1));

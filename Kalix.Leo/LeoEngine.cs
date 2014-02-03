@@ -51,17 +51,18 @@ namespace Kalix.Leo
 
                 foreach (var obj in config.Objects.Where(o => o.Type != null && o.Indexer != null))
                 {
-                    _indexListener.RegisterTypeIndexer(obj.Type, new ItemPartitionIndexer(obj.Indexer, c => GetPartitionByType(obj.Type, c).Indexer));
+                    _indexListener.RegisterTypeIndexer(obj.Type, new ItemPartitionIndexer(this, obj.Indexer, c => GetPartitionByType(obj.Type, c).Indexer));
                 }
 
                 foreach (var obj in config.Objects.Where(o => o.Type == null && o.Indexer != null))
                 {
-                    _indexListener.RegisterPathIndexer(obj.BasePath, new ItemPartitionIndexer(obj.Indexer, c => GetDocumentPartition(obj.BasePath, c).Indexer));
+                    _indexListener.RegisterPathIndexer(obj.BasePath, new ItemPartitionIndexer(this, obj.Indexer, c => GetDocumentPartition(obj.BasePath, c).Indexer));
                 }
             }
         }
 
         public IObjectPartition<T> GetObjectPartition<T>(string container)
+            where T : ObjectWithId
         {
             var config = _config.Objects.FirstOrDefault(o => o.Type == typeof(T));
             if(config == null)
