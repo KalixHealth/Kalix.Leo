@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Configuration;
+﻿using AsyncBridge;
+using Kalix.Leo.Configuration;
 using Kalix.Leo.Internal;
 using Kalix.Leo.Listeners;
 using System;
@@ -36,6 +37,19 @@ namespace Kalix.Leo
             };
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
+
+            if (!string.IsNullOrEmpty(config.KeyContainer))
+            {
+                using (var w = AsyncHelper.Wait)
+                {
+                    w.Run(config.BaseStore.CreateContainerIfNotExists(config.KeyContainer));
+
+                    if (config.IndexStore != null)
+                    {
+                        w.Run(config.IndexStore.CreateContainerIfNotExists(config.KeyContainer));
+                    }
+                }
+            }
 
             if (_indexListener != null)
             {

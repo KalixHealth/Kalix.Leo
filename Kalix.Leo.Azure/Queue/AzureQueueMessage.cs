@@ -9,11 +9,13 @@ namespace Kalix.Leo.Azure.Queue
     {
         private readonly BrokeredMessage _message;
         private readonly Lazy<string> _strMessage;
+        private readonly Action _onDisposed;
 
-        public AzureQueueMessage(BrokeredMessage message)
+        public AzureQueueMessage(BrokeredMessage message, Action onDisposed)
         {
             _message = message;
             _strMessage = new Lazy<string>(() => _message.GetBody<string>());
+            _onDisposed = onDisposed;
         }
 
         public string Message
@@ -28,6 +30,7 @@ namespace Kalix.Leo.Azure.Queue
 
         public void Dispose()
         {
+            _onDisposed();
             _message.Dispose();
         }
     }

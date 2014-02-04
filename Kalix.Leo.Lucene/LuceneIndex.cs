@@ -8,7 +8,6 @@ using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,12 +18,9 @@ namespace Kalix.Leo.Lucene
     {
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
-        private readonly IDisposable _writeWatcher;
         private readonly int _readThrottleTimeMs;
 
         private double _RAMSizeMb;
-        private Lazy<IndexWriter> _writer;
-        private bool _needsWrite;
         private bool _isDisposed;
 
         /// <summary>
@@ -55,47 +51,36 @@ namespace Kalix.Leo.Lucene
             _analyzer = analyzer;
             _readThrottleTimeMs = readIndexThottleMs;
             _RAMSizeMb = RAMSizeMb;
-
-            _writeWatcher = Observable.Interval(TimeSpan.FromMilliseconds(writeIndexThottleMs))
-                .Subscribe(i =>
-                {
-                    if (_needsWrite && _writer.IsValueCreated)
-                    {
-                        SafeWrite(() => _writer.Value.Commit());
-                        _needsWrite = false;
-                    }
-                });
-
-            RebuildWriter();
         }
 
         public async Task WriteToIndex(IObservable<Document> documents)
         {
-            await documents
-                .Do((d) =>
-                {
-                    SafeWrite(() => _writer.Value.AddDocument(d));
-                },
-                () =>
-                {
-                    _needsWrite = true;
-                })
-                .LastOrDefaultAsync();   
+            using (var writer = Writer())
+            {
+                await documents
+                    .Do(writer.AddDocument)
+                    .LastOrDefaultAsync();
+
+                writer.Commit();
+            }
         }
 
         public async Task WriteToIndex(Action<IndexWriter> writeUsingIndex)
         {
-            await Task.Run(() => writeUsingIndex(_writer.Value))
-                .ContinueWith(t => { _writer.Value.PrepareCommit(); _needsWrite = true; })
-                .ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                using (var writer = Writer())
+                {
+                    writeUsingIndex(writer);
+                    writer.Commit();
+                }
+            }).ConfigureAwait(false);
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
         {
             return Observable.Create<Document>(obs =>
             {
-                var reader = GetThrottledReader();
-                var searcher = new IndexSearcher(reader);
                 var cts = new CancellationTokenSource();
                 var token = cts.Token;
 
@@ -103,12 +88,16 @@ namespace Kalix.Leo.Lucene
                 {
                     try
                     {
-                        var docs = doSearchFunc(searcher);
-
-                        foreach (var doc in docs.ScoreDocs)
+                        using(var reader = Reader())
+                        using (var searcher = new IndexSearcher(reader))
                         {
-                            obs.OnNext(searcher.Doc(doc.Doc));
-                            token.ThrowIfCancellationRequested();
+                            var docs = doSearchFunc(searcher);
+
+                            foreach (var doc in docs.ScoreDocs)
+                            {
+                                obs.OnNext(searcher.Doc(doc.Doc));
+                                token.ThrowIfCancellationRequested();
+                            }
                         }
 
                         obs.OnCompleted();
@@ -119,8 +108,7 @@ namespace Kalix.Leo.Lucene
                     }
                 }, token);
 
-                var disposable = new CompositeDisposable(searcher, cts);
-                return disposable;
+                return cts;
             });
         }
 
@@ -128,88 +116,45 @@ namespace Kalix.Leo.Lucene
         {
             return Task.Run(() =>
             {
-                SafeWrite(() => _writer.Value.DeleteAll());
-                SafeWrite(() => _writer.Value.Commit());
+                using (var writer = Writer())
+                {
+                    writer.DeleteAll();
+                    writer.Commit();
+                }
             });
         }
 
-        private void SafeWrite(Action action)
+        private IndexWriter Writer()
         {
+            IndexWriter writer;
             try
             {
-                action();
+                writer = new IndexWriter(_directory, _analyzer, false, IndexWriter.MaxFieldLength.UNLIMITED);
             }
-            catch (OutOfMemoryException)
+            catch(System.IO.FileNotFoundException e)
             {
-                // rebuild the writer when out of memory
-                RebuildWriter();
-                throw;
+                writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
             }
+            writer.SetRAMBufferSizeMB(_RAMSizeMb);
+            return writer;
         }
 
-        private void RebuildWriter()
+        private IndexReader Reader()
         {
-            if(_writer != null && _writer.IsValueCreated)
+            if(_isDisposed)
             {
-                if (_needsWrite)
-                {
-                    SafeWrite(() => _writer.Value.Commit());
-                }
-                _writer.Value.Dispose();
+                throw new ObjectDisposedException("Indexer");
             }
 
-            _writer = new Lazy<IndexWriter>(() =>
-            {
-                var writer = new IndexWriter(_directory, _analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
-                writer.SetRAMBufferSizeMB(_RAMSizeMb);
-                return writer;
-            });
-        }
-
-        private IndexReader _currentReader;
-        private object _readerLock = new object();
-        private DateTime _nextRead = DateTime.MinValue;
-
-        private IndexReader GetThrottledReader()
-        {
-            lock(_readerLock)
-            {
-                if(_isDisposed)
-                {
-                    throw new ObjectDisposedException("Indexer");
-                }
-
-                if(_currentReader == null || _nextRead < DateTime.UtcNow)
-                {
-                    if(_currentReader != null) { _currentReader.Dispose(); }
-
-                    _currentReader = _writer.Value.GetReader();
-                    _nextRead = DateTime.UtcNow.AddMilliseconds(_readThrottleTimeMs);
-                }
-                
-                return _currentReader.Clone(true);
-            }
+            var reader = IndexReader.Open(_directory, true);
+            return reader;
         }
 
         public void Dispose()
         {
             if(!_isDisposed)
             {
-                lock (_readerLock)
-                {
-                    _isDisposed = true;
-                    if (_currentReader != null)
-                    {
-                        _currentReader.Dispose();
-                        _currentReader = null;
-                    }
-                }
-
-                if(_writer.IsValueCreated)
-                {
-                    _writer.Value.Dispose();
-                }
-
+                _isDisposed = true;
                 _analyzer.Dispose();
                 _directory.Dispose();
             }

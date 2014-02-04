@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Configuration;
+﻿using AsyncBridge;
+using Kalix.Leo.Configuration;
 using Kalix.Leo.Encryption;
 using Kalix.Leo.Lucene;
 using Kalix.Leo.Storage;
@@ -18,6 +19,10 @@ namespace Kalix.Leo.Internal
 
         public BasePartition(LeoEngineConfiguration engineConfig, string container, ItemConfiguration config)
         {
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(engineConfig.BaseStore.CreateContainerIfNotExists(container));
+            }
             _store = new SecureStore(engineConfig.BaseStore, engineConfig.BackupQueue, engineConfig.IndexQueue, engineConfig.Compressor);
             _container = container;
             _config = config;
@@ -28,7 +33,20 @@ namespace Kalix.Leo.Internal
             if (config.DoCompress) { _options = _options | SecureStoreOptions.Compress; }
 
             _encryptor = new Lazy<IEncryptor>(() => config.DoEncrypt ? new CertProtectedEncryptor(engineConfig.BaseStore, new StoreLocation(engineConfig.KeyContainer, container), engineConfig.RsaCert) : null);
-            _index = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor.Value));
+            _index = new Lazy<LuceneIndex>(() => 
+            {
+                LuceneIndex index = null;
+                if (engineConfig.IndexStore != null)
+                {
+                    using (var w = AsyncHelper.Wait)
+                    {
+                        w.Run(engineConfig.IndexStore.CreateContainerIfNotExists(container));
+                    }
+                    index = new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor.Value);
+                }
+
+                return index;
+            });
         }
 
         public ILuceneIndex Indexer

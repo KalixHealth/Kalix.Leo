@@ -134,7 +134,7 @@ namespace Kalix.Leo.Storage
             return new DataWithMetadata(stream, metadata, () => data.Dispose());
         }
 
-        public Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)
+        public Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             return _store.GetMetadata(location, snapshot);
         }
@@ -166,7 +166,7 @@ namespace Kalix.Leo.Storage
                 }
 
                 dataStream = _compressor.Compress(dataStream);
-                metadata.Add(MetadataConstants.CompressionMetadataKey, _compressor.Algorithm);
+                metadata[MetadataConstants.CompressionMetadataKey] = _compressor.Algorithm;
             }
             else
             {
@@ -178,7 +178,7 @@ namespace Kalix.Leo.Storage
             if(encryptor != null)
             {
                 dataStream = encryptor.Encrypt(dataStream);
-                metadata.Add(MetadataConstants.EncryptionMetadataKey, encryptor.Algorithm);
+                metadata[MetadataConstants.EncryptionMetadataKey] = encryptor.Algorithm;
             }
             else
             {
@@ -276,7 +276,7 @@ namespace Kalix.Leo.Storage
             return new UniqueIdGenerator(_store, location);
         }
 
-        private string GetMessageDetails(StoreLocation location, IMetadata metadata)
+        private string GetMessageDetails(StoreLocation location, Metadata metadata)
         {
             var details = new StoreDataDetails
             {

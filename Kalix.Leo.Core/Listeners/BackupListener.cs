@@ -37,7 +37,7 @@ namespace Kalix.Leo.Listeners
 
         private async Task MessageRecieved(IQueueMessage message)
         {
-            using (message)
+            using(message)
             {
                 var details = JsonConvert.DeserializeObject<StoreDataDetails>(message.Message);
                 var location = details.GetLocation();

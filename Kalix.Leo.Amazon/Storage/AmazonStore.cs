@@ -119,7 +119,7 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
-        public async Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)
+        public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             var request = new GetObjectMetadataRequest
             {
@@ -276,7 +276,7 @@ namespace Kalix.Leo.Amazon.Storage
             .LastOrDefaultAsync(); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
-        private IMetadata ActualMetadata(MetadataCollection m, DateTime modified, long size)
+        private Metadata ActualMetadata(MetadataCollection m, DateTime modified, long size)
         {
             var metadata = new Metadata(m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]));
             metadata.Size = size;

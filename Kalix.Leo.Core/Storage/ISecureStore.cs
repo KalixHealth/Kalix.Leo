@@ -13,7 +13,7 @@ namespace Kalix.Leo.Storage
         Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null, IEncryptor encryptor = null);
         Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null);
 
-        Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null);
+        Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null);
 
         Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
         Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);

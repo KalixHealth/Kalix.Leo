@@ -62,7 +62,6 @@
     <Compile Include="Encryption\IEncryptor.cs" />
     <Compile Include="Listeners\IBackupListener.cs" />
     <Compile Include="Listeners\IIndexListener.cs" />
-    <Compile Include="IMetadata.cs" />
     <Compile Include="Indexing\IIndexer.cs" />
     <Compile Include="Listeners\IndexListener.cs" />
     <Compile Include="Storage\ISecureStore.cs" />
@@ -72,7 +71,7 @@
     <Compile Include="Storage\SecureStoreOptions.cs" />
     <Compile Include="Storage\SecureStore.cs" />
     <Compile Include="Storage\LocationWithMetadata.cs" />
-    <Compile Include="Storage\Metadata.cs" />
+    <Compile Include="Metadata.cs" />
     <Compile Include="Storage\ObjectWithMetadata.cs" />
     <Compile Include="DataWithMetadata.cs" />
     <Compile Include="Storage\IOptimisticStore.cs" />

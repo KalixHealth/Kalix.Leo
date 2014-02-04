@@ -2,8 +2,11 @@
 using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Threading;
 
 namespace Kalix.Leo.Azure.Queue
 {
@@ -40,34 +43,75 @@ namespace Kalix.Leo.Azure.Queue
                 // By default use the number of processors
                 var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
                 var client = _factory.CreateQueueClient(_queue);
+                var cancel = new CancellationDisposable();
 
-                var options = new OnMessageOptions
+                Task.Run(async () =>
                 {
-                    AutoComplete = true,
-                    MaxConcurrentCalls = prefetchCount
-                };
+                    int counter = 0;
+                    object counterLock = new object();
+                    while(!cancel.Token.IsCancellationRequested)
+                    {
+                        try
+                        {
+                            if (counter == prefetchCount)
+                            {
+                                Thread.Sleep(1000);
+                            }
+                            else
+                            {
+                                var messages = await client.ReceiveBatchAsync(prefetchCount - counter);
 
-                EventHandler<ExceptionReceivedEventArgs> handler = null;
-                if (uncaughtException != null)
-                {
-                    handler = new EventHandler<ExceptionReceivedEventArgs>((s, e) => uncaughtException(e.Exception));
-                    options.ExceptionReceived += handler;
-                }
+                                lock (counterLock)
+                                {
+                                    counter += messages.Count();
+                                }
 
-                client.OnMessage((m) =>
-                {
-                    var message = new AzureQueueMessage(m);
-                    observer.OnNext(message);
-                }, options);
+                                foreach (var m in messages)
+                                {
+                                    var message = new AzureQueueMessage(m, () => { Interlocked.Decrement(ref counter); });
+                                    observer.OnNext(message);
+                                }
+                            }
+                        }
+                        catch(Exception e)
+                        {
+                            if(uncaughtException != null)
+                            {
+                                uncaughtException(e);
+                            }
+                            counter = 0;
+                        }
+                    }
+                }, cancel.Token);
+
+                //var options = new OnMessageOptions
+                //{
+                //    AutoComplete = false,
+                //    MaxConcurrentCalls = prefetchCount
+                //};
+
+                //EventHandler<ExceptionReceivedEventArgs> handler = null;
+                //if (uncaughtException != null)
+                //{
+                //    handler = new EventHandler<ExceptionReceivedEventArgs>((s, e) => uncaughtException(e.Exception));
+                //    options.ExceptionReceived += handler;
+                //}
+
+                //client.OnMessage((m) =>
+                //{
+                //    var message = new AzureQueueMessage(m);
+                //    observer.OnNext(message);
+                //}, options);
 
                 // Return the method to call on dispose
                 return () =>
                 {
+                    cancel.Dispose();
                     client.Close();
-                    if (handler != null)
-                    {
-                        options.ExceptionReceived -= handler;
-                    }
+                    //if (handler != null)
+                    //{
+                    //    options.ExceptionReceived -= handler;
+                    //}
                 };
             });
         }

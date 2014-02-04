@@ -20,7 +20,7 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Compress this record when saving
         /// </summary>
-        Compress = 5,
+        Compress = 4,
         /// <summary>
         /// When deleting records do not actually delete the record
         /// </summary>

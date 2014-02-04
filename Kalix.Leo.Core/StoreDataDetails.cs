@@ -8,7 +8,7 @@ namespace Kalix.Leo
         public string BasePath { get; set; }
         public long? Id { get; set; }
 
-        public IMetadata Metadata { get; set; }
+        public Metadata Metadata { get; set; }
 
         public StoreLocation GetLocation()
         {

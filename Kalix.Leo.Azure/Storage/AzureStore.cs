@@ -247,7 +247,7 @@ namespace Kalix.Leo.Azure.Storage
             return true;
         }
 
-        public async Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null)
+        public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
             try
@@ -268,7 +268,12 @@ namespace Kalix.Leo.Azure.Storage
                 throw;
             }
 
-            return GetActualMetadata(blob);
+            var metadata = GetActualMetadata(blob);
+            if (metadata.ContainsKey(_deletedKey))
+            {
+                metadata = null;
+            }
+            return metadata;
         }
 
         public Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
@@ -348,7 +353,7 @@ namespace Kalix.Leo.Azure.Storage
         {
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
-                var c = _blobStorage.GetContainerReference(container);
+                var c = _blobStorage.GetContainerReference(SafeContainerName(container));
                 return ListBlobs(observer, c, prefix, BlobListingDetails.Metadata, ct);
             });
 
@@ -455,17 +460,29 @@ namespace Kalix.Leo.Azure.Storage
 
         public Task CreateContainerIfNotExists(string container)
         {
+            container = SafeContainerName(container);
+            if (_trace)
+            {
+                Trace.WriteLine("Trying to create container: " + container);
+            }
+
             var c = _blobStorage.GetContainerReference(container);
             return c.CreateIfNotExistsAsync();
         }
 
         public Task PermanentDeleteContainer(string container)
         {
+            container = SafeContainerName(container);
+            if (_trace)
+            {
+                Trace.WriteLine("Trying to delete container: " + container);
+            }
+
             var c = _blobStorage.GetContainerReference(container);
             return c.DeleteIfExistsAsync();
         }
 
-        private IMetadata GetActualMetadata(ICloudBlob blob)
+        private Metadata GetActualMetadata(ICloudBlob blob)
         {
             var metadata = new Metadata(blob.Metadata);
 
@@ -490,7 +507,7 @@ namespace Kalix.Leo.Azure.Storage
                 snapshotDate = new DateTime(long.Parse(snapshot));
             }
 
-            var container = _blobStorage.GetContainerReference(location.Container);
+            var container = _blobStorage.GetContainerReference(SafeContainerName(location.Container));
             var offset = snapshotDate.HasValue ? new DateTimeOffset(snapshotDate.Value, new TimeSpan(0)) : (DateTimeOffset?)null;
 
             CloudBlockBlob blob;
@@ -512,6 +529,21 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             return blob;
+        }
+
+        private string SafeContainerName(string containerName)
+        {
+            if(containerName.Length > 63)
+            {
+                throw new ArgumentException("Container name cannot be longer than 63 chars", "containerName");
+            }
+
+            if(containerName.Length < 3)
+            {
+                containerName = containerName.PadLeft(3, '0');
+            }
+
+            return containerName;
         }
     }
 }

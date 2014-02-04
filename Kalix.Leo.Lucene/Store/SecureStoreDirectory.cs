@@ -69,12 +69,21 @@ namespace Kalix.Leo.Lucene.Store
 
         public override string[] ListAll()
         {
+            string[] result = null;
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(ListAllAsync(), t => { result = t; });
+            }
+            return result;
+        }
+
+        private async Task<string[]> ListAllAsync()
+        {
             int basePathLength = string.IsNullOrEmpty(_basePath) ? 0 : _basePath.Length + 1;
 
-            return _store
+            return await _store
                 .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + Path.DirectorySeparatorChar))
                 .Select(s => s.Location.BasePath.Substring(basePathLength))
-                .ToEnumerable()
                 .ToArray(); // This will block until executed
         }
 

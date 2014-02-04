@@ -15,7 +15,7 @@ namespace Kalix.Leo.Amazon.Storage
         private readonly Task<string> _uploadId;
         private readonly List<Task<UploadPartResponse>> _blocks;
 
-        public AmazonMultiUpload(AmazonS3Client client, string bucket, string key, IMetadata metadata)
+        public AmazonMultiUpload(AmazonS3Client client, string bucket, string key, Metadata metadata)
         {
             _client = client;
             _bucket = bucket;

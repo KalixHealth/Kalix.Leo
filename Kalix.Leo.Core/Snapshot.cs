@@ -7,6 +7,6 @@ namespace Kalix.Leo
     {
         public string Id { get; set; }
 
-        public IMetadata Metadata { get; set; }
+        public Metadata Metadata { get; set; }
     }
 }

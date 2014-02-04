@@ -23,7 +23,7 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to find the metadata</param>
         /// <param name="snapshot">Specific snapshot to find metadata</param>
         /// <returns>Metadata, or null if not found</returns>
-        Task<IMetadata> GetMetadata(StoreLocation location, string snapshot = null);
+        Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null);
 
         /// <summary>
         /// Load data from a specified location

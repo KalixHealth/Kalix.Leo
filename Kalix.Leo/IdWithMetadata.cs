@@ -3,15 +3,15 @@
     public struct IdWithMetadata
     {
         private readonly long _id;
-        private readonly IMetadata _metadata;
+        private readonly Metadata _metadata;
 
-        public IdWithMetadata(long id, IMetadata metadata)
+        public IdWithMetadata(long id, Metadata metadata)
         {
             _id = id;
             _metadata = metadata;
         }
 
         public long Id { get { return _id; } }
-        public IMetadata Metadata { get { return _metadata; } }
+        public Metadata Metadata { get { return _metadata; } }
     }
 }

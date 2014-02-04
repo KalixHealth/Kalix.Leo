@@ -23,7 +23,7 @@ namespace Kalix.Leo
             });
         }
 
-        public async Task<long> Save(T data, IMetadata metadata = null)
+        public async Task<long> Save(T data, Metadata metadata = null)
         {
             if(!data.Id.HasValue)
             {
@@ -40,7 +40,7 @@ namespace Kalix.Leo
             return _store.LoadObject<T>(GetLocation(id), snapshot, _encryptor.Value);
         }
 
-        public Task<IMetadata> GetMetadata(long id, string snapshot = null)
+        public Task<Metadata> GetMetadata(long id, string snapshot = null)
         {
             return _store.GetMetadata(GetLocation(id), snapshot);
         }

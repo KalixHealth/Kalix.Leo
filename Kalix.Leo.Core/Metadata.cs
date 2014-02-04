@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Kalix.Leo.Storage
+namespace Kalix.Leo
 {
-    public class Metadata : Dictionary<string, string>, IMetadata
+    public class Metadata : Dictionary<string, string>
     {
         public Metadata() { }
         public Metadata(IDictionary<string, string> initial) : base(initial) { }
