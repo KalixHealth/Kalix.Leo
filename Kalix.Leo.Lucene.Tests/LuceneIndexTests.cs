@@ -7,6 +7,7 @@ using Microsoft.WindowsAzure.Storage;
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -84,6 +85,14 @@ namespace Kalix.Leo.Lucene.Tests
                 .Take(30000)
                 .LastOrDefaultAsync()
                 .Wait();
+        }
+
+        [Test]
+        public void EmptyIndexReturnsNoDocuments()
+        {
+            var stream1 = _indexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue));
+
+            Assert.AreEqual(0, stream1.Count().ToEnumerable().First());
         }
 
         private IObservable<Document> CreateIpsumDocs(int number)

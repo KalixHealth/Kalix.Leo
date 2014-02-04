@@ -119,7 +119,7 @@ namespace Kalix.Leo.Lucene
                     }
                 }, token);
 
-                var disposable = new CompositeDisposable(searcher, reader, cts);
+                var disposable = new CompositeDisposable(searcher, cts);
                 return disposable;
             });
         }
