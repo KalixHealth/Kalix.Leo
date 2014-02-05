@@ -123,10 +123,7 @@ namespace Kalix.Leo.Lucene.Store
             if (!directory.Exists)
             {
                 directory.Create();
-                if (!EncryptFile(directory.FullName))
-                {
-                    throw new FileLoadException("Could not set encryption on directory: " + directory.FullName);
-                }
+                EncryptFile(directory.FullName);
             }
         }
 
