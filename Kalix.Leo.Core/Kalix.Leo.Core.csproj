@@ -56,6 +56,20 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Indexing\CompositionException.cs" />
+    <Compile Include="Indexing\Config\IRecordSearchConfig.cs" />
+    <Compile Include="Indexing\Config\RecordSearchConfig.cs" />
+    <Compile Include="Indexing\IRecordSearch.cs" />
+    <Compile Include="Indexing\IRecordSearchComposer.cs" />
+    <Compile Include="Indexing\IRecordSearchComposition.cs" />
+    <Compile Include="Indexing\IRecordUniqueIndex.cs" />
+    <Compile Include="Table\ITableClient.cs" />
+    <Compile Include="Table\ITableContext.cs" />
+    <Compile Include="Table\ITableEntity.cs" />
+    <Compile Include="Indexing\RecordSearch.cs" />
+    <Compile Include="Indexing\RecordSearchComposer.cs" />
+    <Compile Include="Indexing\RecordSearchComposition.cs" />
+    <Compile Include="Indexing\RecordUniqueIndex.cs" />
     <Compile Include="Listeners\BackupListener.cs" />
     <Compile Include="Compression\DeflateCompressor.cs" />
     <Compile Include="Compression\ICompressor.cs" />
@@ -84,6 +98,8 @@
     <Compile Include="Storage\StoreLocation.cs" />
     <Compile Include="Streams\ObserverWriteStream.cs" />
     <Compile Include="Streams\StreamExtensions.cs" />
+    <Compile Include="Table\ITableQuery.cs" />
+    <Compile Include="Table\StorageEntityAlreadyExistsException.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

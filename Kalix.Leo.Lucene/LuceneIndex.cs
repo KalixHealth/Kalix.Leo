@@ -18,7 +18,6 @@ namespace Kalix.Leo.Lucene
     {
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
-        private readonly int _readThrottleTimeMs;
 
         private double _RAMSizeMb;
         private bool _isDisposed;
@@ -32,8 +31,8 @@ namespace Kalix.Leo.Lucene
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
         /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
-        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, int readIndexThottleMs = 5000, int writeIndexThottleMs = 5000, double RAMSizeMb = 20)
-            : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(), encryptor), new EnglishAnalyzer(), readIndexThottleMs, writeIndexThottleMs, RAMSizeMb)
+        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20)
+            : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(), encryptor), new EnglishAnalyzer(), RAMSizeMb)
         {
         }
 
@@ -45,11 +44,10 @@ namespace Kalix.Leo.Lucene
         /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
         /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
-        public LuceneIndex(Directory directory, Analyzer analyzer, int readIndexThottleMs = 5000, int writeIndexThottleMs = 5000, double RAMSizeMb = 20)
+        public LuceneIndex(Directory directory, Analyzer analyzer, double RAMSizeMb = 20)
         {
             _directory = directory;
             _analyzer = analyzer;
-            _readThrottleTimeMs = readIndexThottleMs;
             _RAMSizeMb = RAMSizeMb;
         }
 
@@ -79,6 +77,11 @@ namespace Kalix.Leo.Lucene
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
         {
+            return SearchDocuments((s, a) => doSearchFunc(s));
+        }
+
+        public IObservable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc)
+        {
             return Observable.Create<Document>(obs =>
             {
                 var cts = new CancellationTokenSource();
@@ -91,7 +94,7 @@ namespace Kalix.Leo.Lucene
                         using(var reader = Reader())
                         using (var searcher = new IndexSearcher(reader))
                         {
-                            var docs = doSearchFunc(searcher);
+                            var docs = doSearchFunc(searcher, _analyzer);
 
                             foreach (var doc in docs.ScoreDocs)
                             {
@@ -131,11 +134,13 @@ namespace Kalix.Leo.Lucene
             {
                 writer = new IndexWriter(_directory, _analyzer, false, IndexWriter.MaxFieldLength.UNLIMITED);
             }
-            catch(System.IO.FileNotFoundException e)
+            catch(System.IO.FileNotFoundException)
             {
                 writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
             }
+            writer.UseCompoundFile = false;
             writer.SetRAMBufferSizeMB(_RAMSizeMb);
+            writer.MergeFactor = 2;
             return writer;
         }
 
@@ -146,7 +151,20 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("Indexer");
             }
 
-            var reader = IndexReader.Open(_directory, true);
+            IndexReader reader;
+            try
+            {
+                reader = IndexReader.Open(_directory, true);
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                // Fire up the index if it doesnt exist yet!
+                var writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
+                writer.Dispose();
+
+                reader = IndexReader.Open(_directory, true);
+            }
+
             return reader;
         }
 

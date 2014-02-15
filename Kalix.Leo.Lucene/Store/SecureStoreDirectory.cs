@@ -4,7 +4,6 @@ using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -36,6 +35,8 @@ namespace Kalix.Leo.Lucene.Store
             {
                 _options = _options | SecureStoreOptions.Compress;
             }
+
+            store.CreateContainerIfNotExists(container);
         }
 
         public override void DeleteFile(string name)
@@ -106,11 +107,11 @@ namespace Kalix.Leo.Lucene.Store
             var output = new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
             {
                 // Use the original store metadata except for size/modified
-                var metadata = await _store.GetMetadata(loc) ?? new Metadata();
+                var metadata = await _store.GetMetadata(loc).ConfigureAwait(false) ?? new Metadata();
                 metadata.Size = data.Metadata.Size;
                 metadata.LastModified = data.Metadata.LastModified;
 
-                await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata, () => data.Dispose()), _encryptor, _options);
+                await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata, () => data.Dispose()), _encryptor, _options).ConfigureAwait(false);
             });
 
             _disposables.Add(output);

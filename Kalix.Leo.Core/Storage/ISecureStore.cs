@@ -29,5 +29,17 @@ namespace Kalix.Leo.Storage
         Task<IDisposable> Lock(StoreLocation location);
 
         IUniqueIdGenerator GetIdGenerator(StoreLocation location);
+
+        /// <summary>
+        /// Make sure a container exists
+        /// </summary>
+        /// <param name="container">Name of the container to create</param>
+        Task CreateContainerIfNotExists(string container);
+
+        /// <summary>
+        /// Delete a container if it exists
+        /// </summary>
+        /// <param name="container">Name of the container to delete</param>
+        Task PermanentDeleteContainer(string container);
     }
 }

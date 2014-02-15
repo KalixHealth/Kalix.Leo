@@ -1,5 +1,4 @@
 ﻿using Kalix.Leo.Storage;
-using Lucene.Net.Search;
 using System;
 using System.Threading.Tasks;
 

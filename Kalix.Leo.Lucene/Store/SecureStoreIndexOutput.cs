@@ -21,10 +21,7 @@ namespace Kalix.Leo.Lucene.Store
             _cache = cache;
             _cachePath = cachePath;
             _saveTask = saveTask;
-            var streamTask = _cache.GetReadWriteStream(_cachePath);
-
-            // Buffered stream gives us much better performance over io...
-            _stream = new Lazy<Stream>(() => new BufferedStream(GetSyncVal(streamTask)));
+            _stream = new Lazy<Stream>(() => GetSyncVal(_cache.GetReadWriteStream(_cachePath)));
         }
 
         public override long FilePointer

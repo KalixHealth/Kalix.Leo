@@ -227,7 +227,7 @@ namespace Kalix.Leo.Azure.Storage
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
                 if (_enableSnapshots)
                 {
-                    await blob.CreateSnapshotAsync();
+                    await blob.CreateSnapshotAsync().ConfigureAwait(false);
                     if (_trace)
                     {
                         Trace.WriteLine("Created Snapshot: " + blob.Name);
@@ -252,7 +252,7 @@ namespace Kalix.Leo.Azure.Storage
             var blob = GetBlockBlob(location, snapshot);
             try
             {
-                await blob.FetchAttributesAsync();
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
                 if (_trace)
                 {
                     Trace.WriteLine("Got Metdata: " + blob.Name);
@@ -291,7 +291,7 @@ namespace Kalix.Leo.Azure.Storage
                     {
                         try
                         {
-                            await blob.DownloadToStreamAsync(s, ct);
+                            await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
                             if (_trace)
                             {
                                 Trace.WriteLine("Downloading blob: " + blob.Name);
@@ -386,7 +386,7 @@ namespace Kalix.Leo.Azure.Storage
             {
                 do
                 {
-                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct);
+                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct).ConfigureAwait(false);
                     if (_trace)
                     {
                         Trace.WriteLine("Listed blob segment for prefix: " + prefix);
@@ -429,7 +429,7 @@ namespace Kalix.Leo.Azure.Storage
             var blob = GetBlockBlob(location);
             try
             {
-                await blob.FetchAttributesAsync();
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
             }
             catch (StorageException e)
             {
@@ -441,7 +441,7 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
-            await blob.SetMetadataAsync();
+            await blob.SetMetadataAsync().ConfigureAwait(false);
             if (_trace)
             {
                 Trace.WriteLine("Soft deleted (2 calls): " + blob.Name);

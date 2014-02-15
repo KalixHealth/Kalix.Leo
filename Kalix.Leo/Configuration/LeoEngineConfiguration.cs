@@ -2,6 +2,7 @@
 using Kalix.Leo.Compression;
 using Kalix.Leo.Queue;
 using Kalix.Leo.Storage;
+using Kalix.Leo.Table;
 using System;
 using System.Collections.Generic;
 
@@ -11,6 +12,7 @@ namespace Kalix.Leo.Configuration
     {
         public string UniqueName { get; set; }
         public IOptimisticStore BaseStore { get; set; }
+        public ITableClient TableStore { get; set; }
 
         public string UniqueIdGeneratorPath { get; set; }
 
@@ -21,7 +23,7 @@ namespace Kalix.Leo.Configuration
         public IStore BackupStore { get; set; }
 
         public IQueue IndexQueue { get; set; }
-        public IOptimisticStore IndexStore { get; set; }
+        public IOptimisticStore IndexStore { get; set; } 
         public Func<string, Type> TypeResolver { get; set; }
 
         public Action<Exception> UncaughtExceptions { get; set; }

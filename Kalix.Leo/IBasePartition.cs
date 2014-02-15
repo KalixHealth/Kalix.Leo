@@ -1,9 +1,12 @@
-﻿using Kalix.Leo.Lucene;
+﻿using Kalix.Leo.Indexing;
+using Kalix.Leo.Lucene;
 
 namespace Kalix.Leo
 {
     public interface IBasePartition
     {
-        ILuceneIndex Indexer { get; }
+        ISearchIndex<TMain, TSearch> Index<TMain, TSearch>(IRecordSearchComposition<TMain, TSearch> composition);
+
+        ILuceneIndex LuceneIndex { get; }
     }
 }

@@ -1,8 +1,10 @@
 ﻿using AsyncBridge;
 using Kalix.Leo.Configuration;
-using Kalix.Leo.Internal;
+using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reactive.Disposables;
 using System.Reflection;
@@ -15,6 +17,7 @@ namespace Kalix.Leo
         private readonly LeoEngineConfiguration _config;
         private readonly IBackupListener _backupListener;
         private readonly IIndexListener _indexListener;
+        private readonly Lazy<IRecordSearchComposer> _composer;
         
         private readonly MemoryCache _cache;
         private readonly CacheItemPolicy _cachePolicy;
@@ -37,17 +40,13 @@ namespace Kalix.Leo
             };
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
+            _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore));
 
             if (!string.IsNullOrEmpty(config.KeyContainer))
             {
                 using (var w = AsyncHelper.Wait)
                 {
                     w.Run(config.BaseStore.CreateContainerIfNotExists(config.KeyContainer));
-
-                    if (config.IndexStore != null)
-                    {
-                        w.Run(config.IndexStore.CreateContainerIfNotExists(config.KeyContainer));
-                    }
                 }
             }
 
@@ -65,17 +64,22 @@ namespace Kalix.Leo
 
                 foreach (var obj in config.Objects.Where(o => o.Type != null && o.Indexer != null))
                 {
-                    _indexListener.RegisterTypeIndexer(obj.Type, new ItemPartitionIndexer(this, obj.Indexer, c => GetPartitionByType(obj.Type, c).Indexer));
+                    _indexListener.RegisterTypeIndexer(obj.Type, obj.Indexer);
                 }
 
                 foreach (var obj in config.Objects.Where(o => o.Type == null && o.Indexer != null))
                 {
-                    _indexListener.RegisterPathIndexer(obj.BasePath, new ItemPartitionIndexer(this, obj.Indexer, c => GetDocumentPartition(obj.BasePath, c).Indexer));
+                    _indexListener.RegisterPathIndexer(obj.BasePath, obj.Indexer);
                 }
             }
         }
 
-        public IObjectPartition<T> GetObjectPartition<T>(string container)
+        public IRecordSearchComposer Composer
+        {
+            get { return _composer.Value; }
+        }
+
+        public IObjectPartition<T> GetObjectPartition<T>(long partitionId)
             where T : ObjectWithId
         {
             var config = _config.Objects.FirstOrDefault(o => o.Type == typeof(T));
@@ -83,17 +87,17 @@ namespace Kalix.Leo
             {
                 throw new InvalidOperationException("The object type '" + typeof(T).FullName + "' is not registered");
             }
-            var key = _baseName + config.BasePath + "::" + container;
+            var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
             var cacheVal = _cache.Get(key) as ObjectPartition<T>;
             if (cacheVal == null)
             {
-                cacheVal = new ObjectPartition<T>(_config, container, config);
+                cacheVal = new ObjectPartition<T>(_config, partitionId, config);
                 _cache.Set(key, cacheVal, _cachePolicy); 
             }
             return cacheVal;
         }
 
-        public IDocumentPartition GetDocumentPartition(string basePath, string container)
+        public IDocumentPartition GetDocumentPartition(string basePath, long partitionId)
         {
             var config = _config.Objects.FirstOrDefault(o => o.Type == null && o.BasePath == basePath);
             if (config == null)
@@ -101,11 +105,11 @@ namespace Kalix.Leo
                 throw new InvalidOperationException("The document type with base path '" + basePath + "' is not registered");
             }
 
-            var key = _baseName + config.BasePath + "::" + container;
+            var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
             var cacheVal = _cache.Get(key) as DocumentPartition;
             if (cacheVal == null)
             {
-                cacheVal = new DocumentPartition(_config, container, config);
+                cacheVal = new DocumentPartition(_config, partitionId, config);
                 _cache.Set(key, cacheVal, _cachePolicy);
             }
             return cacheVal;
@@ -123,7 +127,7 @@ namespace Kalix.Leo
                 _disposables.Add(_backupListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel));
             }
 
-            if(_indexListener != null)
+            if (_indexListener != null)
             {
                 _disposables.Add(_indexListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel));
             }

@@ -81,7 +81,10 @@ namespace Kalix.Leo.Storage
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
         {
-            using (var data = await LoadData(location, snapshot, encryptor))
+            var data = await LoadData(location, snapshot, encryptor);
+            if(data == null) { return null; }
+
+            using (data)
             {
                 if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
                 {
@@ -274,6 +277,24 @@ namespace Kalix.Leo.Storage
         public IUniqueIdGenerator GetIdGenerator(StoreLocation location)
         {
             return new UniqueIdGenerator(_store, location);
+        }
+
+        /// <summary>
+        /// Make sure a container exists
+        /// </summary>
+        /// <param name="container">Name of the container to create</param>
+        public Task CreateContainerIfNotExists(string container)
+        {
+            return _store.CreateContainerIfNotExists(container);
+        }
+
+        /// <summary>
+        /// Delete a container if it exists
+        /// </summary>
+        /// <param name="container">Name of the container to delete</param>
+        public Task PermanentDeleteContainer(string container)
+        {
+            return _store.PermanentDeleteContainer(container);
         }
 
         private string GetMessageDetails(StoreLocation location, Metadata metadata)

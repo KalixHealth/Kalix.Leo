@@ -2,6 +2,7 @@
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -13,12 +14,12 @@ namespace Kalix.Leo
     {
         protected readonly Lazy<UniqueIdGenerator> _idGenerator;
 
-        public ObjectPartition(LeoEngineConfiguration engineConfig, string container, ItemConfiguration config)
-            : base(engineConfig, container, config)
+        public ObjectPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
+            : base(engineConfig, partitionId, config)
         {
             _idGenerator = new Lazy<UniqueIdGenerator>(() =>
             {
-                var loc = new StoreLocation(container, Path.Combine(config.BasePath, engineConfig.UniqueIdGeneratorPath));
+                var loc = new StoreLocation(partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(config.BasePath, engineConfig.UniqueIdGeneratorPath));
                 return new UniqueIdGenerator(engineConfig.BaseStore, loc, 5);
             });
         }
@@ -52,7 +53,7 @@ namespace Kalix.Leo
 
         public IObservable<IdWithMetadata> FindAll()
         {
-            return _store.FindFiles(_container, _config.BasePath)
+            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath)
                 .Where(l => l.Location.Id.HasValue)
                 .Select(l => new IdWithMetadata(l.Location.Id.Value, l.Metadata));
         }
@@ -64,17 +65,17 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_container, _config.BasePath);
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
         }
 
         public Task ReBackupAll()
         {
-            return _store.BackupAll(_container, _config.BasePath);
+            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
         }
 
         private StoreLocation GetLocation(long? id)
         {
-            return new StoreLocation(_container, _config.BasePath, id);
+            return new StoreLocation(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath, id);
         }
     }
 }

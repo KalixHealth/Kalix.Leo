@@ -26,10 +26,14 @@ namespace Kalix.Leo.Lucene.Store
 
         public override bool Obtain()
         {
-            using (var w = AsyncHelper.Wait)
+            if (_lock == null)
             {
-                w.Run(_store.Lock(_location).ContinueWith(t => { _lock = t.Result; }));
+                using (var w = AsyncHelper.Wait)
+                {
+                    w.Run(_store.Lock(_location).ContinueWith(t => { _lock = t.Result; }));
+                }
             }
+
             return _lock != null;
         }
 

@@ -2,6 +2,7 @@
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
@@ -10,8 +11,8 @@ namespace Kalix.Leo
 {
     public class DocumentPartition : BasePartition, IDocumentPartition
     {
-        public DocumentPartition(LeoEngineConfiguration engineConfig, string container, ItemConfiguration config)
-            : base(engineConfig, container, config)
+        public DocumentPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
+            : base(engineConfig, partitionId, config)
         {
         }
 
@@ -40,7 +41,7 @@ namespace Kalix.Leo
         {
             var baseLength = string.IsNullOrEmpty(_config.BasePath) ? 0 : _config.BasePath.Length + 1;
 
-            return _store.FindFiles(_container, Path.Combine(_config.BasePath, prefix))
+            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(_config.BasePath, prefix))
                 .Select(l => new PathWithMetadata(l.Location.BasePath.Substring(baseLength), l.Metadata));
         }
 
@@ -51,17 +52,17 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_container, _config.BasePath);
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
         }
 
         public Task ReBackupAll()
         {
-            return _store.BackupAll(_container, _config.BasePath);
+            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
         }
 
         private StoreLocation GetLocation(string path)
         {
-            return new StoreLocation(_container, Path.Combine(_config.BasePath, path));
+            return new StoreLocation(_partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(_config.BasePath, path));
         }
     }
 }
