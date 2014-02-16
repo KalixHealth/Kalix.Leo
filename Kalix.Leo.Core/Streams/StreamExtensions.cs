@@ -1,13 +1,10 @@
 ﻿using Kalix.Leo.Streams;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
-namespace System.IO
+namespace System.Reactive.Linq
 {
     public static class StreamExtensions
     {
@@ -157,6 +154,19 @@ namespace System.IO
             {
                 observer.OnError(e);
             }
+        }
+
+        /// <summary>
+        /// This will copy the output of an observable byte stream and write it to the stream
+        /// </summary>
+        /// <param name="obs"></param>
+        /// <param name="writeStream"></param>
+        /// <returns></returns>
+        public static async Task WriteToStream(this IObservable<byte[]> obs, Stream writeStream)
+        {
+            await obs
+                .Do(b => writeStream.Write(b, 0, b.Length))
+                .LastOrDefaultAsync();
         }
 
         private static IEnumerable<byte[]> ReadStream(Stream stream, int bufferSize)
