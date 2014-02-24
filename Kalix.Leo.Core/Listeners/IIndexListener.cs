@@ -5,10 +5,10 @@ namespace Kalix.Leo.Listeners
 {
     public interface IIndexListener
     {
-        void RegisterPathIndexer(string basePath, IIndexer indexer);
+        void RegisterPathIndexer(string basePath, Type indexer);
         
-        void RegisterTypeIndexer<T>(IIndexer indexer);
-        void RegisterTypeIndexer(Type type, IIndexer indexer);
+        void RegisterTypeIndexer<T>(Type indexer);
+        void RegisterTypeIndexer(Type type, Type indexer);
 
         IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
     }

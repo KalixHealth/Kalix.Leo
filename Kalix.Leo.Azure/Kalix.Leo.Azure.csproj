@@ -32,6 +32,9 @@
     <DocumentationFile>bin\Release\Kalix.Leo.Azure.XML</DocumentationFile>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="AsyncBridge">
+      <HintPath>..\packages\AsynchronousBridge.1.2.2\lib\Net45\AsyncBridge.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.Data.Edm, Version=5.6.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.Data.Edm.5.6.0\lib\net40\Microsoft.Data.Edm.dll</HintPath>
     </Reference>

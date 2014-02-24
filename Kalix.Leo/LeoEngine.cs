@@ -3,7 +3,6 @@ using Kalix.Leo.Configuration;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reactive.Disposables;
@@ -31,7 +30,7 @@ namespace Kalix.Leo
             _config = config;
             _disposables = new CompositeDisposable();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
-            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.TypeResolver) : null;
+            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
             _cache = MemoryCache.Default;
             _cachePolicy = new CacheItemPolicy
             {
@@ -80,7 +79,6 @@ namespace Kalix.Leo
         }
 
         public IObjectPartition<T> GetObjectPartition<T>(long partitionId)
-            where T : ObjectWithId
         {
             var config = _config.Objects.FirstOrDefault(o => o.Type == typeof(T));
             if(config == null)

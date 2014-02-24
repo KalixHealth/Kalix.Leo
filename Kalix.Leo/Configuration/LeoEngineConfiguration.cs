@@ -24,12 +24,13 @@ namespace Kalix.Leo.Configuration
 
         public IQueue IndexQueue { get; set; }
         public IOptimisticStore IndexStore { get; set; } 
-        public Func<string, Type> TypeResolver { get; set; }
-
+        public Func<string, Type> TypeNameResolver { get; set; }
+        
         public Action<Exception> UncaughtExceptions { get; set; }
 
         public ICompressor Compressor { get; set; }
 
         public IEnumerable<ItemConfiguration> Objects { get; set; }
+        public Func<Type, object> TypeResolver { get; set; }
     }
 }

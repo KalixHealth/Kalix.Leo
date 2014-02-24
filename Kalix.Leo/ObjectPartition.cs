@@ -4,13 +4,14 @@ using Kalix.Leo.Storage;
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq.Expressions;
 using System.Reactive.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
     public class ObjectPartition<T> : BasePartition, IObjectPartition<T>
-        where T : ObjectWithId
     {
         protected readonly Lazy<UniqueIdGenerator> _idGenerator;
 
@@ -24,16 +25,30 @@ namespace Kalix.Leo
             });
         }
 
-        public async Task<long> Save(T data, Metadata metadata = null)
+        public async Task<long> Save(T data, Expression<Func<T, long?>> idField, Metadata metadata = null)
         {
-            if(!data.Id.HasValue)
+            var member = idField.Body as MemberExpression;
+            if(member == null)
             {
-                data.Id = await _idGenerator.Value.NextId();
+                throw new ArgumentException(string.Format("Expression '{0}' refers to a method, not a property.", idField.ToString()));
+            }
+
+            var propInfo = member.Member as PropertyInfo;
+            if(propInfo == null)
+            {
+                throw new ArgumentException(string.Format("Expression '{0}' refers to a field, not a property.", idField.ToString()));
+            }
+
+            var id = (long?)propInfo.GetValue(data);
+            if (!id.HasValue)
+            {
+                id = await _idGenerator.Value.NextId();
+                propInfo.SetValue(data, id);
             }
 
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            await _store.SaveObject(GetLocation(data.Id.Value), obj, _encryptor.Value, _options);
-            return data.Id.Value;
+            await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options);
+            return id.Value;
         }
 
         public Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null)

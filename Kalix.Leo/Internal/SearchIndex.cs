@@ -1,6 +1,7 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Internal
@@ -23,9 +24,19 @@ namespace Kalix.Leo.Internal
             return _composition.Save(_partitionId, id, item, previous, _encryptor);
         }
 
-        public Task Delete(string id, TMain main)
+        public Task Save(long id, TMain item, TMain previous)
         {
-            return _composition.Delete(_partitionId, id, main);
+            return Save(id.ToString(CultureInfo.InvariantCulture), item, previous);
+        }
+
+        public Task Delete(string id, TMain current)
+        {
+            return _composition.Delete(_partitionId, id, current);
+        }
+
+        public Task Delete(long id, TMain current)
+        {
+            return Delete(id.ToString(CultureInfo.InvariantCulture), current);
         }
 
         public IObservable<TSearch> Search(IRecordSearch search)

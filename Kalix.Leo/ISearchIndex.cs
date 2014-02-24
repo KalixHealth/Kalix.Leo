@@ -7,7 +7,9 @@ namespace Kalix.Leo
     public interface ISearchIndex<TMain, TSearch>
     {
         Task Save(string id, TMain item, TMain previous);
-        Task Delete(string id, TMain main);
+        Task Save(long id, TMain item, TMain previous);
+        Task Delete(string id, TMain current);
+        Task Delete(long id, TMain current);
 
         IObservable<TSearch> Search(IRecordSearch search);
 

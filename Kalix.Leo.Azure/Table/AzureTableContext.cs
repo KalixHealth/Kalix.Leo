@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Encryption;
+﻿using AsyncBridge;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
 using Microsoft.WindowsAzure.Storage;
@@ -19,6 +20,7 @@ namespace Kalix.Leo.Azure.Table
         private readonly CloudTable _table;
         private readonly IEncryptor _encryptor;
         private bool _hasSaved;
+        private bool _isDirty;
 
         public AzureTableContext(CloudTable table, IEncryptor encryptor)
         {
@@ -27,14 +29,13 @@ namespace Kalix.Leo.Azure.Table
             _context = new TableBatchOperation();
         }
 
-        #region ITableContext Members
-
         public void Replace(E entity)
         {
             CheckNotSaved();
             var fat = ConvertToFatEntity(entity);
             fat.ETag = fat.ETag ?? "*";
             _context.Replace(fat);
+            _isDirty = true;
         }
 
         public void Insert(E entity)
@@ -42,6 +43,7 @@ namespace Kalix.Leo.Azure.Table
             CheckNotSaved();
 
             _context.Insert(ConvertToFatEntity(entity));
+            _isDirty = true;
         }
 
         public void InsertOrMerge(E entity)
@@ -49,6 +51,7 @@ namespace Kalix.Leo.Azure.Table
             CheckNotSaved();
 
             _context.InsertOrMerge(ConvertToFatEntity(entity));
+            _isDirty = true;
         }
 
         public void InsertOrReplace(E entity)
@@ -56,6 +59,7 @@ namespace Kalix.Leo.Azure.Table
             CheckNotSaved();
 
             _context.InsertOrReplace(ConvertToFatEntity(entity));
+            _isDirty = true;
         }
 
         public void Delete(E entity)
@@ -70,21 +74,75 @@ namespace Kalix.Leo.Azure.Table
                 ETag = "*"
             };
             _context.Delete(fat);
+            _isDirty = true;
+        }
+
+        // Since this context is limited to a specific table... can always do batch requests...
+        public async Task Save()
+        {
+            CheckNotSaved();
+
+            if (_isDirty)
+            {
+                try
+                {
+                    await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                }
+                catch (StorageException ex)
+                {
+                    if (ex.RequestInformation.ExtendedErrorInformation.ErrorCode == "EntityAlreadyExists")
+                    {
+                        throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
+                    }
+
+                    // Throw an error with more details...
+                    var extraData = JsonConvert.SerializeObject(ex.RequestInformation.ExtendedErrorInformation);
+                    throw new Exception("Storage Exception occured with additional details: " + extraData, ex);
+                }
+
+                _hasSaved = true;
+            }
+        }
+
+        private void CheckNotSaved()
+        {
+            if (_hasSaved)
+            {
+                throw new InvalidOperationException("Can only save context once... create another one!");
+            }
         }
 
         private FatEntity ConvertToFatEntity(E entity)
         {
-            var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity.DataObject));
-
-            if (_encryptor != null)
+            FatEntity result = null;
+            using (var w = AsyncHelper.Wait)
             {
-                var encrypted = _encryptor.Encrypt(Observable.Return(data)).ToEnumerable();
-                data = new byte[encrypted.Sum(d => d.LongLength)];
-                int offset = 0;
-                foreach (var d in encrypted)
+                w.Run(ConvertToFatEntityAsync(entity), f => result = f);
+            }
+            return result;
+        }
+
+        private async Task<FatEntity> ConvertToFatEntityAsync(E entity)
+        {
+            byte[] data;
+            if (entity.DataObject == null)
+            {
+                data = new byte[0];
+            }
+            else
+            {
+                data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(entity.DataObject));
+
+                if (_encryptor != null)
                 {
-                    Buffer.BlockCopy(d, 0, data, offset, d.Length);
-                    offset += d.Length;
+                    var encrypted = await _encryptor.Encrypt(Observable.Return(data)).ToList();
+                    data = new byte[encrypted.Sum(d => d.LongLength)];
+                    int offset = 0;
+                    foreach (var d in encrypted)
+                    {
+                        Buffer.BlockCopy(d, 0, data, offset, d.Length);
+                        offset += d.Length;
+                    }
                 }
             }
 
@@ -96,40 +154,6 @@ namespace Kalix.Leo.Azure.Table
 
             fat.SetData(data);
             return fat;
-        }
-
-        // Since this context is limited to a specific table... can always do batch requests...
-        public async Task Save()
-        {
-            CheckNotSaved();
-
-            try
-            {
-                await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
-            }
-            catch (StorageException ex)
-            {
-                if (ex.RequestInformation.ExtendedErrorInformation.ErrorCode == "EntityAlreadyExists")
-                {
-                    throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
-                }
-
-                // Throw an error with more details...
-                var extraData = JsonConvert.SerializeObject(ex.RequestInformation.ExtendedErrorInformation);
-                throw new Exception("Storage Exception occured with additional details: " + extraData, ex);
-            }
-
-            _hasSaved = true;
-        }
-
-        #endregion
-
-        private void CheckNotSaved()
-        {
-            if (_hasSaved)
-            {
-                throw new InvalidOperationException("Can only save context once... create another one!");
-            }
         }
     }
 }

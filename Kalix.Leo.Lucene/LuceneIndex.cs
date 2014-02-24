@@ -140,7 +140,7 @@ namespace Kalix.Leo.Lucene
             }
             writer.UseCompoundFile = false;
             writer.SetRAMBufferSizeMB(_RAMSizeMb);
-            writer.MergeFactor = 2;
+            writer.MergeFactor = 5;
             return writer;
         }
 

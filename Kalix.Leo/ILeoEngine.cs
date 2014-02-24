@@ -7,7 +7,7 @@ namespace Kalix.Leo
         IRecordSearchComposer Composer { get; }
 
         IDocumentPartition GetDocumentPartition(string basePath, long partitionId);
-        IObjectPartition<T> GetObjectPartition<T>(long partitionId) where T : ObjectWithId;
+        IObjectPartition<T> GetObjectPartition<T>(long partitionId);
         void StartListeners(int? messagesToProcessInParallel = null);
     }
 }

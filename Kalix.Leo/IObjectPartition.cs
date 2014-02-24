@@ -1,13 +1,13 @@
 ﻿using Kalix.Leo.Storage;
 using System;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
     public interface IObjectPartition<T> : IBasePartition
-        where T : ObjectWithId
     {
-        Task<long> Save(T data, Metadata metadata = null);
+        Task<long> Save(T data, Expression<Func<T, long?>> idField, Metadata metadata = null);
         Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null);
         Task<Metadata> GetMetadata(long id, string snapshot = null);
 

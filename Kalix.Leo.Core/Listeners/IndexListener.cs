@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Listeners
@@ -13,20 +14,27 @@ namespace Kalix.Leo.Listeners
     public class IndexListener : IIndexListener
     {
         private readonly IQueue _indexQueue;
-        private readonly Dictionary<string, IIndexer> _typeIndexers;
-        private readonly Dictionary<string, IIndexer> _pathIndexers;
-        private readonly Func<string, Type> _typeResolver;
+        private readonly Dictionary<string, Type> _typeIndexers;
+        private readonly Dictionary<string, Type> _pathIndexers;
+        private readonly Func<string, Type> _typeNameResolver;
+        private readonly Func<Type, object> _typeResolver;
 
-        public IndexListener(IQueue indexQueue, Func<string, Type> typeResolver = null)
+        public IndexListener(IQueue indexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
         {
             _indexQueue = indexQueue;
-            _typeIndexers = new Dictionary<string, IIndexer>();
-            _pathIndexers = new Dictionary<string, IIndexer>();
-            _typeResolver = typeResolver ?? (s => Type.GetType(s, false));
+            _typeIndexers = new Dictionary<string, Type>();
+            _pathIndexers = new Dictionary<string, Type>();
+            _typeNameResolver = typeNameResolver ?? (s => Type.GetType(s, false));
+            _typeResolver = typeResolver;
         }
 
-        public void RegisterPathIndexer(string basePath, IIndexer indexer)
+        public void RegisterPathIndexer(string basePath, Type indexer)
         {
+            if(!typeof(IIndexer).GetTypeInfo().IsAssignableFrom(indexer.GetTypeInfo()))
+            {
+                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", "indexer");
+            }
+
             if (_pathIndexers.ContainsKey(basePath))
             {
                 throw new InvalidOperationException("Already have a indexer for base path: " + basePath);
@@ -35,13 +43,18 @@ namespace Kalix.Leo.Listeners
             _pathIndexers[basePath] = indexer;
         }
 
-        public void RegisterTypeIndexer<T>(IIndexer indexer)
+        public void RegisterTypeIndexer<T>(Type indexer)
         {
             RegisterTypeIndexer(typeof(T), indexer);
         }
 
-        public void RegisterTypeIndexer(Type type, IIndexer indexer)
+        public void RegisterTypeIndexer(Type type, Type indexer)
         {
+            if (!typeof(IIndexer).GetTypeInfo().IsAssignableFrom(indexer.GetTypeInfo()))
+            {
+                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", "indexer");
+            }
+
             if (_typeIndexers.ContainsKey(type.FullName))
             {
                 throw new InvalidOperationException("Already have a indexer for type: " + type);
@@ -76,7 +89,8 @@ namespace Kalix.Leo.Listeners
                     var type = details.Metadata[MetadataConstants.TypeMetadataKey];
                     if(_typeIndexers.ContainsKey(type))
                     {
-                        await _typeIndexers[type].Index(details);
+                        var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
+                        await indexer.Index(details);
                         hasData = true;
                     }
                 }
@@ -86,7 +100,8 @@ namespace Kalix.Leo.Listeners
                     var key = _pathIndexers.Keys.Where(k => details.BasePath.StartsWith(k)).FirstOrDefault();
                     if (key != null)
                     {
-                        await _pathIndexers[key].Index(details);
+                        var indexer = (IIndexer)_typeResolver(_pathIndexers[key]);
+                        await indexer.Index(details);
                         hasData = true;
                     }
                 }
