@@ -72,6 +72,26 @@ namespace Kalix.Leo.Storage
             }
         }
 
+        public async Task SetCurrentId(long newId)
+        {
+            if(newId <= 0)
+            {
+                throw new ArgumentException("newId must be greater than 0", "newId");
+            }
+
+            var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
+            var limitData = new DataWithMetadata(Observable.Return(limitBytes));
+            if (await _store.TryOptimisticWrite(_location, limitData))
+            {
+                // This will force a refresh on the Next
+                _upperIdLimit = 0;
+            }
+            else
+            {
+                throw new InvalidOperationException("Could not update the id");
+            }
+        }
+
         private async Task UpdateFromSyncStore()
         {
             int retryCount = 0;

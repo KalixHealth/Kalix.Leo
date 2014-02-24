@@ -18,5 +18,7 @@ namespace Kalix.Leo
 
         Task ReIndexAll();
         Task ReBackupAll();
+
+        Task SetInternalIdGenerator(long newId);
     }
 }

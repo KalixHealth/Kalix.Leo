@@ -88,6 +88,11 @@ namespace Kalix.Leo
             return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
         }
 
+        public Task SetInternalIdGenerator(long newId)
+        {
+            return _idGenerator.Value.SetCurrentId(newId);
+        }
+
         private StoreLocation GetLocation(long? id)
         {
             return new StoreLocation(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath, id);
