@@ -63,6 +63,7 @@
     <Compile Include="Indexing\IRecordSearchComposer.cs" />
     <Compile Include="Indexing\IRecordSearchComposition.cs" />
     <Compile Include="Indexing\IRecordUniqueIndex.cs" />
+    <Compile Include="Listeners\ConcurrentDictionary.cs" />
     <Compile Include="Table\ITableClient.cs" />
     <Compile Include="Table\ITableContext.cs" />
     <Compile Include="Table\ITableEntity.cs" />

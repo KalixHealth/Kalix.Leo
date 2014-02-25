@@ -118,18 +118,47 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             var condition = AccessCondition.GenerateLeaseCondition(leaseId);
-            var release = Disposable.Create(() => { blob.ReleaseLease(condition); });
+            var release = Disposable.Create(() => 
+            { 
+                try 
+                { 
+                    blob.ReleaseLease(condition); 
+                } 
+                catch (Exception e) 
+                {
+                    if (_trace)
+                    {
+                        Trace.WriteLine("Release failed: " + e.Message);
+                    }
+                } 
+            });
 
-            // Every 40 secs keep the lock renewed
-            var keepAlive = Observable
-                .Interval(TimeSpan.FromSeconds(40), Scheduler.Default)
+            // Every 30 secs keep the lock renewed
+            IDisposable keepAlive = null;
+            keepAlive = Observable
+                .Interval(TimeSpan.FromSeconds(30), Scheduler.Default)
                 .Subscribe(
                     _ => 
-                    { 
-                        blob.RenewLease(condition);
-                        if (_trace)
+                    {
+                        try
                         {
-                            Trace.WriteLine("Renewed Lease: " + blob.Name);
+                            blob.RenewLease(condition);
+                            if (_trace)
+                            {
+                                Trace.WriteLine("Renewed Lease: " + blob.Name);
+                            }
+                        }
+                        catch(Exception e)
+                        {
+                            if (_trace)
+                            {
+                                Trace.WriteLine("Failed to renew lease: " + e.Message);
+                            }
+
+                            if (keepAlive != null)
+                            {
+                                keepAlive.Dispose();
+                            }
                         }
                     }, 
                     () => { release.Dispose(); }

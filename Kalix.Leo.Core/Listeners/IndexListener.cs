@@ -2,11 +2,13 @@
 using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Listeners
@@ -19,6 +21,9 @@ namespace Kalix.Leo.Listeners
         private readonly Func<string, Type> _typeNameResolver;
         private readonly Func<Type, object> _typeResolver;
 
+        private readonly LockFreeQueue<IQueueMessage> _messageQueue;
+        private readonly ConcurrentDictionary<string, bool> _currentContainers;
+
         public IndexListener(IQueue indexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
         {
             _indexQueue = indexQueue;
@@ -26,6 +31,9 @@ namespace Kalix.Leo.Listeners
             _pathIndexers = new Dictionary<string, Type>();
             _typeNameResolver = typeNameResolver ?? (s => Type.GetType(s, false));
             _typeResolver = typeResolver;
+
+            _messageQueue = new LockFreeQueue<IQueueMessage>();
+            _currentContainers = new ConcurrentDictionary<string, bool>();
         }
 
         public void RegisterPathIndexer(string basePath, Type indexer)
@@ -77,7 +85,42 @@ namespace Kalix.Leo.Listeners
                 .Subscribe(); // Start listening
         }
 
-        private async Task MessageRecieved(IQueueMessage message)
+        private Task MessageRecieved(IQueueMessage message)
+        {
+            _messageQueue.Enqueue(message);
+            return TryExecuteNext();
+        }
+
+        private async Task TryExecuteNext()
+        {
+            IQueueMessage nextMessage;
+            if(_messageQueue.TryDequeue(out nextMessage))
+            {
+                var details = JsonConvert.DeserializeObject<StoreDataDetails>(nextMessage.Message);
+
+                if(_currentContainers.TryAdd(details.Container, true))
+                {
+                    try
+                    {
+                        await ExecuteMessage(nextMessage);
+                    }
+                    finally
+                    {
+                        bool temp;
+                        _currentContainers.TryRemove(details.Container, out temp);
+                    }
+
+                    // We might have enqueued messages for this container...
+                    await TryExecuteNext();
+                }
+                else
+                {
+                    _messageQueue.Enqueue(nextMessage);
+                }
+            }
+        }
+
+        private async Task ExecuteMessage(IQueueMessage message)
         {
             using (message)
             {
@@ -113,6 +156,71 @@ namespace Kalix.Leo.Listeners
 
                 await message.Complete();
             }
+        }
+
+        private sealed class LockFreeQueue<T>
+        {
+            private sealed class Node
+            {
+                public readonly T Item;
+                public Node Next;
+                public Node(T item)
+                {
+                    Item = item;
+                }
+            }
+            private volatile Node _head;
+            private volatile Node _tail;
+            public LockFreeQueue()
+            {
+                _head = _tail = new Node(default(T));
+            }
+#pragma warning disable 420 // volatile semantics not lost as only by-ref calls are interlocked
+            public void Enqueue(T item)
+            {
+                Node newNode = new Node(item);
+                for (; ; )
+                {
+                    Node curTail = _tail;
+                    if (Interlocked.CompareExchange(ref curTail.Next, newNode, null) == null)   //append to the tail if it is indeed the tail.
+                    {
+                        Interlocked.CompareExchange(ref _tail, newNode, curTail);   //CAS in case we were assisted by an obstructed thread.
+                        return;
+                    }
+                    else
+                    {
+                        Interlocked.CompareExchange(ref _tail, curTail.Next, curTail);  //assist obstructing thread.
+                    }
+                }
+            }
+            public bool TryDequeue(out T item)
+            {
+                for (; ; )
+                {
+                    Node curHead = _head;
+                    Node curTail = _tail;
+                    Node curHeadNext = curHead.Next;
+                    if (curHead == curTail)
+                    {
+                        if (curHeadNext == null)
+                        {
+                            item = default(T);
+                            return false;
+                        }
+                        else
+                            Interlocked.CompareExchange(ref _tail, curHeadNext, curTail);   // assist obstructing thread
+                    }
+                    else
+                    {
+                        item = curHeadNext.Item;
+                        if (Interlocked.CompareExchange(ref _head, curHeadNext, curHead) == curHead)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+#pragma warning restore 420
         }
     }
 }

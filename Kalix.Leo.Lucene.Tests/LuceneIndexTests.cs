@@ -60,14 +60,15 @@ namespace Kalix.Leo.Lucene.Tests
             Assert.AreEqual(null, error);
         }
 
-        [Test]
-        public void CanWriteFromTwoIndexes()
-        {
-            var task1 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
-            var task2 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
+        // NOTE: This is actually not allowed atm...
+        //[Test]
+        //public void CanWriteFromTwoIndexes()
+        //{
+        //    var task1 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
+        //    var task2 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
 
-            Task.WhenAll(task1, task2).Wait();
-        }
+        //    Task.WhenAll(task1, task2).Wait();
+        //}
 
         [Test]
         public void CanReadFromTwoIndexes()
