@@ -25,7 +25,7 @@ namespace Kalix.Leo
             });
         }
 
-        public async Task<long> Save(T data, Expression<Func<T, long?>> idField, Metadata metadata = null)
+        public async Task<long> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
             var member = idField.Body as MemberExpression;
             if(member == null)
@@ -44,6 +44,11 @@ namespace Kalix.Leo
             {
                 id = await _idGenerator.Value.NextId();
                 propInfo.SetValue(data, id);
+            }
+
+            if (preSaveProcessing != null)
+            {
+                preSaveProcessing(id.Value);
             }
 
             var obj = new ObjectWithMetadata<T>(data, metadata);
