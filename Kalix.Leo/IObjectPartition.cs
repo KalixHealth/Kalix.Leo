@@ -7,6 +7,7 @@ namespace Kalix.Leo
 {
     public interface IObjectPartition<T> : IBasePartition
     {
+        Task Save(T data, long id, Metadata metadata = null);
         Task<long> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null);
         Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null);
         Task<Metadata> GetMetadata(long id, string snapshot = null);
