@@ -25,6 +25,12 @@ namespace Kalix.Leo
             });
         }
 
+        public Task Save(T data, long id, Metadata metadata = null)
+        {
+            var obj = new ObjectWithMetadata<T>(data, metadata);
+            return _store.SaveObject(GetLocation(id), obj, _encryptor.Value, _options);
+        }
+
         public async Task<long> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
             var member = idField.Body as MemberExpression;
@@ -52,7 +58,7 @@ namespace Kalix.Leo
             }
 
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options);
+            await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options).ConfigureAwait(false);
             return id.Value;
         }
 
