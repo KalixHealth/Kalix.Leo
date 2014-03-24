@@ -90,7 +90,7 @@ namespace Kalix.Leo.Lucene.Store
 
         public override void TouchFile(string name)
         {
-            // Not sure this is used... (would be a bitch if it is!)
+            // Not sure this is used... (would be a annoying if it is!)
             throw new NotImplementedException();
         }
 

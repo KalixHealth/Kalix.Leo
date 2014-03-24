@@ -50,6 +50,12 @@ namespace Kalix.Leo
             return _store.Delete(GetLocation(path), _options);
         }
 
+        public Task DeletePermanent(string path)
+        {
+            // Remove the keep deletes option...
+            return _store.Delete(GetLocation(path), _options & ~SecureStoreOptions.KeepDeletes);
+        }
+
         public Task ReIndexAll()
         {
             return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);

@@ -13,6 +13,7 @@ namespace Kalix.Leo
         IObservable<PathWithMetadata> Find(string prefix = null);
 
         Task Delete(string path);
+        Task DeletePermanent(string path);
 
         Task ReIndexAll();
         Task ReBackupAll();

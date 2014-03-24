@@ -16,6 +16,7 @@ namespace Kalix.Leo
         IObservable<IdWithMetadata> FindAll();
 
         Task Delete(long id);
+        Task DeletePermanent(long id);
 
         Task ReIndexAll();
         Task ReBackupAll();
