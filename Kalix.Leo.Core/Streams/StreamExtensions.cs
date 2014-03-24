@@ -16,7 +16,7 @@ namespace System.Reactive.Linq
         /// <param name="stream">Byte stream to normalise</param>
         /// <param name="bytesPerPacket">Required bytes per packet</param>
         /// <param name="isStrict">If true, will set the max buffer size to the bytes, otherwise each packet can be larger than specified</param>
-        public static IObservable<byte[]> BufferBytes(this IObservable<byte[]> stream, int bytesPerPacket, bool isStrict)
+        public static IObservable<byte[]> BufferBytes(this IObservable<byte[]> stream, long bytesPerPacket, bool isStrict)
         {
             if (isStrict)
             {
@@ -129,6 +129,16 @@ namespace System.Reactive.Linq
         }
 
         /// <summary>
+        /// Convert a stream of bytes to a single byte array
+        /// </summary>
+        /// <param name="stream">Stream of bytes to flatten</param>
+        /// <returns>The flattened set of bytes</returns>
+        public static async Task<byte[]> ToBytes(this IObservable<byte[]> stream)
+        {
+            return await BufferBytes(stream, long.MaxValue, false).FirstOrDefaultAsync();
+        }
+
+        /// <summary>
         /// Buffersize is what will be passed to the 'Read' on the stream, as such, the chunks will be bufferSize
         /// or smaller depending on the implementation of the underlying stream.
         /// NOTE: I recommend wrapping the read stream with a 'BufferedStream' if appropriate
@@ -140,6 +150,13 @@ namespace System.Reactive.Linq
             return ReadStream(readStream, bufferSize).ToObservable(Scheduler.Default);
         }
 
+        /// <summary>
+        /// Pipe data into an observer through a scoped write stream
+        /// </summary>
+        /// <param name="observer">The observer to pipe data out of</param>
+        /// <param name="writeStreamScope">An async function where you can write to the supplied writable stream</param>
+        /// <param name="firstHit">An action to run the first time the stream is written to</param>
+        /// <returns>A task that will complete when the stream scope is finished</returns>
         public static async Task UseWriteStream(this IObserver<byte[]> observer, Func<Stream, Task> writeStreamScope, Action firstHit = null)
         {
             try
