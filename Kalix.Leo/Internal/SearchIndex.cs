@@ -39,9 +39,19 @@ namespace Kalix.Leo.Internal
             return Delete(id.ToString(CultureInfo.InvariantCulture), current);
         }
 
-        public IObservable<TSearch> Search(IRecordSearch search)
+        public IObservable<TSearch> SearchAll(IRecordSearch search)
         {
-            return _composition.Search(_partitionId, _encryptor, search);
+            return _composition.SearchAll(_partitionId, _encryptor, search);
+        }
+
+        public IObservable<TSearch> SearchAll<T1>(IRecordSearch<T1> search)
+        {
+            return _composition.SearchAll(_partitionId, _encryptor, search);
+        }
+
+        public IObservable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search)
+        {
+            return _composition.SearchAll(_partitionId, _encryptor, search);
         }
 
         public IObservable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val)

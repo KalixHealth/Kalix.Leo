@@ -10,7 +10,9 @@ namespace Kalix.Leo.Indexing
         Task Save(long partitionKey, string id, TMain item, TMain previous, IEncryptor encryptor);
         Task Delete(long partitionKey, string id, TMain main);
 
-        IObservable<TSearch> Search(long partitionKey, IEncryptor encryptor, IRecordSearch search);
+        IObservable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search);
+        IObservable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search);
+        IObservable<TSearch> SearchAll<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search);
 
         IObservable<TSearch> SearchFor<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 val);
         IObservable<TSearch> SearchFor<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val);

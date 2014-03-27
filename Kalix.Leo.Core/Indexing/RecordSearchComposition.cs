@@ -121,7 +121,22 @@ namespace Kalix.Leo.Indexing
             return context.Save();
         }
 
-        public IObservable<TSearch> Search(long partitionKey, IEncryptor encryptor, IRecordSearch search)
+        public IObservable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search)
+        {
+            return Search(partitionKey, encryptor, search.Prefix, search);
+        }
+
+        public IObservable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search)
+        {
+            return Search(partitionKey, encryptor, search.Prefix, search);
+        }
+
+        public IObservable<TSearch> SearchAll<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search)
+        {
+            return Search(partitionKey, encryptor, search.Prefix, search);
+        }
+
+        private IObservable<TSearch> Search(long partitionKey, IEncryptor encryptor, string prefix, object search)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -130,7 +145,7 @@ namespace Kalix.Leo.Indexing
 
             return _client.Query<TSearch>(_tableName, encryptor)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
-                .RowKeyStartsWith(search.Prefix + Underscore)
+                .RowKeyStartsWith(prefix + Underscore)
                 .AsObservable();
         }
 

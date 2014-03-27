@@ -11,7 +11,9 @@ namespace Kalix.Leo
         Task Delete(string id, TMain current);
         Task Delete(long id, TMain current);
 
-        IObservable<TSearch> Search(IRecordSearch search);
+        IObservable<TSearch> SearchAll(IRecordSearch search);
+        IObservable<TSearch> SearchAll<T1>(IRecordSearch<T1> search);
+        IObservable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search);
 
         IObservable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val);
         IObservable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val);
