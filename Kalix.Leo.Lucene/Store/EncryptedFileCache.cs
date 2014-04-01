@@ -1,10 +1,8 @@
-﻿using Kalix.Leo.Storage;
-using System.IO;
+﻿using System.IO;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Store
@@ -19,9 +17,9 @@ namespace Kalix.Leo.Lucene.Store
 
         private bool _isDisposed;
 
-        public EncryptedFileCache()
+        public EncryptedFileCache(string directory)
         {
-            _directory = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            _directory = directory;
 
             CheckDirectoryExists(new DirectoryInfo(_directory));
         }
@@ -66,6 +64,10 @@ namespace Kalix.Leo.Lucene.Store
                                 result = true;
                             }
                         }
+                        else
+                        {
+                            LeoTrace.WriteLine("Skipped blob download");
+                        }
                     }
                 }
             }
@@ -92,6 +94,19 @@ namespace Kalix.Leo.Lucene.Store
             });
 
             return Task.FromResult(new DataWithMetadata(stream, metadata));
+        }
+
+        public Metadata GetMetadata(string key)
+        {
+            var path = Path.Combine(_directory, key);
+            var info = new FileInfo(path);
+            if (!info.Exists) { return null; }
+
+            var metadata = new Metadata();
+            metadata.LastModified = info.LastWriteTimeUtc;
+            metadata.Size = info.Length;
+
+            return metadata;
         }
 
         public Task<Stream> GetReadWriteStream(string key, long initialPosition = 0)

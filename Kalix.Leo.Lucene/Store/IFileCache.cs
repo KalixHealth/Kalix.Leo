@@ -26,6 +26,13 @@ namespace Kalix.Leo.Lucene.Store
         Task<DataWithMetadata> LoadAllData(string key);
 
         /// <summary>
+        /// Gets the metadata associated from the file
+        /// </summary>
+        /// <param name="key">Relative path to the file</param>
+        /// <returns>Metadata</returns>
+        Metadata GetMetadata(string key);
+
+        /// <summary>
         /// Gets a stream than can be used for reading or writing (not at the same time though)
         /// </summary>
         /// <param name="key">Relative path to the file</param>

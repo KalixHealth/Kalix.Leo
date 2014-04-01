@@ -37,7 +37,7 @@ namespace Kalix.Leo.Internal
             if (config.DoCompress) { _options = _options | SecureStoreOptions.Compress; }
 
             _encryptor = new Lazy<IEncryptor>(() => config.DoEncrypt ? new CertProtectedEncryptor(engineConfig.BaseStore, new StoreLocation(engineConfig.KeyContainer, container), engineConfig.RsaCert) : null);
-            _luceneIndex = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor.Value));
+            _luceneIndex = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor.Value, 20, 10));
         }
 
         public ISearchIndex<TMain, TSearch> Index<TMain, TSearch>(IRecordSearchComposition<TMain, TSearch> composition)

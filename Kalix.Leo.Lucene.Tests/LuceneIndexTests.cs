@@ -24,7 +24,7 @@ namespace Kalix.Leo.Lucene.Tests
         public void Init()
         {
             var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient();
-            _store = new AzureStore(client, false, null, true); // Do not snapshot and do tracing!
+            _store = new AzureStore(client, false, null); // Do not snapshot and do tracing!
             _store.CreateContainerIfNotExists("testindexer");
 
             var store = new SecureStore(_store);

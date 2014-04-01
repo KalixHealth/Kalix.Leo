@@ -1,6 +1,7 @@
 ﻿using Kalix.Leo.Lucene.Store;
 using NUnit.Framework;
 using System;
+using System.IO;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ namespace Kalix.Leo.Lucene.Tests.Store
         [SetUp]
         public void Init()
         {
-            _cache = new EncryptedFileCache();
+            _cache = new EncryptedFileCache(Path.GetTempPath());
         }
 
         [TearDown]

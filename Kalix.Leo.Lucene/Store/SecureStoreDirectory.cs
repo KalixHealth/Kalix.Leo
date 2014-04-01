@@ -50,21 +50,33 @@ namespace Kalix.Leo.Lucene.Store
 
         public override bool FileExists(string name)
         {
-            // Always checks the server
+            var metadata = _cache.GetMetadata(GetCachePath(name));
+            if (metadata != null) { return true; }
+            
+            // Fallback to the server
+            LeoTrace.WriteLine("SecureStore.FileExists");
             return GetSyncVal(_store.GetMetadata(GetLocation(name))) != null;
         }
 
         public override long FileLength(string name)
         {
-            // Always checks the server
-            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            var metadata = _cache.GetMetadata(GetCachePath(name));
+            if (metadata != null) { return metadata.Size.Value; }
+
+            // Fallback to the server
+            LeoTrace.WriteLine("SecureStore.FileLength");
+            metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
             return metadata == null || !metadata.Size.HasValue ? 0 : metadata.Size.Value;
         }
 
         public override long FileModified(string name)
         {
-            // Always checks the server
-            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            var metadata = _cache.GetMetadata(GetCachePath(name));
+            if (metadata != null) { return metadata.LastModified.Value.ToFileTimeUtc(); }
+
+            // Fallback to the server
+            LeoTrace.WriteLine("SecureStore.FileModified");
+            metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
             return metadata == null || !metadata.LastModified.HasValue ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
         }
 
@@ -106,8 +118,8 @@ namespace Kalix.Leo.Lucene.Store
             var loc = GetLocation(name);
             var output = new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
             {
-                // Use the original store metadata except for size/modified
-                var metadata = await _store.GetMetadata(loc).ConfigureAwait(false) ?? new Metadata();
+                // Overwrite metadata for better effiency (size/modified)
+                var metadata = new Metadata();
                 metadata.Size = data.Metadata.Size;
                 metadata.LastModified = data.Metadata.LastModified;
 

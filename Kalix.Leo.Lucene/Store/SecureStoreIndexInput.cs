@@ -24,16 +24,14 @@ namespace Kalix.Leo.Lucene.Store
             _cachePath = cachePath;
             _inputs = inputs;
 
-            // If we uncomment this code then we do not have initial repeat calls for the initial segment
-            // However it breaks when it tries to get later segments
-            // Problem with the lucene IndexSearcher Implementation
-            /*var hasFile = */GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location, null, encryptor)));
-            //if (!hasFile)
-            //{
-            //    throw new FileNotFoundException("Input file does not exist: " + cachePath);
-            //}
+            _stream = new Lazy<Stream>(() => 
+            {
+                // When we open it for the first time we should we loading the latest data...
+                GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location, null, encryptor)));
+                LeoTrace.WriteLine("Opened IndexInput Stream");
 
-            _stream = new Lazy<Stream>(() => GetSyncVal(_cache.GetReadonlyStream(_cachePath)));   
+                return GetSyncVal(_cache.GetReadonlyStream(_cachePath));
+            });   
         }
 
         // Cloning method, makes sure that it is still trying to load from the same data/cache

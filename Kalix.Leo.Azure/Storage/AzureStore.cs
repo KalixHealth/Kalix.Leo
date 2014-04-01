@@ -3,7 +3,6 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -26,7 +25,6 @@ namespace Kalix.Leo.Azure.Storage
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
         private readonly bool _enableSnapshots;
-        private readonly bool _trace;
 
         /// <summary>
         /// Constructor for a store backed by Azure
@@ -34,12 +32,11 @@ namespace Kalix.Leo.Azure.Storage
         /// <param name="blobStorage">The storage account that backs this store</param>
         /// <param name="enableSnapshots">Whether any save on this store should create snapshots</param>
         /// <param name="deletedKey">The metadata key to check if a store item is soft deleted</param>
-        public AzureStore(CloudBlobClient blobStorage, bool enableSnapshots, string deletedKey = null, bool trace = false)
+        public AzureStore(CloudBlobClient blobStorage, bool enableSnapshots, string deletedKey = null)
         {
             _blobStorage = blobStorage;
             _enableSnapshots = enableSnapshots;
             _deletedKey = deletedKey ?? DefaultDeletedKey;
-            _trace = trace;
         }
 
         public Task SaveData(StoreLocation location, DataWithMetadata data)
@@ -130,11 +127,8 @@ namespace Kalix.Leo.Azure.Storage
                             {
                                 unhandledExceptions(e);
                             }
-
-                            if (_trace)
-                            {
-                                Trace.WriteLine("Error on lock loop: " + e.Message);
-                            }
+                            
+                            LeoTrace.WriteLine("Error on lock loop: " + e.Message);
                         }
                         catch (Exception)
                         {
@@ -152,10 +146,7 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
-                if (_trace)
-                {
-                    Trace.WriteLine("Leased Blob: " + blob.Name);
-                }
+                LeoTrace.WriteLine("Leased Blob: " + blob.Name);
             }
             catch (StorageException e)
             {
@@ -185,10 +176,7 @@ namespace Kalix.Leo.Azure.Storage
                         await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
                     }
                     leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
-                    if (_trace)
-                    {
-                        Trace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
-                    }
+                    LeoTrace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
                 }
                 catch (StorageException e)
                 {
@@ -218,10 +206,7 @@ namespace Kalix.Leo.Azure.Storage
                 } 
                 catch (Exception e) 
                 {
-                    if (_trace)
-                    {
-                        Trace.WriteLine("Release failed: " + e.Message);
-                    }
+                    LeoTrace.WriteLine("Release failed: " + e.Message);
                 } 
             });
 
@@ -235,17 +220,11 @@ namespace Kalix.Leo.Azure.Storage
                         try
                         {
                             blob.RenewLease(condition);
-                            if (_trace)
-                            {
-                                Trace.WriteLine("Renewed Lease: " + blob.Name);
-                            }
+                            LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
                         }
                         catch(Exception e)
                         {
-                            if (_trace)
-                            {
-                                Trace.WriteLine("Failed to renew lease: " + e.Message);
-                            }
+                            LeoTrace.WriteLine("Failed to renew lease: " + e.Message);
 
                             if (keepAlive != null)
                             {
@@ -297,10 +276,7 @@ namespace Kalix.Leo.Azure.Storage
                                 using (var ms = new MemoryStream(firstHit))
                                 {
                                     await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                    if (_trace)
-                                    {
-                                        Trace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                                    }
+                                    LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
                                 }
                                 bag.Add(blockStr);
                             }
@@ -310,10 +286,7 @@ namespace Kalix.Leo.Azure.Storage
                             using (var ms = new MemoryStream(b))
                             {
                                 await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                if (_trace)
-                                {
-                                    Trace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                                }
+                                LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
                             }
                             bag.Add(blockStr);
                         }
@@ -326,10 +299,7 @@ namespace Kalix.Leo.Azure.Storage
                 if (bag.Any())
                 {
                     await blob.PutBlockListAsync(bag).ConfigureAwait(false);
-                    if (_trace)
-                    {
-                        Trace.WriteLine("Finished Put Blocks: " + blob.Name);
-                    }
+                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name);
                 }
                 else
                 {
@@ -337,10 +307,7 @@ namespace Kalix.Leo.Azure.Storage
                     using (var ms = new MemoryStream(firstHit))
                     {
                         await blob.UploadFromStreamAsync(ms, condition, null, null).ConfigureAwait(false);
-                        if (_trace)
-                        {
-                            Trace.WriteLine("Uploaded Single Block: " + blob.Name);
-                        }
+                        LeoTrace.WriteLine("Uploaded Single Block: " + blob.Name);
                     }
                 }
 
@@ -349,10 +316,7 @@ namespace Kalix.Leo.Azure.Storage
                 if (_enableSnapshots)
                 {
                     await blob.CreateSnapshotAsync().ConfigureAwait(false);
-                    if (_trace)
-                    {
-                        Trace.WriteLine("Created Snapshot: " + blob.Name);
-                    }
+                    LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
                 }
             }
             catch (StorageException exc)
@@ -374,10 +338,7 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 await blob.FetchAttributesAsync().ConfigureAwait(false);
-                if (_trace)
-                {
-                    Trace.WriteLine("Got Metdata: " + blob.Name);
-                }
+                LeoTrace.WriteLine("Got Metdata: " + blob.Name);
             }
             catch (StorageException e)
             {
@@ -413,10 +374,7 @@ namespace Kalix.Leo.Azure.Storage
                         try
                         {
                             await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
-                            if (_trace)
-                            {
-                                Trace.WriteLine("Downloading blob: " + blob.Name);
-                            }
+                            LeoTrace.WriteLine("Downloading blob: " + blob.Name);
                         }
                         catch (StorageException e)
                         {
@@ -508,10 +466,7 @@ namespace Kalix.Leo.Azure.Storage
                 do
                 {
                     var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct).ConfigureAwait(false);
-                    if (_trace)
-                    {
-                        Trace.WriteLine("Listed blob segment for prefix: " + prefix);
-                    }
+                    LeoTrace.WriteLine("Listed blob segment for prefix: " + prefix);
 
                     foreach (var blob in segment.Results.OfType<ICloudBlob>())
                     {
@@ -563,29 +518,20 @@ namespace Kalix.Leo.Azure.Storage
 
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
             await blob.SetMetadataAsync().ConfigureAwait(false);
-            if (_trace)
-            {
-                Trace.WriteLine("Soft deleted (2 calls): " + blob.Name);
-            }
+            LeoTrace.WriteLine("Soft deleted (2 calls): " + blob.Name);
         }
 
         public Task PermanentDelete(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
-            if (_trace)
-            {
-                Trace.WriteLine("Deleted blob: " + blob.Name);
-            }
+            LeoTrace.WriteLine("Deleted blob: " + blob.Name);
             return blob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
         }
 
         public Task CreateContainerIfNotExists(string container)
         {
             container = SafeContainerName(container);
-            if (_trace)
-            {
-                Trace.WriteLine("Trying to create container: " + container);
-            }
+            LeoTrace.WriteLine("Trying to create container: " + container);
 
             var c = _blobStorage.GetContainerReference(container);
             return c.CreateIfNotExistsAsync();
@@ -594,10 +540,7 @@ namespace Kalix.Leo.Azure.Storage
         public Task PermanentDeleteContainer(string container)
         {
             container = SafeContainerName(container);
-            if (_trace)
-            {
-                Trace.WriteLine("Trying to delete container: " + container);
-            }
+            LeoTrace.WriteLine("Trying to delete container: " + container);
 
             var c = _blobStorage.GetContainerReference(container);
             return c.DeleteIfExistsAsync();
