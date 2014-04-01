@@ -5,6 +5,9 @@ using System.Linq;
 
 namespace Kalix.Leo.Lucene.Analysis
 {
+    /// <summary>
+    /// Analyser with a number of common stop words and with appropriate lucene filters
+    /// </summary>
     public class EnglishAnalyzer : Analyzer
     {
         private static readonly string[] _stopWords = new[]
@@ -38,17 +41,36 @@ namespace Kalix.Leo.Lucene.Analysis
 
         private readonly ISet<string> _words;
 
+        /// <summary>
+        /// Constructor with default stop words
+        /// </summary>
         public EnglishAnalyzer()
             : this(_stopWords)
         {
 
         }
 
+        /// <summary>
+        /// Constructor that allows you to specify your stop words
+        /// </summary>
+        /// <param name="stopWords">Stopwords to use (lucene will not index these words) - should be all lowercase</param>
         public EnglishAnalyzer(IEnumerable<string> stopWords)
         {
             _words = StopFilter.MakeStopSet(stopWords.ToArray());
         }
 
+        /// <summary>
+        /// Override of the token stream method, uses these filters in order:
+        /// 
+        /// Whitespace splitter
+        /// Lowercase
+        /// Stopwords removed
+        /// ASCII common folder (ie é goes to e)
+        /// Porter stemming (reduces words to common stem)
+        /// </summary>
+        /// <param name="fieldName"></param>
+        /// <param name="reader"></param>
+        /// <returns></returns>
         public override TokenStream TokenStream(string fieldName, TextReader reader)
         {
             return new PorterStemFilter(new ASCIIFoldingFilter(new StopFilter(false, new LowerCaseFilter(new WhitespaceTokenizer(reader)), _words)));

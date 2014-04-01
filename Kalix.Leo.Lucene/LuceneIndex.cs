@@ -36,9 +36,10 @@ namespace Kalix.Leo.Lucene
         /// </summary>
         /// <param name="store">Store to have the Indexer on top of</param>
         /// <param name="container">Container to put the index</param>
-        /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
-        /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
+        /// <param name="basePath">The path to namespace this index in</param>
+        /// <param name="encryptor">The encryptor to encryt any records being saved</param>
+        /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
             : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(_baseDirectory), encryptor), new EnglishAnalyzer(), RAMSizeMb, secsTillReaderRefresh)
         {
@@ -49,9 +50,8 @@ namespace Kalix.Leo.Lucene
         /// </summary>
         /// <param name="directory">Lucene directory of your files</param>
         /// <param name="analyzer">Analyzer you want to use for your indexing/searching</param>
-        /// <param name="readIndexThottleMs">The time before the read index can be refreshed, defaults to five seconds</param>
-        /// <param name="writeIndexThottleMs">The interval to wait before writes</param>
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
+        /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(Directory directory, Analyzer analyzer, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
         {
             _directory = directory;

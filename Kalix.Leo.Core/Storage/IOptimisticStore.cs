@@ -4,6 +4,9 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
 {
+    /// <summary>
+    /// A store that has locking capabilities, required for the secure store...
+    /// </summary>
     public interface IOptimisticStore : IStore
     {
         /// <summary>

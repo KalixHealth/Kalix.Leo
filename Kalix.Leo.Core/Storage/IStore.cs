@@ -12,9 +12,8 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Save Data to a specified location
         /// </summary>
-        /// <param name="data">Stream of data</param>
+        /// <param name="data">Data to save</param>
         /// <param name="location">Location to store the file</param>
-        /// <param name="metadata">Any additional user defined metadata</param>
         Task SaveData(StoreLocation location, DataWithMetadata data);
 
         /// <summary>
@@ -46,7 +45,7 @@ namespace Kalix.Leo.Storage
         /// </summary>
         /// <param name="container">Container to search</param>
         /// <param name="prefix">Prefix of the path to filter by</param>
-        /// <returns>List of files & metadata</returns>
+        /// <returns>List of files and metadata</returns>
         IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null);
 
         /// <summary>

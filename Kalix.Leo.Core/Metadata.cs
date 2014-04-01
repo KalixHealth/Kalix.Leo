@@ -3,11 +3,32 @@ using System.Collections.Generic;
 
 namespace Kalix.Leo
 {
+    /// <summary>
+    /// Metadata class where you can add arbritrary data to a record
+    /// </summary>
     public class Metadata : Dictionary<string, string>
     {
+        /// <summary>
+        /// Simple constructor
+        /// </summary>
         public Metadata() { }
+
+        /// <summary>
+        /// Simple constructor to create metadata with a single key
+        /// </summary>
+        /// <param name="key">Key to add</param>
+        /// <param name="value">Value to add for the specified key</param>
+        public Metadata(string key, string value) : base(new Dictionary<string, string> { { key, value } }) { }
+
+        /// <summary>
+        /// Simple constructor to add a number of initial metadata keys
+        /// </summary>
+        /// <param name="initial">Dictionary of values</param>
         public Metadata(IDictionary<string, string> initial) : base(initial) { }
 
+        /// <summary>
+        /// Common metadata key, holds the date that a record was modified
+        /// </summary>
         public DateTime? LastModified
         {
             get
@@ -36,6 +57,9 @@ namespace Kalix.Leo
             }
         }
 
+        /// <summary>
+        /// Common metadata key, holds the size of the specified record
+        /// </summary>
         public long? Size
         {
             get

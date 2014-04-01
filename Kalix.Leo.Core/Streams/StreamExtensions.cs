@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace System.Reactive.Linq
 {
+    /// <summary>
+    /// Extensions for the IObservable byte[] type, which we use as streams in the Leo engine
+    /// </summary>
     public static class StreamExtensions
     {
         /// <summary>
