@@ -4,6 +4,7 @@ using Microsoft.WindowsAzure.Storage.Blob;
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -54,7 +55,98 @@ namespace Kalix.Leo.Azure.Storage
         public async Task<IDisposable> Lock(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
+            var l = await LockInternal(blob).ConfigureAwait(false);
+            return l == null ? null : l.Item1;
+        }
 
+        public Task RunOnce(StoreLocation location, Func<Task> action) { return RunOnce(location, action, TimeSpan.FromSeconds(5)); }
+        private async Task RunOnce(StoreLocation location, Func<Task> action, TimeSpan pollingFrequency)
+        {
+            var blob = GetBlockBlob(location);
+            // blob.Exists has the side effect of calling blob.FetchAttributes, which populates the metadata collection
+            while (!(await blob.ExistsAsync().ConfigureAwait(false)) || !blob.Metadata.ContainsKey("progress") || blob.Metadata["progress"] != "done")
+            {
+                var lease = await LockInternal(blob).ConfigureAwait(false);
+                if (lease != null)
+                {
+                    using (var arl = lease.Item1)
+                    {
+                        // Once we have the lock make sure we are not done!
+                        if (!blob.Metadata.ContainsKey("progress") || blob.Metadata["progress"] != "done")
+                        {
+                            await action().ConfigureAwait(false);
+                            blob.Metadata["progress"] = "done";
+                            await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null).ConfigureAwait(false);
+                        }
+                    }
+                }
+                else
+                {
+                    await Task.Delay(pollingFrequency).ConfigureAwait(false);
+                }
+            }
+        }
+
+        public IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        {
+            return Observable.Create<Unit>(async (obs, ct) =>
+            {
+                var blob = GetBlockBlob(location);
+
+                while (!ct.IsCancellationRequested)
+                {
+                    // Don't allow you to throw to get out of the loop...
+                    try
+                    {
+                        var lastPerformed = DateTimeOffset.MinValue;
+                        var lease = await LockInternal(blob).ConfigureAwait(false);
+                        if (lease != null)
+                        {
+                            using (var arl = lease.Item1)
+                            {
+                                await blob.FetchAttributesAsync().ConfigureAwait(false);
+                                if (blob.Metadata.ContainsKey("lastPerformed"))
+                                {
+                                    DateTimeOffset.TryParseExact(blob.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
+                                }
+                                if (DateTimeOffset.UtcNow >= lastPerformed + interval)
+                                {
+                                    obs.OnNext(Unit.Default);
+                                    lastPerformed = DateTimeOffset.UtcNow;
+                                    blob.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
+                                    await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                        var timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
+                        var minimum = TimeSpan.FromSeconds(5); // so we're not polling the leased blob too fast
+                        await Task.Delay(timeLeft > minimum ? timeLeft : minimum).ConfigureAwait(false);
+                    }
+                    catch (Exception e)
+                    {
+                        try
+                        {
+                            if (unhandledExceptions != null)
+                            {
+                                unhandledExceptions(e);
+                            }
+
+                            if (_trace)
+                            {
+                                Trace.WriteLine("Error on lock loop: " + e.Message);
+                            }
+                        }
+                        catch (Exception)
+                        {
+                            // This thing needs to keep running!!!
+                        }
+                    }
+                }
+            });
+        }
+
+        private async Task<Tuple<IDisposable, string>> LockInternal(ICloudBlob blob)
+        {
             string leaseId;
 
             try
@@ -165,7 +257,7 @@ namespace Kalix.Leo.Azure.Storage
                 );
 
 
-            return new CompositeDisposable(keepAlive, release);
+            return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
         }
 
         private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)

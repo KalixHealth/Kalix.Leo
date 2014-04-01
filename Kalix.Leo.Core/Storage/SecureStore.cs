@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -272,6 +273,16 @@ namespace Kalix.Leo.Storage
         public Task<IDisposable> Lock(StoreLocation location)
         {
             return _store.Lock(location);
+        }
+
+        public Task RunOnce(StoreLocation location, Func<Task> action)
+        {
+            return _store.RunOnce(location, action);
+        }
+
+        public IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        {
+            return _store.RunEvery(location, interval, unhandledExceptions);
         }
 
         public IUniqueIdGenerator GetIdGenerator(StoreLocation location)
