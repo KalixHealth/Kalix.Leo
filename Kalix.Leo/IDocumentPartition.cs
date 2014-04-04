@@ -10,13 +10,21 @@ namespace Kalix.Leo
     public interface IDocumentPartition : IBasePartition
     {
         /// <summary>
-        /// Save some data into the partition at the specified path
+        /// Save some data into the partition at the specified path, metadata is completely overriden
         /// </summary>
         /// <param name="path">The location to save the record (in this particular partition)</param>
         /// <param name="data">The stream of data to save</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that completes when the record is saved</returns>
         Task Save(string path, IObservable<byte[]> data, Metadata metadata = null);
+
+        /// <summary>
+        /// Update metadata at the specified path, does not override it
+        /// </summary>
+        /// <param name="path">The location to save the record (in this particular partition)</param>
+        /// <param name="metadata">metadata to save - note this is NOT encrypted</param>
+        /// <returns>Task that completes when the metadata is saved</returns>
+        Task SaveMetadata(string path, Metadata metadata);
 
         /// <summary>
         /// Read the data from a specified path in this partition

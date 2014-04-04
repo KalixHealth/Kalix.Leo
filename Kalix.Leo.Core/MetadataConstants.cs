@@ -29,5 +29,10 @@
         /// Stores the size of the record
         /// </summary>
         public static readonly string SizeMetadataKey = "leosize";
+
+        /// <summary>
+        /// Stores the content type of the record
+        /// </summary>
+        public static readonly string ContentTypeMetadataKey = "leocontenttype";
     }
 }

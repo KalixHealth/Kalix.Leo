@@ -44,6 +44,32 @@ namespace Kalix.Leo.Azure.Storage
             return SaveDataInternal(location, data, false);
         }
 
+        public async Task SaveMetadata(StoreLocation location, Metadata metadata)
+        {
+            var blob = GetBlockBlob(location);
+            try
+            {
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                // No metadata to update in this case...
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    return;
+                }
+
+                throw;
+            }
+
+            foreach(var m in metadata)
+            {
+                blob.Metadata[m.Key] = m.Value;
+            }
+
+            await blob.SetMetadataAsync().ConfigureAwait(false);
+        }
+
         public Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data)
         {
             return SaveDataInternal(location, data, true);
@@ -137,199 +163,6 @@ namespace Kalix.Leo.Azure.Storage
                     }
                 }
             });
-        }
-
-        private async Task<Tuple<IDisposable, string>> LockInternal(ICloudBlob blob)
-        {
-            string leaseId;
-
-            try
-            {
-                leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
-                LeoTrace.WriteLine("Leased Blob: " + blob.Name);
-            }
-            catch (StorageException e)
-            {
-                // If we have a conflict this blob is already locked...
-                if(e.RequestInformation.HttpStatusCode == 409)
-                {
-                    return null;
-                }
-
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    leaseId = null;
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            // May not have had a blob pushed...
-            if (leaseId == null)
-            {
-                try
-                {
-                    using (var stream = new MemoryStream(new byte[1]))
-                    {
-                        await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
-                    }
-                    leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
-                }
-                catch (StorageException e)
-                {
-                    // If we have a conflict this blob is already locked...
-                    if (e.RequestInformation.HttpStatusCode == 409)
-                    {
-                        return null;
-                    }
-
-                    if (e.RequestInformation.HttpStatusCode == 404)
-                    {
-                        leaseId = null;
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-            }
-
-            var condition = AccessCondition.GenerateLeaseCondition(leaseId);
-            var release = Disposable.Create(() => 
-            { 
-                try 
-                { 
-                    blob.ReleaseLease(condition); 
-                } 
-                catch (Exception e) 
-                {
-                    LeoTrace.WriteLine("Release failed: " + e.Message);
-                } 
-            });
-
-            // Every 30 secs keep the lock renewed
-            IDisposable keepAlive = null;
-            keepAlive = Observable
-                .Interval(TimeSpan.FromSeconds(30), Scheduler.Default)
-                .Subscribe(
-                    _ => 
-                    {
-                        try
-                        {
-                            blob.RenewLease(condition);
-                            LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
-                        }
-                        catch(Exception e)
-                        {
-                            LeoTrace.WriteLine("Failed to renew lease: " + e.Message);
-
-                            if (keepAlive != null)
-                            {
-                                keepAlive.Dispose();
-                            }
-                        }
-                    }, 
-                    () => { release.Dispose(); }
-                );
-
-
-            return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
-        }
-
-        private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)
-        {
-            try
-            {
-                var blob = GetBlockBlob(location);
-
-                // Copy the metadata across
-                foreach (var m in data.Metadata)
-                {
-                    blob.Metadata[m.Key] = m.Value;
-                }
-
-                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-
-                byte[] firstHit = null;
-                var bag = new ConcurrentBag<string>();
-                int partNumber = 1;
-
-                await data.Stream
-                    .BufferBytes(AzureBlockSize, true)
-                    .Select(async b =>
-                    {
-                        if (firstHit == null)
-                        {
-                            firstHit = b;
-                        }
-                        else
-                        {
-                            var pNum = Interlocked.Increment(ref partNumber);
-
-                            string blockStr;
-                            if (pNum == 2)
-                            {
-                                blockStr = Convert.ToBase64String(BitConverter.GetBytes(1));
-                                using (var ms = new MemoryStream(firstHit))
-                                {
-                                    await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                    LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                                }
-                                bag.Add(blockStr);
-                            }
-
-                            // We are doing multipart here!
-                            blockStr = Convert.ToBase64String(BitConverter.GetBytes(pNum));
-                            using (var ms = new MemoryStream(b))
-                            {
-                                await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                            }
-                            bag.Add(blockStr);
-                        }
-
-                        return Unit.Default;
-                    })
-                    .Merge();
-
-                // Did we do multimerge or not?
-                if (bag.Any())
-                {
-                    await blob.PutBlockListAsync(bag).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name);
-                }
-                else
-                {
-                    // If we didnt do multimerge then just do single!
-                    using (var ms = new MemoryStream(firstHit))
-                    {
-                        await blob.UploadFromStreamAsync(ms, condition, null, null).ConfigureAwait(false);
-                        LeoTrace.WriteLine("Uploaded Single Block: " + blob.Name);
-                    }
-                }
-
-                // Create a snapshot straight away on azure
-                // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
-                if (_enableSnapshots)
-                {
-                    await blob.CreateSnapshotAsync().ConfigureAwait(false);
-                    LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
-                }
-            }
-            catch (StorageException exc)
-            {
-                if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
-                {
-                    return false;
-                }
-
-                throw;
-            }
-
-            return true;
         }
 
         public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
@@ -457,47 +290,6 @@ namespace Kalix.Leo.Azure.Storage
                 });
         }
 
-        private async Task ListBlobs(IObserver<ICloudBlob> observer, CloudBlobContainer container, string prefix, BlobListingDetails options, CancellationToken ct)
-        {
-            BlobContinuationToken token = new BlobContinuationToken();
-
-            try
-            {
-                do
-                {
-                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Listed blob segment for prefix: " + prefix);
-
-                    foreach (var blob in segment.Results.OfType<ICloudBlob>())
-                    {
-                        observer.OnNext(blob);
-                    }
-
-                    token = segment.ContinuationToken;
-                }
-                while (token != null && !ct.IsCancellationRequested);
-
-                ct.ThrowIfCancellationRequested(); // Just in case...
-                observer.OnCompleted();
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    // If we get an error we do not have any blobs!
-                    observer.OnCompleted();
-                }
-                else
-                {
-                    observer.OnError(e);
-                }
-            }
-            catch (Exception e)
-            {
-                observer.OnError(e);
-            }
-        }
-
         public async Task SoftDelete(StoreLocation location)
         {
             // In Azure we cannot delete the blob as this will loose the snapshots
@@ -546,6 +338,240 @@ namespace Kalix.Leo.Azure.Storage
             return c.DeleteIfExistsAsync();
         }
 
+        private async Task ListBlobs(IObserver<ICloudBlob> observer, CloudBlobContainer container, string prefix, BlobListingDetails options, CancellationToken ct)
+        {
+            BlobContinuationToken token = new BlobContinuationToken();
+
+            try
+            {
+                do
+                {
+                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Listed blob segment for prefix: " + prefix);
+
+                    foreach (var blob in segment.Results.OfType<ICloudBlob>())
+                    {
+                        observer.OnNext(blob);
+                    }
+
+                    token = segment.ContinuationToken;
+                }
+                while (token != null && !ct.IsCancellationRequested);
+
+                ct.ThrowIfCancellationRequested(); // Just in case...
+                observer.OnCompleted();
+            }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    // If we get an error we do not have any blobs!
+                    observer.OnCompleted();
+                }
+                else
+                {
+                    observer.OnError(e);
+                }
+            }
+            catch (Exception e)
+            {
+                observer.OnError(e);
+            }
+        }
+
+        private async Task<Tuple<IDisposable, string>> LockInternal(ICloudBlob blob)
+        {
+            string leaseId;
+
+            try
+            {
+                leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
+                LeoTrace.WriteLine("Leased Blob: " + blob.Name);
+            }
+            catch (StorageException e)
+            {
+                // If we have a conflict this blob is already locked...
+                if (e.RequestInformation.HttpStatusCode == 409)
+                {
+                    return null;
+                }
+
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    leaseId = null;
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            // May not have had a blob pushed...
+            if (leaseId == null)
+            {
+                try
+                {
+                    using (var stream = new MemoryStream(new byte[1]))
+                    {
+                        await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                    }
+                    leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
+                }
+                catch (StorageException e)
+                {
+                    // If we have a conflict this blob is already locked...
+                    if (e.RequestInformation.HttpStatusCode == 409)
+                    {
+                        return null;
+                    }
+
+                    if (e.RequestInformation.HttpStatusCode == 404)
+                    {
+                        leaseId = null;
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+
+            var condition = AccessCondition.GenerateLeaseCondition(leaseId);
+            var release = Disposable.Create(() =>
+            {
+                try
+                {
+                    blob.ReleaseLease(condition);
+                }
+                catch (Exception e)
+                {
+                    LeoTrace.WriteLine("Release failed: " + e.Message);
+                }
+            });
+
+            // Every 30 secs keep the lock renewed
+            IDisposable keepAlive = null;
+            keepAlive = Observable
+                .Interval(TimeSpan.FromSeconds(30), Scheduler.Default)
+                .Subscribe(
+                    _ =>
+                    {
+                        try
+                        {
+                            blob.RenewLease(condition);
+                            LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
+                        }
+                        catch (Exception e)
+                        {
+                            LeoTrace.WriteLine("Failed to renew lease: " + e.Message);
+
+                            if (keepAlive != null)
+                            {
+                                keepAlive.Dispose();
+                            }
+                        }
+                    },
+                    () => { release.Dispose(); }
+                );
+
+
+            return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
+        }
+
+        private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)
+        {
+            try
+            {
+                var blob = GetBlockBlob(location);
+
+                // Copy the metadata across
+                foreach (var m in data.Metadata)
+                {
+                    blob.Metadata[m.Key] = m.Value;
+                }
+
+                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
+
+                byte[] firstHit = null;
+                var bag = new ConcurrentBag<string>();
+                int partNumber = 1;
+
+                await data.Stream
+                    .BufferBytes(AzureBlockSize, true)
+                    .Select(async b =>
+                    {
+                        if (firstHit == null)
+                        {
+                            firstHit = b;
+                        }
+                        else
+                        {
+                            var pNum = Interlocked.Increment(ref partNumber);
+
+                            string blockStr;
+                            if (pNum == 2)
+                            {
+                                blockStr = Convert.ToBase64String(BitConverter.GetBytes(1));
+                                using (var ms = new MemoryStream(firstHit))
+                                {
+                                    await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
+                                    LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
+                                }
+                                bag.Add(blockStr);
+                            }
+
+                            // We are doing multipart here!
+                            blockStr = Convert.ToBase64String(BitConverter.GetBytes(pNum));
+                            using (var ms = new MemoryStream(b))
+                            {
+                                await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
+                                LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
+                            }
+                            bag.Add(blockStr);
+                        }
+
+                        return Unit.Default;
+                    })
+                    .Merge();
+
+                // Did we do multimerge or not?
+                if (bag.Any())
+                {
+                    await blob.PutBlockListAsync(bag).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name);
+                }
+                else
+                {
+                    // If we didnt do multimerge then just do single!
+                    using (var ms = new MemoryStream(firstHit))
+                    {
+                        await blob.UploadFromStreamAsync(ms, condition, null, null).ConfigureAwait(false);
+                        LeoTrace.WriteLine("Uploaded Single Block: " + blob.Name);
+                    }
+                }
+
+                // Create a snapshot straight away on azure
+                // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
+                if (_enableSnapshots)
+                {
+                    await blob.CreateSnapshotAsync().ConfigureAwait(false);
+                    LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
+                }
+            }
+            catch (StorageException exc)
+            {
+                if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                {
+                    return false;
+                }
+
+                throw;
+            }
+
+            return true;
+        }
+
         private Metadata GetActualMetadata(ICloudBlob blob)
         {
             var metadata = new Metadata(blob.Metadata);
@@ -558,6 +584,11 @@ namespace Kalix.Leo.Azure.Storage
             if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
             {
                 metadata[MetadataConstants.SizeMetadataKey] = blob.Properties.Length.ToString();
+            }
+
+            if (!metadata.ContainsKey(MetadataConstants.ContentTypeMetadataKey))
+            {
+                metadata[MetadataConstants.ContentTypeMetadataKey] = blob.Properties.ContentType;
             }
 
             return metadata;

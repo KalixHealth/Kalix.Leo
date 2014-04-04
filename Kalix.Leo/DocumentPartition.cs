@@ -22,6 +22,11 @@ namespace Kalix.Leo
             return _store.SaveData(GetLocation(path), obj, _encryptor.Value, _options);
         }
 
+        public Task SaveMetadata(string path, Metadata metadata)
+        {
+            return _store.SaveMetadata(GetLocation(path), metadata, _options);
+        }
+
         public Task<DataWithMetadata> Load(string path, string snapshot = null)
         {
             return _store.LoadData(GetLocation(path), snapshot, _encryptor.Value);

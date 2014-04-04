@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace Kalix.Leo
 {
@@ -48,7 +49,7 @@ namespace Kalix.Leo
             {
                 if(value.HasValue)
                 {
-                    this[MetadataConstants.ModifiedMetadataKey] = value.Value.Ticks.ToString();
+                    this[MetadataConstants.ModifiedMetadataKey] = value.Value.Ticks.ToString(CultureInfo.InvariantCulture);
                 }
                 else
                 {
@@ -78,7 +79,33 @@ namespace Kalix.Leo
             {
                 if (value.HasValue)
                 {
-                    this[MetadataConstants.SizeMetadataKey] = value.Value.ToString();
+                    this[MetadataConstants.SizeMetadataKey] = value.Value.ToString(CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    Remove(MetadataConstants.SizeMetadataKey);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Common metadata key, holds the content type of the record
+        /// </summary>
+        public string ContentType
+        {
+            get
+            {
+                if (ContainsKey(MetadataConstants.ContentTypeMetadataKey))
+                {
+                    return this[MetadataConstants.ContentTypeMetadataKey];
+                }
+                return null;
+            }
+            set
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    this[MetadataConstants.SizeMetadataKey] = value;
                 }
                 else
                 {

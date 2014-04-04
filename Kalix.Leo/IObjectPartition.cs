@@ -13,13 +13,21 @@ namespace Kalix.Leo
     public interface IObjectPartition<T> : IBasePartition
     {
         /// <summary>
-        /// Save a record at the specified id value
+        /// Save a record at the specified id value, metadata is completely overriden
         /// </summary>
         /// <param name="data">The object to save</param>
         /// <param name="id">The id to save the record as</param>
         /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
         /// <returns>Task that completes when the record is saved</returns>
         Task Save(T data, long id, Metadata metadata = null);
+
+        /// <summary>
+        /// Update metadata at the specified id value, does not override it
+        /// </summary>
+        /// <param name="path">The location to save the record (in this particular partition)</param>
+        /// <param name="metadata">metadata to save - note this is NOT encrypted</param>
+        /// <returns>Task that completes when the metadata is saved</returns>
+        Task SaveMetadata(long id, Metadata metadata);
 
         /// <summary>
         /// Save a new or existing record record

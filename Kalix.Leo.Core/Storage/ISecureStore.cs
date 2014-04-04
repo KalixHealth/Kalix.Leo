@@ -18,6 +18,7 @@ namespace Kalix.Leo.Storage
 
         Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
         Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
+        Task SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All);
 
         Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All);
 

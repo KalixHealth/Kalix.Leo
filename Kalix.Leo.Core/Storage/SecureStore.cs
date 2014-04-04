@@ -196,7 +196,7 @@ namespace Kalix.Leo.Storage
             await _store.SaveData(location, new DataWithMetadata(dataStream, metadata));
 
             /****************************************************
-             *  POST SAVE TASKS (SNAPSHOT, BACKUP, INDEX)
+             *  POST SAVE TASKS (BACKUP, INDEX)
              * ***************************************************/
             // The rest of the tasks are done asyncly
             var tasks = new List<Task>();
@@ -204,6 +204,42 @@ namespace Kalix.Leo.Storage
             if(options.HasFlag(SecureStoreOptions.Backup))
             {
                 if(_backupQueue == null)
+                {
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                }
+
+                tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
+            }
+
+            if (options.HasFlag(SecureStoreOptions.Index))
+            {
+                if (_indexQueue == null)
+                {
+                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                }
+
+                tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
+            }
+
+            if (tasks.Count > 0)
+            {
+                await Task.WhenAll(tasks);
+            }
+        }
+
+        public async Task SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All)
+        {
+            await _store.SaveMetadata(location, metadata);
+
+            /****************************************************
+             *  POST SAVE TASKS (BACKUP, INDEX)
+             * ***************************************************/
+            // The rest of the tasks are done asyncly
+            var tasks = new List<Task>();
+
+            if (options.HasFlag(SecureStoreOptions.Backup))
+            {
+                if (_backupQueue == null)
                 {
                     throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
                 }

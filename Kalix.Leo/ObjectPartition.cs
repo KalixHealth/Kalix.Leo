@@ -31,6 +31,11 @@ namespace Kalix.Leo
             return _store.SaveObject(GetLocation(id), obj, _encryptor.Value, _options);
         }
 
+        public Task SaveMetadata(long id, Metadata metadata)
+        {
+            return _store.SaveMetadata(GetLocation(id), metadata, _options);
+        }
+
         public async Task<long> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
             var member = idField.Body as MemberExpression;
