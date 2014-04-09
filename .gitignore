@@ -33,6 +33,7 @@
 *.dotCover
 
 packages/
+package/
 csx/
 TestResults/
 scripts-built/

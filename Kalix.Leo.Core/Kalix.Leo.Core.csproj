@@ -37,7 +37,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\packages\Newtonsoft.Json.6.0.1\lib\portable-net45+wp80+win8\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.6.0.2\lib\portable-net45+wp80+win8+wpa81\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -104,10 +104,21 @@
     <Compile Include="Table\StorageEntityAlreadyExistsException.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Kalix.Leo.Core.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
+mkdir "$(ProjectDir)package\lib\portable-win+net45+wp80"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Core.dll" "$(ProjectDir)package\lib\portable-win+net45+wp80"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Core.xml" "$(ProjectDir)package\lib\portable-win+net45+wp80"
+Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.Core.nuspec" "$(ProjectDir)package"
+cd "$(ProjectDir)package"
+"$(SolutionDir)Nuget.exe" pack Kalix.Leo.Core.nuspec
+xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

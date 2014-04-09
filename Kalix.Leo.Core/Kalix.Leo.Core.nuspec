@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>Kalix.Leo.Core</id>
+    <version>1.0.0</version>
+    <authors>Felix Jorkowski (jorkowski.com)</authors>
+    <owners>Kalix (www.kalixhealth.com)</owners>
+    <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
+    <projectUrl>https://github.com/KalixHealth/Kalix.ApiCrypto</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>
+      TODO
+    </description>
+    <summary>
+      TODO
+    </summary>
+    <releaseNotes>
+    </releaseNotes>
+    <copyright>Copyright 2014</copyright>
+    <tags>TODO</tags>
+    <dependencies>
+      <dependency id="Rx-Linq" version="2.2.2" />
+      <dependency id="Newtonsoft.Json" version="6.0.2" />
+      <dependency id="Zlib.Portable" version="1.9.2" />
+    </dependencies>
+  </metadata>
+</package>
