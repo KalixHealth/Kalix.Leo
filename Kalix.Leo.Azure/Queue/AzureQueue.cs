@@ -55,7 +55,7 @@ namespace Kalix.Leo.Azure.Queue
                         {
                             if (counter == prefetchCount)
                             {
-                                Thread.Sleep(1000);
+                                await Task.Delay(1000).ConfigureAwait(false);
                             }
                             else
                             {
@@ -84,34 +84,11 @@ namespace Kalix.Leo.Azure.Queue
                     }
                 }, cancel.Token);
 
-                //var options = new OnMessageOptions
-                //{
-                //    AutoComplete = false,
-                //    MaxConcurrentCalls = prefetchCount
-                //};
-
-                //EventHandler<ExceptionReceivedEventArgs> handler = null;
-                //if (uncaughtException != null)
-                //{
-                //    handler = new EventHandler<ExceptionReceivedEventArgs>((s, e) => uncaughtException(e.Exception));
-                //    options.ExceptionReceived += handler;
-                //}
-
-                //client.OnMessage((m) =>
-                //{
-                //    var message = new AzureQueueMessage(m);
-                //    observer.OnNext(message);
-                //}, options);
-
                 // Return the method to call on dispose
                 return () =>
                 {
                     cancel.Dispose();
                     client.Close();
-                    //if (handler != null)
-                    //{
-                    //    options.ExceptionReceived -= handler;
-                    //}
                 };
             });
         }

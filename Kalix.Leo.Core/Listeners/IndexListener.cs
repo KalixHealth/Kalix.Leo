@@ -74,21 +74,26 @@ namespace Kalix.Leo.Listeners
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             return _indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
-                .Select(m => Observable
-                    .FromAsync(() => MessageRecieved(m))
-                    .Catch((Func<Exception, IObservable<Unit>>)(e =>
+                .Subscribe(async (m) =>
+                {
+                    try
                     {
+                        await MessageRecieved(m).ConfigureAwait(false);
+                    }
+                    catch(Exception e)
+                    {
+                        LeoTrace.TraceAction("Index error caught: " + e.Message);
                         if (uncaughtException != null) { uncaughtException(e); }
-                        return Observable.Empty<Unit>();
-                    }))) // Make sure this listener doesnt stop due to errors!
-                .Merge()
-                .Subscribe(); // Start listening
+                    }
+                }); // Start listening
         }
 
-        private Task MessageRecieved(IQueueMessage message)
+        private async Task<Unit> MessageRecieved(IQueueMessage message)
         {
+            LeoTrace.TraceAction("Index message received");
             _messageQueue.Enqueue(message);
-            return TryExecuteNext();
+            await TryExecuteNext().ConfigureAwait(false);
+            return Unit.Default;
         }
 
         private async Task TryExecuteNext()
@@ -102,7 +107,8 @@ namespace Kalix.Leo.Listeners
                 {
                     try
                     {
-                        await ExecuteMessage(nextMessage);
+                        await ExecuteMessage(nextMessage).ConfigureAwait(false);
+                        LeoTrace.TraceAction("Index message handled");
                     }
                     finally
                     {
@@ -111,7 +117,7 @@ namespace Kalix.Leo.Listeners
                     }
 
                     // We might have enqueued messages for this container...
-                    await TryExecuteNext();
+                    await TryExecuteNext().ConfigureAwait(false);
                 }
                 else
                 {
@@ -133,7 +139,7 @@ namespace Kalix.Leo.Listeners
                     if(_typeIndexers.ContainsKey(type))
                     {
                         var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
-                        await indexer.Index(details);
+                        await indexer.Index(details).ConfigureAwait(false);
                         hasData = true;
                     }
                 }
@@ -144,7 +150,7 @@ namespace Kalix.Leo.Listeners
                     if (key != null)
                     {
                         var indexer = (IIndexer)_typeResolver(_pathIndexers[key]);
-                        await indexer.Index(details);
+                        await indexer.Index(details).ConfigureAwait(false);
                         hasData = true;
                     }
                 }
@@ -154,7 +160,7 @@ namespace Kalix.Leo.Listeners
                     throw new InvalidOperationException("Could not find indexer for record: container=" + details.Container + ", path=" + details.BasePath);
                 }
 
-                await message.Complete();
+                await message.Complete().ConfigureAwait(false);
             }
         }
 
