@@ -101,6 +101,7 @@ namespace Kalix.Leo.Azure.Queue
                 var desc = new QueueDescription(_queue);
                 desc.SupportOrdering = false; // should learn to make stuff indepotent :)
                 desc.MaxSizeInMegabytes = 5120; // 5gb is the max
+                desc.MaxDeliveryCount = 2000;
                 await ns.CreateQueueAsync(desc);
             }
         }

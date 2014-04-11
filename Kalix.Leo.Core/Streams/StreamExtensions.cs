@@ -150,7 +150,29 @@ namespace System.Reactive.Linq
         /// <param name="bufferSize">Max size of the chunks</param>
         public static IObservable<byte[]> ToObservable(this Stream readStream, int bufferSize)
         {
-            return ReadStream(readStream, bufferSize).ToObservable(Scheduler.Default);
+            return Observable.Create<byte[]>(async (obs, ct) =>
+            {
+                var buffer = new byte[bufferSize];
+
+                int bytesRead;
+                while ((bytesRead = await readStream.ReadAsync(buffer, 0, bufferSize, ct)) > 0)
+                {
+                    if (bytesRead == bufferSize)
+                    {
+                        obs.OnNext(buffer);
+                        buffer = new byte[bufferSize];
+                    }
+                    else
+                    {
+                        var data = new byte[bytesRead];
+                        Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
+                        obs.OnNext(data);
+                    }
+                }
+                obs.OnCompleted();
+            })
+            .Publish()
+            .RefCount();
         }
 
         /// <summary>
@@ -187,30 +209,6 @@ namespace System.Reactive.Linq
             await obs
                 .Do(b => writeStream.Write(b, 0, b.Length))
                 .LastOrDefaultAsync();
-        }
-
-        private static IEnumerable<byte[]> ReadStream(Stream stream, int bufferSize)
-        {
-            using (stream)
-            {
-                var buffer = new byte[bufferSize];
-                
-                int bytesRead;
-                while ((bytesRead = stream.Read(buffer, 0, bufferSize)) > 0)
-                {
-                    if (bytesRead == bufferSize)
-                    {
-                        yield return buffer;
-                        buffer = new byte[bufferSize];
-                    }
-                    else
-                    {
-                        var data = new byte[bytesRead];
-                        Buffer.BlockCopy(buffer, 0, data, 0, bytesRead);
-                        yield return data;
-                    }
-                }
-            }
         }
     }
 }
