@@ -45,8 +45,9 @@ namespace Kalix.Leo
         public IObservable<PathWithMetadata> Find(string prefix = null)
         {
             var baseLength = string.IsNullOrEmpty(_config.BasePath) ? 0 : _config.BasePath.Length + 1;
+            string basePath = prefix == null ? _config.BasePath + "/" : Path.Combine(_config.BasePath, prefix);
 
-            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(_config.BasePath, prefix))
+            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), basePath)
                 .Select(l => new PathWithMetadata(l.Location.BasePath.Substring(baseLength), l.Metadata));
         }
 
@@ -63,12 +64,12 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
         }
 
         public Task ReBackupAll()
         {
-            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
+            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
         }
 
         private StoreLocation GetLocation(string path)

@@ -87,9 +87,13 @@ namespace Kalix.Leo.Storage
 
             using (data)
             {
-                if (!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey) || data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
+                if(!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
                 {
-                    throw new InvalidOperationException("Data type does not match metadata");
+                    LeoTrace.TraceAction(string.Format("Warning: Data type is not in metadata. expected {0}", typeof(T).FullName));
+                }
+                else if (data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
+                {
+                    LeoTrace.TraceAction(string.Format("Warning: Data type does not match metadata. actual '{0}' vs expected '{1}'", data.Metadata[MetadataConstants.TypeMetadataKey], typeof(T).FullName));
                 }
 
                 var obj = await data.Stream

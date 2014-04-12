@@ -84,7 +84,7 @@ namespace Kalix.Leo
 
         public IObservable<IdWithMetadata> FindAll()
         {
-            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath)
+            return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/")
                 .Where(l => l.Location.Id.HasValue)
                 .Select(l => new IdWithMetadata(l.Location.Id.Value, l.Metadata));
         }
@@ -102,12 +102,12 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
         }
 
         public Task ReBackupAll()
         {
-            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath);
+            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
         }
 
         public Task SetInternalIdGenerator(long newId)
