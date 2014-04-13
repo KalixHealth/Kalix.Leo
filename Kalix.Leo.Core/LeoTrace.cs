@@ -7,21 +7,16 @@ namespace Kalix.Leo
     /// </summary>
     public static class LeoTrace
     {
-        /// <summary>
-        /// This action should be set if you want the trace to do anything
-        /// </summary>
-        public static Action<string> TraceAction { get; set; }
+        private static Action<string> _writeLineAction = s => { };
 
         /// <summary>
         /// Will write to the trace action if it exists, otherwise nothing
         /// </summary>
         /// <param name="trace">The message to write</param>
-        public static void WriteLine(string trace)
+        public static Action<string> WriteLine
         {
-            if(TraceAction != null)
-            {
-                TraceAction(trace);
-            }
+            get { return _writeLineAction; }
+            set { _writeLineAction = value ?? (s => { }); }
         }
     }
 }

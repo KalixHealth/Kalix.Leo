@@ -82,18 +82,17 @@ namespace Kalix.Leo.Listeners
                     }
                     catch(Exception e)
                     {
-                        LeoTrace.TraceAction("Index error caught: " + e.Message);
+                        LeoTrace.WriteLine("Index error caught: " + e.Message);
                         if (uncaughtException != null) { uncaughtException(e); }
                     }
                 }); // Start listening
         }
 
-        private async Task<Unit> MessageRecieved(IQueueMessage message)
+        private Task MessageRecieved(IQueueMessage message)
         {
-            LeoTrace.TraceAction("Index message received");
+            LeoTrace.WriteLine("Index message received");
             _messageQueue.Enqueue(message);
-            await TryExecuteNext().ConfigureAwait(false);
-            return Unit.Default;
+            return TryExecuteNext();
         }
 
         private async Task TryExecuteNext()
@@ -108,7 +107,7 @@ namespace Kalix.Leo.Listeners
                     try
                     {
                         await ExecuteMessage(nextMessage).ConfigureAwait(false);
-                        LeoTrace.TraceAction("Index message handled");
+                        LeoTrace.WriteLine("Index message handled");
                     }
                     finally
                     {
