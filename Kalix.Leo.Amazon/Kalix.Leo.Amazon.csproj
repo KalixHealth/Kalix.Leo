@@ -61,9 +61,20 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Kalix.Leo.Amazon.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
+mkdir "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Amazon.dll" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Amazon.xml" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.Amazon.nuspec" "$(ProjectDir)package"
+cd "$(ProjectDir)package"
+"$(SolutionDir)Nuget.exe" pack Kalix.Leo.Amazon.nuspec
+xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

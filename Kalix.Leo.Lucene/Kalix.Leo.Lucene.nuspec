@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package >
   <metadata>
-    <id>Kalix.Leo.Core</id>
+    <id>Kalix.Leo.Lucene</id>
     <version>1.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
@@ -9,17 +9,17 @@
     <projectUrl>https://github.com/KalixHealth/Kalix.Leo</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>
-      Core library that abstracts your storage layer, adds encryption/compression
+      Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
       First nuget release
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
-    <tags>Azure Blob Table S3 Encryption Compression</tags>
+    <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Rx-Linq" version="2.2.2" />
-      <dependency id="Newtonsoft.Json" version="6.0.2" />
-      <dependency id="Zlib.Portable" version="1.9.2" />
+      <dependency id="Lucene.Net" version="3.0.3" />
+      <dependency id="Kalix.Leo.Core" version="1.0.0" />
+      <dependency id="AsynchronousBridge" version="1.2.2" />
     </dependencies>
   </metadata>
 </package>

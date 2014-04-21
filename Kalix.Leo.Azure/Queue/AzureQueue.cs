@@ -2,11 +2,11 @@
 using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
+using System.Linq;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Threading.Tasks;
-using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Queue
 {

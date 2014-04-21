@@ -67,6 +67,7 @@
     <Compile Include="Store\SecureStoreLock.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Kalix.Leo.Lucene.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -77,6 +78,16 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
+mkdir "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Lucene.dll" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Lucene.xml" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.Lucene.nuspec" "$(ProjectDir)package"
+cd "$(ProjectDir)package"
+"$(SolutionDir)Nuget.exe" pack Kalix.Leo.Lucene.nuspec
+xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

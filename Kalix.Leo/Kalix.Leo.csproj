@@ -38,7 +38,7 @@
     </Reference>
     <Reference Include="Kalix.ApiCrypto, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Kalix.ApiCrypto.1.0.1\lib\net45\Kalix.ApiCrypto.dll</HintPath>
+      <HintPath>..\packages\Kalix.ApiCrypto.1.1.1\lib\net45\Kalix.ApiCrypto.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -46,7 +46,7 @@
     </Reference>
     <Reference Include="Security.Cryptography, Version=1.6.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\Kalix.ApiCrypto.1.0.1\lib\net45\Security.Cryptography.dll</HintPath>
+      <HintPath>..\packages\Kalix.ApiCrypto.1.1.1\lib\net45\Security.Cryptography.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -81,6 +81,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Kalix.Leo.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -95,6 +96,16 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
+mkdir "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.dll" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(TargetDir)Kalix.Leo.xml" "$(ProjectDir)package\lib\net45"
+Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.nuspec" "$(ProjectDir)package"
+cd "$(ProjectDir)package"
+"$(SolutionDir)Nuget.exe" pack Kalix.Leo.nuspec
+xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
