@@ -204,10 +204,17 @@ namespace System.Reactive.Linq
         /// <param name="obs"></param>
         /// <param name="writeStream"></param>
         /// <returns></returns>
-        public static async Task WriteToStream(this IObservable<byte[]> obs, Stream writeStream)
+        public static async Task WriteToStream(this IObservable<byte[]> obs, Stream writeStream, bool autoFlush = true)
         {
             await obs
-                .Do(b => writeStream.Write(b, 0, b.Length))
+                .Do(b =>
+                {
+                    writeStream.Write(b, 0, b.Length);
+                    if(autoFlush)
+                    {
+                        writeStream.Flush();
+                    }
+                })
                 .LastOrDefaultAsync();
         }
     }
