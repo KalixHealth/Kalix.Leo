@@ -156,7 +156,7 @@ namespace Kalix.Leo.Listeners
 
                 if(!hasData)
                 {
-                    throw new InvalidOperationException("Could not find indexer for record: container=" + details.Container + ", path=" + details.BasePath);
+                    throw new InvalidOperationException("Could not find indexer for record: container=" + details.Container + ", path=" + details.BasePath + ":\r\n" + message.Message);
                 }
 
                 await message.Complete().ConfigureAwait(false);
