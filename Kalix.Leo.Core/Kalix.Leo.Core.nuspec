@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Core library that abstracts your storage layer, adds encryption/compression
     </description>
     <releaseNotes>
-      Added stream piping overload
+      Small inefficiancy fixed in uniqueid generator that means last number of range was always skipped
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Globalization;
-using System.IO;
+using System.Linq;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace Kalix.Leo.Storage
 {
@@ -46,7 +45,7 @@ namespace Kalix.Leo.Storage
         public Task<long> NextId()
         {
             var current = Interlocked.Increment(ref _internalId);
-            if (current >= _upperIdLimit)
+            if (current > _upperIdLimit)
             {
                 // Only need to lock this piece of code to make sure that
                 // 1) There is only ever one task running at any one time
@@ -81,7 +80,7 @@ namespace Kalix.Leo.Storage
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
             var limitData = new DataWithMetadata(Observable.Return(limitBytes));
-            if (await _store.TryOptimisticWrite(_location, limitData))
+            if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
             {
                 // This will force a refresh on the Next
                 _upperIdLimit = 0;
@@ -101,16 +100,11 @@ namespace Kalix.Leo.Storage
             {
                 string data = null;
 
-                var dataStream = await _store.LoadData(_location);
+                var dataStream = await _store.LoadData(_location).ConfigureAwait(false);
                 if (dataStream != null)
                 {
-                    data = await dataStream.Stream
-                        .ToList()
-                        .Select(b => 
-                        {
-                            var all = b.SelectMany(a => a).ToArray();
-                            return Encoding.UTF8.GetString(all, 0, all.Length);
-                        });
+                    var all = await dataStream.Stream.ToBytes().ConfigureAwait(false);
+                    data = Encoding.UTF8.GetString(all, 0, all.Length);
                 }
 
                 long currentId;
@@ -134,7 +128,7 @@ namespace Kalix.Leo.Storage
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
                 var limitData = new DataWithMetadata(Observable.Return(limitBytes));
-                if (await _store.TryOptimisticWrite(_location, limitData))
+                if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
                 {
                     // First update currentId
                     // Then upper limit, this will avoid any need for locks etc
