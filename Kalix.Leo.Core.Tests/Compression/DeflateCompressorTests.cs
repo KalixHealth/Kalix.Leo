@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text;
 
 namespace Kalix.Leo.Core.Tests.Compression
@@ -18,6 +19,30 @@ namespace Kalix.Leo.Core.Tests.Compression
         public void Init()
         {
             _compressor = new DeflateCompressor();
+        }
+
+        [Test]
+        [ExpectedException]
+        public void OnCompressErrorIsPassedOn()
+        {
+            var subject = new Subject<byte[]>();
+            var obs = _compressor.Compress(subject);
+
+            subject.OnError(new Exception("something went wrong"));
+
+            obs.Wait();
+        }
+
+        [Test]
+        [ExpectedException]
+        public void OnDecompressErrorIsPassedOn()
+        {
+            var subject = new Subject<byte[]>();
+            var obs = _compressor.Decompress(subject);
+
+            subject.OnError(new Exception("something went wrong"));
+
+            obs.Wait();
         }
 
         [Test]

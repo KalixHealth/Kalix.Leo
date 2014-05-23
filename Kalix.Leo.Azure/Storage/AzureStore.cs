@@ -191,57 +191,66 @@ namespace Kalix.Leo.Azure.Storage
             return metadata;
         }
 
-        public Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
+        public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
 
-            var cancellation = new CancellationTokenSource();
-            var source = new TaskCompletionSource<DataWithMetadata>();
+            // Get metadata first - this record might be deleted so quicker to test this than to download whole record...
+            try
+            {
+                LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    return null;
+                }
+                else
+                {
+                    throw;
+                }
+            }
 
-            IObservable<byte[]> data = null;
-            data = Observable.Create<byte[]>((obs, ct) =>
+            // If deleted then return null...
+            var metadata = GetActualMetadata(blob);
+            if (metadata.ContainsKey(_deletedKey))
+            {
+                return null;
+            }
+
+            var data = Observable.Create<byte[]>((obs, ct) =>
             {
                 return obs.UseWriteStream(
                     async s =>
                     {
-                        try
+                        var blockList = (await blob.DownloadBlockListAsync().ConfigureAwait(false)).ToList();
+                        if (blockList.Any())
                         {
-                            await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
-                            LeoTrace.WriteLine("Downloading blob: " + blob.Name);
-                        }
-                        catch (StorageException e)
-                        {
-                            if (e.RequestInformation.HttpStatusCode == 404)
+                            LeoTrace.WriteLine("Downloading blob in blocks: " + blob.Name + "\r\nBlocks: " + string.Join(",", blockList.Select(b => b.Name + " (" + b.Length + ")")));
+                            // TODO: download blocks in parallel
+
+                            // Make sure that we get the blocks in order...
+                            var orderedList = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).Select(o => Tuple.Create(blockList.IndexOf(o), o)).ToList();
+                            foreach (var o in orderedList)
                             {
-                                source.TrySetResult(null);
+                                // Do not assume each block is uniform... Make sure to use length info of previous blocks
+                                var start = orderedList.Where(ol => ol.Item1 < o.Item1).Sum(ol => ol.Item2.Length);
+                                LeoTrace.WriteLine("Downloading block " + o.Item1 + " starting at " + start + " with length " + o.Item2.Length);
+                                await blob.DownloadRangeToStreamAsync(s, start, o.Item2.Length, ct).ConfigureAwait(false);
                             }
-                            else
-                            {
-                                throw;
-                            }
-                        }
-                    },
-                    () =>
-                    {
-                        var metadata = GetActualMetadata(blob);
-                        if (metadata.ContainsKey(_deletedKey))
-                        {
-                            source.TrySetResult(null);
-                            cancellation.Cancel();
                         }
                         else
                         {
-                            source.TrySetResult(new DataWithMetadata(data, metadata));
+                            LeoTrace.WriteLine("Downloading blob: " + blob.Name);
+                            await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
                         }
                     }
                 );
             });
 
-            data
-                .Do(_ => { }, (e) => source.TrySetException(e), () => { }) // Catch any loose exceptions
-                .Subscribe(cancellation.Token);
-
-            return source.Task;
+            return new DataWithMetadata(data, metadata);
         }
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
@@ -494,7 +503,7 @@ namespace Kalix.Leo.Azure.Storage
                 var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
 
                 byte[] firstHit = null;
-                var bag = new ConcurrentBag<string>();
+                var bag = new ConcurrentDictionary<int, string>();
                 int partNumber = 1;
 
                 await data.Stream
@@ -518,7 +527,10 @@ namespace Kalix.Leo.Azure.Storage
                                     await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
                                     LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
                                 }
-                                bag.Add(blockStr);
+                                if(!bag.TryAdd(1, blockStr))
+                                {
+                                    throw new InvalidOperationException("Block 1 has already been added");
+                                }
                             }
 
                             // We are doing multipart here!
@@ -528,7 +540,10 @@ namespace Kalix.Leo.Azure.Storage
                                 await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
                                 LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
                             }
-                            bag.Add(blockStr);
+                            if(!bag.TryAdd(pNum, blockStr))
+                            {
+                                throw new InvalidOperationException("Block " + pNum + " has already been added");
+                            }
                         }
 
                         return Unit.Default;
@@ -538,8 +553,10 @@ namespace Kalix.Leo.Azure.Storage
                 // Did we do multimerge or not?
                 if (bag.Any())
                 {
-                    await blob.PutBlockListAsync(bag).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name);
+                    // Make sure keys are saved in the right order...
+                    var ordered = bag.OrderBy(b => b.Key).Select(b => b.Value).ToList();
+                    await blob.PutBlockListAsync(ordered).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name + "\r\nBlocks: " + string.Join(",", ordered.Select(o => o)));
                 }
                 else
                 {

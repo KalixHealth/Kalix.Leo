@@ -105,11 +105,11 @@ namespace Kalix.Leo
             {
                 if (!string.IsNullOrWhiteSpace(value))
                 {
-                    this[MetadataConstants.SizeMetadataKey] = value;
+                    this[MetadataConstants.ContentTypeMetadataKey] = value;
                 }
                 else
                 {
-                    Remove(MetadataConstants.SizeMetadataKey);
+                    Remove(MetadataConstants.ContentTypeMetadataKey);
                 }
             }
         }

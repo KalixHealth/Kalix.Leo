@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      First nuget release
+      Multiblock download to match upload (supports unordered blocks). Stopped double download of items. 
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>

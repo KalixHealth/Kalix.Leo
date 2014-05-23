@@ -33,6 +33,7 @@ namespace Kalix.Leo.Core.Tests.Storage
             var id = generator.NextId().Result;
 
             _store.Received(1).LoadData(_loc);
+            Assert.Greater(id, 0);
         }
 
         private UniqueIdGenerator GetGenerator(int range)
