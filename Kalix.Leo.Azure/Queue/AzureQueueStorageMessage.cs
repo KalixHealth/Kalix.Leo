@@ -18,6 +18,7 @@ namespace Kalix.Leo.Azure.Queue
         public AzureQueueStorageMessage(CloudQueue queue, CloudQueueMessage message, Action onDisposed)
         {
             _message = message;
+            _queue = queue;
             _strMessage = new Lazy<string>(() => _message.AsString);
             _onDisposed = onDisposed;
 
