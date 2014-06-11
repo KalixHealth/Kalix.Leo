@@ -26,7 +26,7 @@ namespace Kalix.Leo.Queue
         /// 
         /// Note: the queue messages must be completed and disposed, otherwise they will return to the queue
         /// </returns>
-        IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
+        IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null, int millisecondPollInterval = 2000);
 
         /// <summary>
         /// Make sure that the queue has been created

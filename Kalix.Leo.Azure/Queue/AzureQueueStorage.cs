@@ -23,7 +23,7 @@ namespace Kalix.Leo.Azure.Queue
             return _queue.AddMessageAsync(new CloudQueueMessage(data));
         }
 
-        public IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
+        public IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null, int millisecondPollInterval = 2000)
         {
             return Observable.Create<IQueueMessage>(observer =>
             {
@@ -38,11 +38,8 @@ namespace Kalix.Leo.Azure.Queue
                     {
                         try
                         {
-                            if (counter > prefetchCount)
-                            {
-                                await Task.Delay(1000).ConfigureAwait(false);
-                            }
-                            else
+                            await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
+                            if (counter <= prefetchCount)
                             {
                                 var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
 
