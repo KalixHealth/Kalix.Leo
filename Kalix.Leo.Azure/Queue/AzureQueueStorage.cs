@@ -41,7 +41,8 @@ namespace Kalix.Leo.Azure.Queue
                         {
                             if (counter <= prefetchCount)
                             {
-                                var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
+                                LeoTrace.WriteLine("Getting new messages in queue");
+                                var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null);
 
                                 lock (counterLock)
                                 {
@@ -68,7 +69,8 @@ namespace Kalix.Leo.Azure.Queue
 
                         if (doDelay)
                         {
-                            await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
+                            LeoTrace.WriteLine("Waiting to poll in queue");
+                            await Task.Delay(millisecondPollInterval);
                         }
                     }
                 }, cancel.Token);

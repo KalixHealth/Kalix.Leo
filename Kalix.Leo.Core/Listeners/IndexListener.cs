@@ -73,24 +73,23 @@ namespace Kalix.Leo.Listeners
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            return _indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
-                .Subscribe(async (m) =>
+            return Observable.FromAsync(() => TryExecuteNext()) // If there is an error and we restart make sure to catch any pending messages...
+                .SelectMany(u => _indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel))
+                .Select(m => Observable.FromAsync(() => MessageRecieved(m))) // Make sure this listener doesnt stop due to errors!
+                .Merge()
+                .Catch((Func<Exception, IObservable<Unit>>)(e =>
                 {
-                    try
-                    {
-                        await MessageRecieved(m).ConfigureAwait(false);
-                    }
-                    catch(Exception e)
-                    {
-                        LeoTrace.WriteLine("Index error caught: " + e.Message);
-                        if (uncaughtException != null) { uncaughtException(e); }
-                    }
-                }); // Start listening
+                    LeoTrace.WriteLine("Index listener error caught: " + e.Message);
+                    if (uncaughtException != null) { uncaughtException(e); }
+                    return Observable.Empty<Unit>();
+                }))
+                .Repeat()
+                .Subscribe(); // Start listening
         }
 
         private Task MessageRecieved(IQueueMessage message)
         {
-            LeoTrace.WriteLine("Index message received");
+            LeoTrace.WriteLine("Index listener message received");
             _messageQueue.Enqueue(message);
             return TryExecuteNext();
         }

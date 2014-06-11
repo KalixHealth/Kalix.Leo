@@ -55,11 +55,11 @@ namespace Kalix.Leo.Azure.Queue
                         {
                             if (counter > prefetchCount)
                             {
-                                await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
+                                await Task.Delay(millisecondPollInterval);
                             }
                             else
                             {
-                                var messages = await client.ReceiveBatchAsync(prefetchCount).ConfigureAwait(false);
+                                var messages = await client.ReceiveBatchAsync(prefetchCount);
 
                                 lock (counterLock)
                                 {

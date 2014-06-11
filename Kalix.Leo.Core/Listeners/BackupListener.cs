@@ -24,14 +24,15 @@ namespace Kalix.Leo.Listeners
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             return _backupQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
-                .Select(m => Observable
-                    .FromAsync(() => MessageRecieved(m))
-                    .Catch((Func<Exception, IObservable<Unit>>)(e =>
-                    {
-                        if (uncaughtException != null) { uncaughtException(e); }
-                        return Observable.Empty<Unit>();
-                    }))) // Make sure this listener doesnt stop due to errors!
+                .Select(m => Observable.FromAsync(() => MessageRecieved(m))) // Make sure this listener doesnt stop due to errors!
                 .Merge()
+                .Catch((Func<Exception, IObservable<Unit>>)(e =>
+                {
+                    LeoTrace.WriteLine("Backup listener error caught: " + e.Message);
+                    if (uncaughtException != null) { uncaughtException(e); }
+                    return Observable.Empty<Unit>();
+                }))
+                .Repeat()
                 .Subscribe(); // Start listening
         }
 
