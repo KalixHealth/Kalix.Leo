@@ -36,9 +36,9 @@ namespace Kalix.Leo.Azure.Queue
                     object counterLock = new object();
                     while(!cancel.Token.IsCancellationRequested)
                     {
+                        bool doDelay = true;
                         try
                         {
-                            await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
                             if (counter <= prefetchCount)
                             {
                                 var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
@@ -52,6 +52,7 @@ namespace Kalix.Leo.Azure.Queue
                                 {
                                     var message = new AzureQueueStorageMessage(_queue, m, () => { Interlocked.Decrement(ref counter); });
                                     observer.OnNext(message);
+                                    doDelay = false;
                                 }
                             }
                         }
@@ -62,6 +63,12 @@ namespace Kalix.Leo.Azure.Queue
                                 uncaughtException(e);
                             }
                             counter = 0;
+                            doDelay = true;
+                        }
+
+                        if (doDelay)
+                        {
+                            await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
                         }
                     }
                 }, cancel.Token);
