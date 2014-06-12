@@ -38,5 +38,10 @@
         /// Identifier for this specific container/basepath (and ultimately secure store)
         /// </summary>
         public long? Id { get { return _id; } }
+
+        public override string ToString()
+        {
+            return Container + "/" + BasePath + (Id.HasValue ? "/" + Id.Value + ".id" : string.Empty);
+        } 
     }
 }

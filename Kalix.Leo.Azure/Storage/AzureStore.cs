@@ -245,6 +245,7 @@ namespace Kalix.Leo.Azure.Storage
                         {
                             LeoTrace.WriteLine("Downloading blob: " + blob.Name);
                             await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
+                            LeoTrace.WriteLine("Finished Downloading blob: " + blob.Name);
                         }
                     }
                 );

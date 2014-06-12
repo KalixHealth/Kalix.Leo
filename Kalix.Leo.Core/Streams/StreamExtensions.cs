@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Streams;
+﻿using Kalix.Leo;
+using Kalix.Leo.Streams;
 using System.Collections.Generic;
 using System.IO;
 using System.Reactive.Concurrency;
@@ -79,10 +80,15 @@ namespace System.Reactive.Linq
 
                     return stream.Subscribe((b) =>
                     {
-                        if (b.Length == 0) { return; }
+                        if (b.Length == 0) 
+                        {
+                            LeoTrace.WriteLine("Ignoring empty buffer data");
+                            return; 
+                        }
 
                         if(b.Length + currentCount >= bytesPerPacket)
                         {
+                            LeoTrace.WriteLine("Pushing buffer data");
                             if (currentCount == 0)
                             {
                                 obs.OnNext(b);
@@ -105,6 +111,7 @@ namespace System.Reactive.Linq
                         }
                         else
                         {
+                            LeoTrace.WriteLine("Queuing buffer data");
                             bufferList.Enqueue(b);
                             currentCount += b.Length;
                         }
@@ -114,6 +121,8 @@ namespace System.Reactive.Linq
                     {
                         if(bufferList.Count > 0)
                         {
+                            LeoTrace.WriteLine("Final buffer push");
+
                             var bytes = new byte[currentCount];
                             var offset = 0;
                             while (bufferList.Count > 0)
@@ -125,6 +134,7 @@ namespace System.Reactive.Linq
                             obs.OnNext(bytes);
                         }
 
+                        LeoTrace.WriteLine("Buffer Bytes complete");
                         obs.OnCompleted();
                     });
                 });
@@ -189,11 +199,13 @@ namespace System.Reactive.Linq
                 using (var stream = new ObserverWriteStream(observer, firstHit))
                 {
                     await writeStreamScope(stream).ConfigureAwait(false);
-                    observer.OnCompleted();
                 }
+                observer.OnCompleted();
+                LeoTrace.WriteLine("Write Stream completed");
             }
             catch(Exception e)
             {
+                LeoTrace.WriteLine("Write Stream failed: " + e.Message);
                 observer.OnError(e);
             }
         }

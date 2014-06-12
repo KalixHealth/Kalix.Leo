@@ -4,8 +4,10 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reflection;
 using System.Threading;
@@ -21,8 +23,8 @@ namespace Kalix.Leo.Listeners
         private readonly Func<string, Type> _typeNameResolver;
         private readonly Func<Type, object> _typeResolver;
 
-        private readonly LockFreeQueue<IQueueMessage> _messageQueue;
-        private readonly ConcurrentDictionary<string, bool> _currentContainers;
+        private LockFreeQueue<IQueueMessage> _messageQueue;
+        private ConcurrentDictionary<string, bool> _currentContainers;
 
         public IndexListener(IQueue indexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
         {
@@ -73,60 +75,122 @@ namespace Kalix.Leo.Listeners
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            return Observable.FromAsync(() => TryExecuteNext()) // If there is an error and we restart make sure to catch any pending messages...
-                .SelectMany(u => _indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel))
-                .Select(m => Observable.FromAsync(() => MessageRecieved(m))) // Make sure this listener doesnt stop due to errors!
-                .Merge()
+            var disposable = new CompositeDisposable();
+
+            var process = Observable.Create<Unit>(obs =>
+            {
+                var cancel = new CancellationDisposable();
+
+                Task.Run(async () =>
+                {
+                    while (!cancel.Token.IsCancellationRequested)
+                    {
+                        if (_messageQueue.ApproxCount > 0)
+                        {
+                            for (int i = 0; i < _messageQueue.ApproxCount; i++)
+                            {
+                                #pragma warning disable 4014
+                                Task.Run(() => TryExecuteNext(uncaughtException));
+                            }
+                        }
+
+                        LeoTrace.WriteLine("Waiting to poll enqueued index items");
+                        await Task.Delay(TimeSpan.FromSeconds(2));
+                    }
+                }, cancel.Token);
+
+                // Return the item to dispose when done
+                return cancel;
+            });
+
+            disposable.Add(process
                 .Catch((Func<Exception, IObservable<Unit>>)(e =>
                 {
+                    // If we hit an error flush the queue...
+                    var oldQueue = _messageQueue;
+                    _messageQueue = new LockFreeQueue<IQueueMessage>();
+                    _currentContainers = new ConcurrentDictionary<string, bool>();
+
+                    IQueueMessage message;
+                    while (oldQueue.TryDequeue(out message))
+                    {
+                        message.Dispose();
+                    }
+
                     LeoTrace.WriteLine("Index listener error caught: " + e.Message);
                     if (uncaughtException != null) { uncaughtException(e); }
                     return Observable.Empty<Unit>();
                 }))
                 .Repeat()
-                .Subscribe(); // Start listening
+                .Subscribe());
+
+            disposable.Add(_indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
+                .Do(q => MessageRecieved(q))
+                .Catch((Func<Exception, IObservable<IQueueMessage>>)(e =>
+                {
+                    LeoTrace.WriteLine("Index listener error caught: " + e.Message);
+                    if (uncaughtException != null) { uncaughtException(e); }
+                    return Observable.Empty<IQueueMessage>();
+                }))
+                .Repeat()
+                .Subscribe());
+
+            return disposable;
         }
 
-        private Task MessageRecieved(IQueueMessage message)
+        private void MessageRecieved(IQueueMessage message)
         {
             LeoTrace.WriteLine("Index listener message received");
             _messageQueue.Enqueue(message);
-            return TryExecuteNext();
         }
 
-        private async Task TryExecuteNext()
+        private async Task TryExecuteNext(Action<Exception> uncaughtException = null)
         {
             IQueueMessage nextMessage;
             if(_messageQueue.TryDequeue(out nextMessage))
             {
-                var details = JsonConvert.DeserializeObject<StoreDataDetails>(nextMessage.Message);
-
-                if(_currentContainers.TryAdd(details.Container, true))
+                try
                 {
-                    try
-                    {
-                        await ExecuteMessage(nextMessage).ConfigureAwait(false);
-                        LeoTrace.WriteLine("Index message handled");
-                    }
-                    finally
-                    {
-                        bool temp;
-                        _currentContainers.TryRemove(details.Container, out temp);
-                    }
+                    var details = JsonConvert.DeserializeObject<StoreDataDetails>(nextMessage.Message);
+                    var firstPath = details.BasePath.Split(new char[] { '\\', '/' }, StringSplitOptions.RemoveEmptyEntries)[0];
+                    var key = details.Container + "_" + firstPath;
 
-                    // We might have enqueued messages for this container...
-                    await TryExecuteNext().ConfigureAwait(false);
+                    if (_currentContainers.TryAdd(key, true))
+                    {
+                        try
+                        {
+                            await ExecuteMessage(nextMessage).ConfigureAwait(false);
+                            LeoTrace.WriteLine("Index message handled");
+                        }
+                        catch (Exception e)
+                        {
+                            LeoTrace.WriteLine("Index listener error caught: " + e.Message);
+                            if (uncaughtException != null) { uncaughtException(e); }
+                        }
+                        finally
+                        {
+                            bool temp;
+                            _currentContainers.TryRemove(key, out temp);
+                            nextMessage.Dispose();
+                        }
+                    }
+                    else
+                    {
+                        _messageQueue.Enqueue(nextMessage);
+                    }
                 }
-                else
+                catch(Exception e)
                 {
-                    _messageQueue.Enqueue(nextMessage);
+                    LeoTrace.WriteLine("Index listener error caught: " + e.Message);
+                    if (uncaughtException != null) { uncaughtException(e); }
+                    nextMessage.Dispose();
                 }
             }
         }
 
         private async Task ExecuteMessage(IQueueMessage message)
         {
-            using (message)
+            try
             {
                 var details = JsonConvert.DeserializeObject<StoreDataDetails>(message.Message);
 
@@ -160,6 +224,10 @@ namespace Kalix.Leo.Listeners
 
                 await message.Complete().ConfigureAwait(false);
             }
+            finally
+            {
+                message.Dispose();
+            }
         }
 
         private sealed class LockFreeQueue<T>
@@ -175,10 +243,15 @@ namespace Kalix.Leo.Listeners
             }
             private volatile Node _head;
             private volatile Node _tail;
+            private int _approxCount;
             public LockFreeQueue()
             {
                 _head = _tail = new Node(default(T));
+                _approxCount = 0;
             }
+
+            public int ApproxCount { get { return _approxCount; } }
+
 #pragma warning disable 420 // volatile semantics not lost as only by-ref calls are interlocked
             public void Enqueue(T item)
             {
@@ -189,6 +262,7 @@ namespace Kalix.Leo.Listeners
                     if (Interlocked.CompareExchange(ref curTail.Next, newNode, null) == null)   //append to the tail if it is indeed the tail.
                     {
                         Interlocked.CompareExchange(ref _tail, newNode, curTail);   //CAS in case we were assisted by an obstructed thread.
+                        Interlocked.Increment(ref _approxCount);
                         return;
                     }
                     else
@@ -219,6 +293,7 @@ namespace Kalix.Leo.Listeners
                         item = curHeadNext.Item;
                         if (Interlocked.CompareExchange(ref _head, curHeadNext, curHead) == curHead)
                         {
+                            Interlocked.Decrement(ref _approxCount);
                             return true;
                         }
                     }
