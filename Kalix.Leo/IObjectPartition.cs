@@ -24,7 +24,7 @@ namespace Kalix.Leo
         /// <summary>
         /// Update metadata at the specified id value, does not override it
         /// </summary>
-        /// <param name="path">The location to save the record (in this particular partition)</param>
+        /// <param name="id">The id location to save the record (in this particular partition)</param>
         /// <param name="metadata">metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that completes when the metadata is saved</returns>
         Task SaveMetadata(long id, Metadata metadata);

@@ -8,6 +8,7 @@ using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -121,7 +122,7 @@ namespace Kalix.Leo.Lucene
                 }, token);
 
                 return cts;
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
         }
 
         public Task DeleteAll()

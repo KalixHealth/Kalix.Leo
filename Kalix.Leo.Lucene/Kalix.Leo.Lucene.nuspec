@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      First nuget release
+      Use schedulers when creating observables
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="1.0.0" />
+      <dependency id="Kalix.Leo.Core" version="1.1.15" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
     </dependencies>
   </metadata>

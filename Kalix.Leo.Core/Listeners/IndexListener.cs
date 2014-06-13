@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reflection;
@@ -101,7 +102,7 @@ namespace Kalix.Leo.Listeners
 
                 // Return the item to dispose when done
                 return cancel;
-            });
+            }).SubscribeOn(NewThreadScheduler.Default);
 
             disposable.Add(process
                 .Catch((Func<Exception, IObservable<Unit>>)(e =>

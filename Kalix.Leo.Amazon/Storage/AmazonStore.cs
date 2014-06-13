@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -119,7 +120,7 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
-        public async Task SaveMetadata(StoreLocation location, Metadata metadata)
+        public Task SaveMetadata(StoreLocation location, Metadata metadata)
         {
             throw new NotImplementedException();
         }
@@ -135,7 +136,7 @@ namespace Kalix.Leo.Amazon.Storage
 
             try
             {
-                var resp = await _client.GetObjectMetadataAsync(request);
+                var resp = await _client.GetObjectMetadataAsync(request).ConfigureAwait(false);
                 return ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
             }
             catch (AmazonS3Exception e)
@@ -160,7 +161,7 @@ namespace Kalix.Leo.Amazon.Storage
                     VersionId = snapshot
                 };
 
-                var resp = await _client.GetObjectAsync(request);
+                var resp = await _client.GetObjectAsync(request).ConfigureAwait(false);
                 var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
                 var stream = resp.ResponseStream.ToObservable(ReadWriteBufferSize);
 
@@ -182,6 +183,7 @@ namespace Kalix.Leo.Amazon.Storage
             var key = GetObjectKey(location);
             return Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
+                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.Key == key && !v.IsDeleteMarker) // Make sure we are not getting anything unexpected
                 .Select(GetSnapshotFromVersion)
                 .Merge();
@@ -192,6 +194,7 @@ namespace Kalix.Leo.Amazon.Storage
             var containerPrefix = container + "\\";
             return Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, containerPrefix + (prefix ?? string.Empty).Replace("/", "\\"), ct))
+                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.IsLatest)
                 .Select(async v =>
                 {
@@ -234,6 +237,7 @@ namespace Kalix.Leo.Amazon.Storage
             // We have to iterate though every object and delete it...
             var snapshots = Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
+                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.Key == key) // Make sure we are not getting anything unexpected
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
@@ -264,6 +268,7 @@ namespace Kalix.Leo.Amazon.Storage
             // We have to iterate though every object in a container and then delete it...
             var snapshots = Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, container + "/", ct))
+                .SubscribeOn(TaskPoolScheduler.Default)
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
             await snapshots.Buffer(1000).Select(d =>
@@ -323,7 +328,7 @@ namespace Kalix.Leo.Amazon.Storage
                 Key = version.Key,
                 VersionId = version.VersionId
             };
-            var res = await _client.GetObjectMetadataAsync(req);
+            var res = await _client.GetObjectMetadataAsync(req).ConfigureAwait(false);
 
             return new Snapshot
             {
@@ -350,7 +355,7 @@ namespace Kalix.Leo.Amazon.Storage
                         VersionIdMarker = versionIdMarker
                     };
 
-                    var resp = await _client.ListVersionsAsync(request, ct);
+                    var resp = await _client.ListVersionsAsync(request, ct).ConfigureAwait(false);
                     foreach (var v in resp.Versions)
                     {
                         observer.OnNext(v);

@@ -69,7 +69,7 @@ namespace System.Reactive.Linq
                         }
                         obs.OnCompleted();
                     });
-                });
+                }).SubscribeOn(TaskPoolScheduler.Default);
             }
             else
             {
@@ -137,7 +137,7 @@ namespace System.Reactive.Linq
                         LeoTrace.WriteLine("Buffer Bytes complete");
                         obs.OnCompleted();
                     });
-                });
+                }).SubscribeOn(TaskPoolScheduler.Default);
             }
         }
 
@@ -181,6 +181,7 @@ namespace System.Reactive.Linq
                 }
                 obs.OnCompleted();
             })
+            .SubscribeOn(TaskPoolScheduler.Default)
             .Publish()
             .RefCount();
         }
@@ -213,9 +214,10 @@ namespace System.Reactive.Linq
         /// <summary>
         /// This will copy the output of an observable byte stream and write it to the stream
         /// </summary>
-        /// <param name="obs"></param>
-        /// <param name="writeStream"></param>
-        /// <returns></returns>
+        /// <param name="obs">The observable to read bytes from</param>
+        /// <param name="writeStream">The stream to write the bytes</param>
+        /// <param name="autoFlush">Whether to flush the stream every write</param>
+        /// <returns>A task that is complete when the write is complete</returns>
         public static async Task WriteToStream(this IObservable<byte[]> obs, Stream writeStream, bool autoFlush = true)
         {
             await obs

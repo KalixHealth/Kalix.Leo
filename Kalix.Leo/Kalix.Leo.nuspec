@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,14 +12,14 @@
       Library to abstract indexing, querying, encryption and compression on a NoSQL store
     </description>
     <releaseNotes>
-      First nuget release
+      Update to 1.1, mostly dependency updates
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="1.0.0" />
-      <dependency id="Kalix.Leo.Lucene" version="1.0.0" />
-      <dependency id="Kalix.ApiCrypto" version="1.1.1" />
+      <dependency id="Kalix.Leo.Core" version="1.1.15" />
+      <dependency id="Kalix.Leo.Lucene" version="1.1.0" />
+      <dependency id="Kalix.ApiCrypto" version="1.1.4" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
     </dependencies>
   </metadata>

@@ -12,7 +12,6 @@ namespace Kalix.Leo
         /// <summary>
         /// Will write to the trace action if it exists, otherwise nothing
         /// </summary>
-        /// <param name="trace">The message to write</param>
         public static Action<string> WriteLine
         {
             get { return _writeLineAction; }

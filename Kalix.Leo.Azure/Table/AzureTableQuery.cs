@@ -5,6 +5,7 @@ using Lokad.Cloud.Storage.Azure;
 using Newtonsoft.Json;
 using System;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -147,7 +148,7 @@ namespace Kalix.Leo.Azure.Table
                 }
 
                 obs.OnCompleted();
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
         }
 
         private T ConvertFatEntity(FatEntity entity)

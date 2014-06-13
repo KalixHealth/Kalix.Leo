@@ -2,6 +2,7 @@
 using Microsoft.WindowsAzure.Storage.Queue;
 using System;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
@@ -77,8 +78,7 @@ namespace Kalix.Leo.Azure.Queue
 
                 // Return the item to dispose when done
                 return cancel;
-
-            });
+            }).SubscribeOn(NewThreadScheduler.Default);
         }
 
         public Task CreateQueueIfNotExists()

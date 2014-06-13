@@ -21,6 +21,7 @@ namespace Kalix.Leo.Queue
         /// </summary>
         /// <param name="uncaughtException">If there are any internal errors you can listen to them here</param>
         /// <param name="messagesToProcessInParallel">The number of messages to read at once</param>
+        /// <param name="millisecondPollInterval">The amount of time to poll in milliseconds</param>
         /// <returns>
         /// An observable of queue messages
         /// 

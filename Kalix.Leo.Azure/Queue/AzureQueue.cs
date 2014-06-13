@@ -3,6 +3,7 @@ using Microsoft.ServiceBus;
 using Microsoft.ServiceBus.Messaging;
 using System;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
@@ -90,7 +91,7 @@ namespace Kalix.Leo.Azure.Queue
                     cancel.Dispose();
                     client.Close();
                 };
-            });
+            }).SubscribeOn(NewThreadScheduler.Default);
         }
 
         public async Task CreateQueueIfNotExists()

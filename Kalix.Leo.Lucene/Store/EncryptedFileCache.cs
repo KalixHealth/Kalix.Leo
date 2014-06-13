@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Runtime.InteropServices;
@@ -91,7 +92,7 @@ namespace Kalix.Leo.Lucene.Store
                 var sub = fs.ToObservable(4194304).Subscribe(obs);
 
                 return new CompositeDisposable(fs, sub);
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
 
             return Task.FromResult(new DataWithMetadata(stream, metadata));
         }

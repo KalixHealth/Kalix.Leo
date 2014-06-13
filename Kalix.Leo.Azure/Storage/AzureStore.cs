@@ -162,7 +162,7 @@ namespace Kalix.Leo.Azure.Storage
                         }
                     }
                 }
-            });
+            }).SubscribeOn(NewThreadScheduler.Default);
         }
 
         public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
@@ -249,7 +249,7 @@ namespace Kalix.Leo.Azure.Storage
                         }
                     }
                 );
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
 
             return new DataWithMetadata(data, metadata);
         }
@@ -260,7 +260,7 @@ namespace Kalix.Leo.Azure.Storage
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
                 return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
 
             return results
                 .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
@@ -277,7 +277,7 @@ namespace Kalix.Leo.Azure.Storage
             {
                 var c = _blobStorage.GetContainerReference(SafeContainerName(container));
                 return ListBlobs(observer, c, prefix, BlobListingDetails.Metadata, ct);
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
 
             return results
                 .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted

@@ -2,6 +2,7 @@
 using Kalix.Leo.Compression;
 using System;
 using System.IO;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 
 namespace Kalix.Leo.Compression
@@ -26,10 +27,11 @@ namespace Kalix.Leo.Compression
                     {
                         await data
                             .BufferBytes(_optimalBuffer, false)
-                            .Do(b => zipStream.Write(b, 0, b.Length));
+                            .Do(b => zipStream.Write(b, 0, b.Length))
+                            .LastOrDefaultAsync();
                     }
                 });
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
         }
 
         public IObservable<byte[]> Decompress(IObservable<byte[]> compressedData)
@@ -42,10 +44,11 @@ namespace Kalix.Leo.Compression
                     {
                         await compressedData
                             .BufferBytes(_optimalBuffer, false)
-                            .Do(b => zipStream.Write(b, 0, b.Length));
+                            .Do(b => zipStream.Write(b, 0, b.Length))
+                            .LastOrDefaultAsync();
                     }
                 });
-            });
+            }).SubscribeOn(TaskPoolScheduler.Default);
         }
     }
 }
