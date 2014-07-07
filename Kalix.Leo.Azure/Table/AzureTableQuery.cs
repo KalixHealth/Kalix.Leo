@@ -127,27 +127,34 @@ namespace Kalix.Leo.Azure.Table
         {
             return Observable.Create<T>(async (obs, ct) =>
             {
-                var query = new CT.TableQuery<FatEntity>();
-                if (filter != null)
+                try
                 {
-                    query = query.Where(filter);
-                }
-                if (take.HasValue)
-                {
-                    query = query.Take(take);
-                }
-
-                CT.TableQuerySegment<FatEntity> segment = null;
-                while((segment == null || segment.ContinuationToken != null) && !ct.IsCancellationRequested)
-                {
-                    segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, ct).ConfigureAwait(false);
-                    foreach(var entity in segment)
+                    var query = new CT.TableQuery<FatEntity>();
+                    if (filter != null)
                     {
-                        obs.OnNext(ConvertFatEntity(entity));
+                        query = query.Where(filter);
                     }
-                }
+                    if (take.HasValue)
+                    {
+                        query = query.Take(take);
+                    }
 
-                obs.OnCompleted();
+                    CT.TableQuerySegment<FatEntity> segment = null;
+                    while ((segment == null || segment.ContinuationToken != null) && !ct.IsCancellationRequested)
+                    {
+                        segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, ct).ConfigureAwait(false);
+                        foreach (var entity in segment)
+                        {
+                            obs.OnNext(ConvertFatEntity(entity));
+                        }
+                    }
+
+                    obs.OnCompleted();
+                }
+                catch(Exception e)
+                {
+                    obs.OnError(e);
+                }
             }).SubscribeOn(TaskPoolScheduler.Default);
         }
 
@@ -174,7 +181,7 @@ namespace Kalix.Leo.Azure.Table
             {
                 if (_decryptor != null)
                 {
-                    var decrypted = await _decryptor.Decrypt(Observable.Return(data)).ToList();
+                    var decrypted = await _decryptor.Decrypt(Observable.Return(data, TaskPoolScheduler.Default)).ToList();
                     data = new byte[decrypted.Sum(d => d.LongLength)];
                     int offset = 0;
                     foreach (var d in decrypted)

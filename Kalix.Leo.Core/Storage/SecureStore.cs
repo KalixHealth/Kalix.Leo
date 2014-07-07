@@ -4,8 +4,8 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reactive;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -152,7 +152,7 @@ namespace Kalix.Leo.Storage
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, new DataWithMetadata(Observable.Return(data), obj.Metadata), encryptor, options);
+            return SaveData(location, new DataWithMetadata(Observable.Return(data, TaskPoolScheduler.Default), obj.Metadata), encryptor, options);
         }
 
         public async Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading;
@@ -79,7 +80,7 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            var limitData = new DataWithMetadata(Observable.Return(limitBytes));
+            var limitData = new DataWithMetadata(Observable.Return(limitBytes, TaskPoolScheduler.Default));
             if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
             {
                 // This will force a refresh on the Next
@@ -127,7 +128,7 @@ namespace Kalix.Leo.Storage
                 var upperLimit = currentId + _rangeSize;
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
-                var limitData = new DataWithMetadata(Observable.Return(limitBytes));
+                var limitData = new DataWithMetadata(Observable.Return(limitBytes, TaskPoolScheduler.Default));
                 if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
                 {
                     // First update currentId

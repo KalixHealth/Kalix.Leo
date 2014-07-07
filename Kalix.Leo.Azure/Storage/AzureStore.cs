@@ -579,9 +579,12 @@ namespace Kalix.Leo.Azure.Storage
             }
             catch (StorageException exc)
             {
-                if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                if (isOptimistic)
                 {
-                    return false;
+                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                    {
+                        return false;
+                    }
                 }
 
                 throw;

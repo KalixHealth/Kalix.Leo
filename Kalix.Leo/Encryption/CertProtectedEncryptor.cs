@@ -2,6 +2,7 @@
 using Kalix.ApiCrypto.RSA;
 using Kalix.Leo.Storage;
 using System;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 
@@ -19,13 +20,13 @@ namespace Kalix.Leo.Encryption
             _partition = keyLocation.Container;
             _encryptor = new Lazy<Task<AESEncryptor>>(async () =>
             {
-                var data = await store.LoadData(keyLocation);
+                var data = await store.LoadData(keyLocation).ConfigureAwait(false);
                 byte[] blob;
                 if (data == null)
                 {
                     // Have to create a new key
                     blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
-                    await store.SaveData(keyLocation, new DataWithMetadata(Observable.Return(blob)));
+                    await store.SaveData(keyLocation, new DataWithMetadata(Observable.Return(blob, TaskPoolScheduler.Default))).ConfigureAwait(false);
                 }
                 else
                 {

@@ -7,6 +7,7 @@ using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
 using System.Linq;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -135,7 +136,7 @@ namespace Kalix.Leo.Azure.Table
 
                 if (_encryptor != null)
                 {
-                    var encrypted = await _encryptor.Encrypt(Observable.Return(data)).ToList();
+                    var encrypted = await _encryptor.Encrypt(Observable.Return(data, TaskPoolScheduler.Default)).ToList();
                     data = new byte[encrypted.Sum(d => d.LongLength)];
                     int offset = 0;
                     foreach (var d in encrypted)
