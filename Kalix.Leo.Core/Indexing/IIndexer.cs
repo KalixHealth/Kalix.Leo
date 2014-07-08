@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Indexing
 {
@@ -12,7 +13,7 @@ namespace Kalix.Leo.Indexing
         /// </summary>
         /// <param name="details">The location and metadata of the record that should be indexed</param>
         /// <returns>A Task for when the index is complete and successful</returns>
-        Task Index(StoreDataDetails details);
+        Task Index(IEnumerable<StoreDataDetails> details);
     }
 
     /// <summary>
