@@ -54,7 +54,7 @@ namespace Kalix.Leo.Storage
             return _store.FindFiles(container, prefix);
         }
 
-        public async Task ReIndexAll(string container, string prefix = null)
+        public async Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null)
         {
             if (_indexQueue == null)
             {
@@ -62,6 +62,7 @@ namespace Kalix.Leo.Storage
             }
 
             await FindFiles(container, prefix)
+                .Where(filter)
                 .SelectMany(f => 
                     Observable.FromAsync(() => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
                 )

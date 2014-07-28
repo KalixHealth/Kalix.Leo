@@ -13,7 +13,7 @@ namespace Kalix.Leo
 {
     public class ObjectPartition<T> : BasePartition, IObjectPartition<T>
     {
-        protected readonly Lazy<UniqueIdGenerator> _idGenerator;
+        private readonly Lazy<UniqueIdGenerator> _idGenerator;
 
         public ObjectPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
             : base(engineConfig, partitionId, config)
@@ -102,7 +102,8 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
+            // Only try to reindex values that actually have an id
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), f => f.Location.Id.HasValue, _config.BasePath + "/");
         }
 
         public Task ReBackupAll()

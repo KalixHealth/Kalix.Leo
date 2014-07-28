@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>2.0.0</version>
+    <version>3.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,14 +12,14 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      Bumped to 2.0.0 with Core
+      Bumped to 3.0.0 with Core
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="2.0.0" />
+      <dependency id="Kalix.Leo.Core" version="3.0.0" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
-      <dependency id="WindowsAzure.ServiceBus" version="2.3.4.0" />
+      <dependency id="WindowsAzure.ServiceBus" version="2.4.2.0" />
       <dependency id="WindowsAzure.Storage" version="4.1.0" />
     </dependencies>
   </metadata>

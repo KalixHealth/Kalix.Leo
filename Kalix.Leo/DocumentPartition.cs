@@ -64,7 +64,8 @@ namespace Kalix.Leo
 
         public Task ReIndexAll()
         {
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
+            // All documents in the index can be reindexed...
+            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), l => true, _config.BasePath + "/");
         }
 
         public Task ReBackupAll()

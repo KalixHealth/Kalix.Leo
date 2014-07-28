@@ -25,7 +25,7 @@ namespace Kalix.Leo.Storage
         IObservable<Snapshot> FindSnapshots(StoreLocation location);
         IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null);
 
-        Task ReIndexAll(string container, string prefix = null);
+        Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null);
         Task BackupAll(string container, string prefix = null);
 
         Task<IDisposable> Lock(StoreLocation location);
