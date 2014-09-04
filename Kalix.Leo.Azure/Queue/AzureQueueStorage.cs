@@ -1,11 +1,9 @@
 ﻿using Kalix.Leo.Queue;
 using Microsoft.WindowsAzure.Storage.Queue;
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Queue
@@ -13,10 +11,12 @@ namespace Kalix.Leo.Azure.Queue
     public class AzureQueueStorage : IQueue
     {
         private readonly CloudQueue _queue;
+        private readonly TimeSpan _queueMessageMinTimeout;
 
-        public AzureQueueStorage(CloudQueueClient queueClient, string queue)
+        public AzureQueueStorage(CloudQueueClient queueClient, string queue, TimeSpan queueMessageMinTimeout)
         {
             _queue = queueClient.GetQueueReference(queue);
+            _queueMessageMinTimeout = queueMessageMinTimeout;
         }
 
         public Task SendMessage(string data)
@@ -26,59 +26,74 @@ namespace Kalix.Leo.Azure.Queue
 
         public IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null, int millisecondPollInterval = 2000)
         {
-            return Observable.Create<IQueueMessage>(observer =>
+            var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
+            object counterLock = new object();
+            var waitingMessages = new List<AzureQueueStorageMessage>();
+
+            // Wacky little function to throttle messages in parrallel
+            // Allows new messages to be grabbed even when there are others waiting to be processed
+            Func<Task<IEnumerable<AzureQueueStorageMessage>>> getNextMessages = async () =>
             {
-                var prefetchCount = messagesToProcessInParallel ?? Environment.ProcessorCount;
-                var cancel = new CancellationDisposable();
-
-                Task.Run(async () =>
+                if (waitingMessages.Count <= prefetchCount)
                 {
-                    int counter = 0;
-                    object counterLock = new object();
-                    while(!cancel.Token.IsCancellationRequested)
+                    LeoTrace.WriteLine("Getting new messages in queue");
+                    var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
+
+                    LeoTrace.WriteLine(string.Format("Found {0} messages to process, also waiting on {1} messages", messages.Count(), waitingMessages.Count));
+
+                    lock (counterLock)
                     {
-                        bool doDelay = true;
-                        try
+                        var toAdd = messages.Select(m => new AzureQueueStorageMessage(_queue, m, (mm) =>
                         {
-                            if (counter <= prefetchCount)
+                            lock (counterLock)
                             {
-                                LeoTrace.WriteLine("Getting new messages in queue");
-                                var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null);
-
-                                lock (counterLock)
-                                {
-                                    counter += messages.Count();
-                                }
-
-                                foreach (var m in messages)
-                                {
-                                    var message = new AzureQueueStorageMessage(_queue, m, () => { Interlocked.Decrement(ref counter); });
-                                    observer.OnNext(message);
-                                    doDelay = false;
-                                }
+                                waitingMessages.Remove(mm);
                             }
-                        }
-                        catch (Exception e)
-                        {
-                            if (uncaughtException != null)
-                            {
-                                uncaughtException(e);
-                            }
-                            counter = 0;
-                            doDelay = true;
-                        }
+                        }));
 
-                        if (doDelay)
+                        waitingMessages.AddRange(toAdd);
+                        return toAdd;
+                    }
+                }
+                else
+                {
+                    LeoTrace.WriteLine("Waiting to poll in queue");
+                    await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
+                    return new List<AzureQueueStorageMessage>();
+                }
+            };
+
+            // The loop...
+            return Observable.FromAsync(getNextMessages)
+                .Catch<IEnumerable<AzureQueueStorageMessage>, Exception>((e) =>
+                {
+                    if(uncaughtException != null)
+                    {
+                        uncaughtException(e);
+                    }
+                    return Observable.Empty<IEnumerable<AzureQueueStorageMessage>>();
+                })
+                .SelectMany(m => m)
+                .Repeat()
+                .Timeout(_queueMessageMinTimeout)
+                .Catch<AzureQueueStorageMessage, Exception>((e) =>
+                {
+                    if (uncaughtException != null && waitingMessages.Count > 0)
+                    {
+                        uncaughtException(new Exception("Timeout when waiting for messages, purging " + waitingMessages.Count + " messages", e));
+                        
+                        // Copy the list
+                        var current = waitingMessages.ToList();
+                        foreach (var c in current)
                         {
-                            LeoTrace.WriteLine("Waiting to poll in queue");
-                            await Task.Delay(millisecondPollInterval);
+                            // The dispose will drop the messages
+                            c.Dispose();
                         }
                     }
-                }, cancel.Token);
-
-                // Return the item to dispose when done
-                return cancel;
-            }).SubscribeOn(NewThreadScheduler.Default);
+                    return Observable.Empty<AzureQueueStorageMessage>();
+                })
+                .Retry()
+                .Repeat();
         }
 
         public Task CreateQueueIfNotExists()
