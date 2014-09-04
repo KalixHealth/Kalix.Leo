@@ -25,8 +25,8 @@ namespace Kalix.Leo.Azure.Queue
 
             var waitFor = ((message.NextVisibleTime.HasValue ? DateTime.UtcNow.AddMinutes(1) : message.NextVisibleTime.Value.UtcDateTime) - DateTime.UtcNow).Subtract(TimeSpan.FromSeconds(10));
             _lockWatcher = Observable.Interval(waitFor)
-                .Select(i => _queue.UpdateMessageAsync(_message, TimeSpan.FromMinutes(1), MessageUpdateFields.Visibility))
-                .Subscribe(null, (e) => _isDisposed = true);
+                .SelectMany(i => Observable.FromAsync(ct => _queue.UpdateMessageAsync(_message, TimeSpan.FromMinutes(1), MessageUpdateFields.Visibility, ct)))
+                .Subscribe(u => { }, (e) => _isDisposed = true);
         }
 
         public string Message
