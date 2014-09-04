@@ -39,28 +39,28 @@ namespace Kalix.Leo.Azure.Queue
                     LeoTrace.WriteLine("Getting new messages in queue");
                     var messages = await _queue.GetMessagesAsync(prefetchCount, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
 
-                    LeoTrace.WriteLine(string.Format("Found {0} messages to process, also waiting on {1} messages", messages.Count(), waitingMessages.Count));
-
-                    lock (counterLock)
+                    if (messages.Any())
                     {
-                        var toAdd = messages.Select(m => new AzureQueueStorageMessage(_queue, m, (mm) =>
+                        LeoTrace.WriteLine(string.Format("Found {0} messages to process, also waiting on {1} messages", messages.Count(), waitingMessages.Count));
+                        lock (counterLock)
                         {
-                            lock (counterLock)
+                            var toAdd = messages.Select(m => new AzureQueueStorageMessage(_queue, m, (mm) =>
                             {
-                                waitingMessages.Remove(mm);
-                            }
-                        }));
+                                lock (counterLock)
+                                {
+                                    waitingMessages.Remove(mm);
+                                }
+                            }));
 
-                        waitingMessages.AddRange(toAdd);
-                        return toAdd;
+                            waitingMessages.AddRange(toAdd);
+                            return toAdd;
+                        }
                     }
                 }
-                else
-                {
-                    LeoTrace.WriteLine("Waiting to poll in queue");
-                    await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
-                    return new List<AzureQueueStorageMessage>();
-                }
+                
+                LeoTrace.WriteLine("Waiting to poll in queue");
+                await Task.Delay(millisecondPollInterval).ConfigureAwait(false);
+                return new List<AzureQueueStorageMessage>();
             };
 
             // The loop...
