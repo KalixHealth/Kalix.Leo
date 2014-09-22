@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.IO;
 
 namespace Kalix.Leo.Encryption
 {
@@ -16,14 +16,16 @@ namespace Kalix.Leo.Encryption
         /// Encrypt a stream of data
         /// </summary>
         /// <param name="data">stream of data to encrypt</param>
+        /// <param name="readMode">Whether this is a read or a write stream</param>
         /// <returns>stream of encrypted data</returns>
-        IObservable<byte[]> Encrypt(IObservable<byte[]> data);
+        Stream Encrypt(Stream data, bool readMode);
 
         /// <summary>
         /// Decrypt a stream of encrypted data
         /// </summary>
         /// <param name="encyptedData">Stream of data to decrypt</param>
+        /// <param name="readMode">Whether this is a read or a write stream</param>
         /// <returns>Stream of data</returns>
-        IObservable<byte[]> Decrypt(IObservable<byte[]> encyptedData);
+        Stream Decrypt(Stream encyptedData, bool readMode);
     }
 }

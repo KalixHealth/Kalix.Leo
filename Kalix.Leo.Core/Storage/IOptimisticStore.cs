@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reactive;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -31,7 +30,7 @@ namespace Kalix.Leo.Storage
         /// <param name="interval">The interval that you would like a task to fire (over all instances)</param>
         /// <param name="unhandledExceptions">Any unexpected errors during the lock loop can be handled here (optional)</param>
         /// <returns>An observable that fires once over the timespan over all instances</returns>
-        IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
+        IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
 
         /// <summary>
         /// Lock based method that runs a task only once (ever). 

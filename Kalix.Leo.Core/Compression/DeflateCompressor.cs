@@ -1,54 +1,45 @@
 ﻿using Ionic.Zlib;
-using Kalix.Leo.Compression;
 using System;
 using System.IO;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 
 namespace Kalix.Leo.Compression
 {
     public class DeflateCompressor : ICompressor
     {
         // http://code.logos.com/blog/2012/06/always-wrap-gzipstream-with-bufferedstream.html
-        private const int _optimalBuffer = 8192;
-
         public string Algorithm
         {
             get { return "deflate"; }
         }
 
-        public IObservable<byte[]> Compress(IObservable<byte[]> data)
+        public Stream Compress(Stream data, bool readMode)
         {
-            return Observable.Create<byte[]>(async (obs, ct) =>
+            if(readMode && !data.CanRead)
             {
-                await obs.UseWriteStream(async stream =>
-                {
-                    using (var zipStream = new DeflateStream(stream, CompressionMode.Compress))
-                    {
-                        await data
-                            .BufferBytes(_optimalBuffer, false)
-                            .Do(b => zipStream.Write(b, 0, b.Length))
-                            .LastOrDefaultAsync();
-                    }
-                });
-            }).SubscribeOn(TaskPoolScheduler.Default);
+                throw new ArgumentException("Stream is not readable to compress", "data");
+            }
+
+            if (!readMode && !data.CanWrite)
+            {
+                throw new ArgumentException("Stream is not writable to compress", "data");
+            }
+
+            return new DeflateStream(data, CompressionMode.Compress);
         }
 
-        public IObservable<byte[]> Decompress(IObservable<byte[]> compressedData)
+        public Stream Decompress(Stream compressedData, bool readMode)
         {
-            return Observable.Create<byte[]>(async (obs, ct) =>
+            if (readMode && !compressedData.CanRead)
             {
-                await obs.UseWriteStream(async stream =>
-                {
-                    using (var zipStream = new DeflateStream(stream, CompressionMode.Decompress))
-                    {
-                        await compressedData
-                            .BufferBytes(_optimalBuffer, false)
-                            .Do(b => zipStream.Write(b, 0, b.Length))
-                            .LastOrDefaultAsync();
-                    }
-                });
-            }).SubscribeOn(TaskPoolScheduler.Default);
+                throw new ArgumentException("Stream is not readable to decompress", "compressedData");
+            }
+
+            if (!readMode && !compressedData.CanWrite)
+            {
+                throw new ArgumentException("Stream is not writable to decompress", "compressedData");
+            }
+
+            return new DeflateStream(compressedData, CompressionMode.Decompress);
         }
     }
 }

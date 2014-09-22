@@ -1,8 +1,5 @@
-﻿using System.IO;
-using System.Reactive;
-using System.Reactive.Concurrency;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
+﻿using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
@@ -47,28 +44,17 @@ namespace Kalix.Leo.Lucene.Store
                 }
                 else
                 {
-                    using (actualData)
+                    if (!actualData.Metadata.LastModified.HasValue || !info.Exists || info.LastWriteTimeUtc < actualData.Metadata.LastModified.Value)
                     {
-                        if (!actualData.Metadata.LastModified.HasValue || !info.Exists || info.LastWriteTimeUtc < actualData.Metadata.LastModified.Value)
+                        using (var fs = info.OpenWrite())
                         {
-                            using (var fs = info.OpenWrite())
-                            {
-                                await actualData
-                                    .Stream
-                                    .Select(async b =>
-                                    {
-                                        await fs.WriteAsync(b, 0, b.Length).ConfigureAwait(false);
-                                        return Unit.Default;
-                                    })
-                                    .Merge();
-
-                                result = true;
-                            }
+                            await actualData.Stream.CopyToAsync(fs).ConfigureAwait(false);
+                            result = true;
                         }
-                        else
-                        {
-                            LeoTrace.WriteLine("Skipped blob download");
-                        }
+                    }
+                    else
+                    {
+                        LeoTrace.WriteLine("Skipped blob download");
                     }
                 }
             }
@@ -84,17 +70,7 @@ namespace Kalix.Leo.Lucene.Store
             metadata.LastModified = info.LastWriteTimeUtc;
             metadata.Size = info.Length;
 
-            var stream = Observable.Create<byte[]>(obs =>
-            {
-                var fs = info.OpenRead();
-
-                // Read file in 4mb blocks
-                var sub = fs.ToObservable(4194304).Subscribe(obs);
-
-                return new CompositeDisposable(fs, sub);
-            }).SubscribeOn(TaskPoolScheduler.Default);
-
-            return Task.FromResult(new DataWithMetadata(stream, metadata));
+            return Task.FromResult(new DataWithMetadata(info.OpenRead(), metadata));
         }
 
         public Metadata GetMetadata(string key)
@@ -158,7 +134,11 @@ namespace Kalix.Leo.Lucene.Store
         {
             if (!_isDisposed)
             {
-                Directory.Delete(_directory, true); // Delete the cache entirely
+                try
+                {
+                    Directory.Delete(_directory, true); // Delete the cache entirely
+                }
+                catch (Exception) { }
                 _isDisposed = true;
             }
         }

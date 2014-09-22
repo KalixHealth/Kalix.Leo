@@ -1,9 +1,9 @@
-﻿using Kalix.ApiCrypto.AES;
+﻿using AsyncBridge;
+using Kalix.ApiCrypto.AES;
 using Kalix.ApiCrypto.RSA;
 using Kalix.Leo.Storage;
 using System;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Encryption
@@ -12,27 +12,20 @@ namespace Kalix.Leo.Encryption
     {
         private const AESKeySize DefaultKeySize = AESKeySize.AES256;
 
-        private readonly Lazy<Task<AESEncryptor>> _encryptor;
+        private readonly Lazy<AESEncryptor> _encryptor;
         private readonly string _partition;
 
         public CertProtectedEncryptor(IStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
         {
             _partition = keyLocation.Container;
-            _encryptor = new Lazy<Task<AESEncryptor>>(async () =>
+            _encryptor = new Lazy<AESEncryptor>(() =>
             {
-                var data = await store.LoadData(keyLocation).ConfigureAwait(false);
-                byte[] blob;
-                if (data == null)
+                AESEncryptor aes = null;
+                using (var w = AsyncHelper.Wait)
                 {
-                    // Have to create a new key
-                    blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
-                    await store.SaveData(keyLocation, new DataWithMetadata(Observable.Return(blob, TaskPoolScheduler.Default))).ConfigureAwait(false);
+                    w.Run(CreateEncryptor(store, keyLocation, rsaCert), a => aes = a);
                 }
-                else
-                {
-                    blob = await data.Stream.SelectMany(s => s).ToArray();
-                }
-                return AESBlob.CreateEncryptor(blob, rsaCert);
+                return aes;
             });
         }
 
@@ -41,16 +34,39 @@ namespace Kalix.Leo.Encryption
             get { return "AES_" + _partition; }
         }
 
-        public IObservable<byte[]> Encrypt(IObservable<byte[]> data)
+        public Stream Encrypt(Stream data, bool readMode)
         {
-            return Observable.FromAsync(() => _encryptor.Value)
-                .SelectMany(e => e.Encrypt(data));
+            return _encryptor.Value.Encrypt(data, readMode);
         }
 
-        public IObservable<byte[]> Decrypt(IObservable<byte[]> encyptedData)
+        public Stream Decrypt(Stream encyptedData, bool readMode)
         {
-            return Observable.FromAsync(() => _encryptor.Value)
-                .SelectMany(e => e.Decrypt(encyptedData));
+            return _encryptor.Value.Decrypt(encyptedData, readMode);
+        }
+
+        private static async Task<AESEncryptor> CreateEncryptor(IStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
+        {
+            var data = await store.LoadData(keyLocation).ConfigureAwait(false);
+            byte[] blob;
+            if (data == null)
+            {
+                // Have to create a new key
+                blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
+                using (var ms = new MemoryStream())
+                {
+                    await store.SaveData(keyLocation, new DataWithMetadata(ms)).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                using (var ms = new MemoryStream())
+                {
+                    await data.Stream.CopyToAsync(ms).ConfigureAwait(false);
+                    blob = ms.ToArray();
+                }
+            }
+
+            return AESBlob.CreateEncryptor(blob, rsaCert);
         }
     }
 }

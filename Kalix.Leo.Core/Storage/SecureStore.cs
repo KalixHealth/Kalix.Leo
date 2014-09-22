@@ -4,8 +4,7 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Reactive;
-using System.Reactive.Concurrency;
+using System.IO;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -88,7 +87,8 @@ namespace Kalix.Leo.Storage
             var data = await LoadData(location, snapshot, encryptor).ConfigureAwait(false);
             if(data == null) { return null; }
 
-            using (data)
+            using (var s = data.Stream)
+            using (var sr = new StreamReader(s, Encoding.UTF8))
             {
                 if(!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
                 {
@@ -101,8 +101,8 @@ namespace Kalix.Leo.Storage
 
                 LeoTrace.WriteLine("Getting data object: " + location);
 
-                var bytes = await data.Stream.ToBytes().ConfigureAwait(false);
-                var obj = JsonConvert.DeserializeObject<T>(Encoding.UTF8.GetString(bytes, 0, bytes.Length));
+                var str = await sr.ReadToEndAsync();
+                var obj = JsonConvert.DeserializeObject<T>(str);
 
                 LeoTrace.WriteLine("Returning data object: " + location);
                 return new ObjectWithMetadata<T>(obj, data.Metadata);
@@ -125,7 +125,7 @@ namespace Kalix.Leo.Storage
                     throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
                 }
 
-                stream = encryptor.Decrypt(stream);
+                stream = encryptor.Decrypt(stream, true);
             }
 
             // Might need to decompress too!
@@ -136,10 +136,10 @@ namespace Kalix.Leo.Storage
                     throw new InvalidOperationException("Compression Algorithms do not match, cannot load data");
                 }
 
-                stream = _compressor.Decompress(stream);
+                stream = _compressor.Decompress(stream, true);
             }
 
-            return new DataWithMetadata(stream, metadata, () => data.Dispose());
+            return new DataWithMetadata(stream, metadata);
         }
 
         public Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
@@ -147,13 +147,16 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, new DataWithMetadata(Observable.Return(data, TaskPoolScheduler.Default), obj.Metadata), encryptor, options);
+            using (var ms = new MemoryStream(data))
+            {
+                await SaveData(location, new DataWithMetadata(ms, obj.Metadata), encryptor, options);
+            }
         }
 
         public async Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
@@ -174,7 +177,7 @@ namespace Kalix.Leo.Storage
                     throw new ArgumentException("Compression option should not be used if no compressor has been implemented", "options");
                 }
 
-                dataStream = _compressor.Compress(dataStream);
+                dataStream = _compressor.Compress(dataStream, true);
                 metadata[MetadataConstants.CompressionMetadataKey] = _compressor.Algorithm;
             }
             else
@@ -186,7 +189,7 @@ namespace Kalix.Leo.Storage
             // Next is encryption
             if(encryptor != null)
             {
-                dataStream = encryptor.Encrypt(dataStream);
+                dataStream = encryptor.Encrypt(dataStream, true);
                 metadata[MetadataConstants.EncryptionMetadataKey] = encryptor.Algorithm;
             }
             else
@@ -321,7 +324,7 @@ namespace Kalix.Leo.Storage
             return _store.RunOnce(location, action);
         }
 
-        public IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        public IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
         {
             return _store.RunEvery(location, interval, unhandledExceptions);
         }

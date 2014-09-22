@@ -2,10 +2,7 @@
 using NUnit.Framework;
 using System;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Text;
 
 namespace Kalix.Leo.Core.Tests.Compression
@@ -13,6 +10,10 @@ namespace Kalix.Leo.Core.Tests.Compression
     [TestFixture]
     public class DeflateCompressorTests
     {
+        private const long KB = 1024;
+        private const long MB = 1024 * KB;
+        private static Random _random = new Random();
+
         protected DeflateCompressor _compressor;
 
         [SetUp]
@@ -22,70 +23,21 @@ namespace Kalix.Leo.Core.Tests.Compression
         }
 
         [Test]
-        [ExpectedException]
-        public void OnCompressErrorIsPassedOn()
-        {
-            var subject = new Subject<byte[]>();
-            var obs = _compressor.Compress(subject);
-
-            subject.OnError(new Exception("something went wrong"));
-
-            obs.Wait();
-        }
-
-        [Test]
-        [ExpectedException]
-        public void OnDecompressErrorIsPassedOn()
-        {
-            var subject = new Subject<byte[]>();
-            var obs = _compressor.Decompress(subject);
-
-            subject.OnError(new Exception("something went wrong"));
-
-            obs.Wait();
-        }
-
-        [Test]
         public void SmallCanCompressAndDecompress()
         {
             var str = "This is a string to compress and uncompress";
             var data = Encoding.UTF8.GetBytes(str);
 
-            var compressed = _compressor.Compress(Observable.Return(data));
-            var decompressed = _compressor.Decompress(compressed);
+            var compressed = _compressor.Compress(new MemoryStream(data), true);
+            var decompressed = _compressor.Decompress(compressed, true);
             
-            var decData = decompressed.ToEnumerable().SelectMany(b => b).ToArray();
+            byte[] decData;
+            using(var ms = new MemoryStream())
+            {
+                decompressed.CopyTo(ms);
+                decData = ms.ToArray();
+            }
             var decStr = Encoding.UTF8.GetString(decData, 0, decData.Length);
-
-            Assert.AreEqual(str, decStr);
-        }
-
-        [Test]
-        public void SmallPureCompressAndDecompress()
-        {
-            var str = "This is a string to compress and uncompress";
-            var data = Encoding.UTF8.GetBytes(str);
-
-            byte[] compressed;
-
-            using (var ms = new MemoryStream())
-            {
-                using (var stream = new GZipStream(ms, CompressionMode.Compress))
-                {
-                    stream.Write(data, 0, data.Length);
-                }
-                compressed = ms.ToArray();
-            }
-            
-
-            byte[] newData = new byte[data.Length];
-            using(var ms = new MemoryStream(compressed))
-            using(var stream = new GZipStream(ms, CompressionMode.Decompress))
-            {
-                stream.Read(newData, 0, data.Length);
-            }
-
-            var decStr = Encoding.UTF8.GetString(newData, 0, newData.Length);
 
             Assert.AreEqual(str, decStr);
         }
@@ -93,50 +45,33 @@ namespace Kalix.Leo.Core.Tests.Compression
         [Test]
         public void LargeCanCompressAndDecompress()
         {
-            var random = new Random();
-            var data = Observable.Generate(0, i => i < 1000, i => ++i, i =>
+            var data = RandomData(1);
+
+            byte[] compData;
+            using(var cms = new MemoryStream())
+            using (var compressed = _compressor.Compress(new MemoryStream(data), true))
             {
-                var bytes = new byte[1024];
-                random.NextBytes(bytes);
-                return bytes;
-            });
+                compressed.CopyTo(cms);
+                compData = cms.ToArray();
+            }
 
-            var compressed = _compressor.Compress(data);
-            var decompressed = _compressor.Decompress(compressed);
+            var decompressed = _compressor.Decompress(new MemoryStream(compData), true);
 
-            decompressed.Wait();
+            byte[] newData;
+            using(var ms = new MemoryStream())
+            {
+                decompressed.CopyTo(ms);
+                newData = ms.ToArray();
+            }
+
+            Assert.IsTrue(data.SequenceEqual(newData));
         }
 
-        [Test]
-        public void LargePureCompressAndDecompress()
+        private static byte[] RandomData(long noOfMb)
         {
-            var random = new Random();
-            var data = Observable.Generate(0, i => i < 1000, i => ++i, i =>
-            {
-                var bytes = new byte[1024];
-                random.NextBytes(bytes);
-                return bytes;
-            });
-
-            byte[] compressed;
-            using (var ms = new MemoryStream())
-            {
-                using (var stream = new GZipStream(ms, CompressionMode.Compress))
-                {
-                    data
-                        .Do(bytes => stream.Write(bytes, 0, bytes.Length))
-                        .Wait();
-                }
-                compressed = ms.ToArray();
-            }
-
-
-            byte[] newData = new byte[1024];
-            using (var ms = new MemoryStream(compressed))
-            using (var stream = new GZipStream(ms, CompressionMode.Decompress))
-            {
-                while (stream.Read(newData, 0, newData.Length) != 0) { };
-            }
+            var data = new byte[noOfMb * MB];
+            _random.NextBytes(data);
+            return data;
         }
     }
 }

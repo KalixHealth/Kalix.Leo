@@ -2,7 +2,6 @@
 using NUnit.Framework;
 using System;
 using System.IO;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Tests.Store
@@ -28,12 +27,10 @@ namespace Kalix.Leo.Lucene.Tests.Store
         public void ReadWriteAllGood()
         {
             var data = RandomData(2);
-            _cache.UpdateIfModified("test", Task.FromResult(new DataWithMetadata(Observable.Return(data)))).Wait();
+            _cache.UpdateIfModified("test", Task.FromResult(new DataWithMetadata(new MemoryStream(data)))).Wait();
 
-            using (var result = _cache.LoadAllData("test").Result)
-            {
-                Assert.AreEqual(2048, result.Metadata.Size);
-            }
+            var result = _cache.LoadAllData("test").Result;
+            Assert.AreEqual(2048, result.Metadata.Size);
         }
 
         private static Random _random = new Random();

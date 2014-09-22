@@ -1,14 +1,11 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Encryption;
+﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using Newtonsoft.Json;
 using System;
-using System.Linq;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using E = Kalix.Leo.Table.ITableEntity;
@@ -115,16 +112,6 @@ namespace Kalix.Leo.Azure.Table
 
         private FatEntity ConvertToFatEntity(E entity)
         {
-            FatEntity result = null;
-            using (var w = AsyncHelper.Wait)
-            {
-                w.Run(ConvertToFatEntityAsync(entity), f => result = f);
-            }
-            return result;
-        }
-
-        private async Task<FatEntity> ConvertToFatEntityAsync(E entity)
-        {
             byte[] data;
             if (entity.DataObject == null)
             {
@@ -136,13 +123,14 @@ namespace Kalix.Leo.Azure.Table
 
                 if (_encryptor != null)
                 {
-                    var encrypted = await _encryptor.Encrypt(Observable.Return(data, TaskPoolScheduler.Default)).ToList();
-                    data = new byte[encrypted.Sum(d => d.LongLength)];
-                    int offset = 0;
-                    foreach (var d in encrypted)
+                    using(var ms = new MemoryStream())
                     {
-                        Buffer.BlockCopy(d, 0, data, offset, d.Length);
-                        offset += d.Length;
+                        using(var enc = _encryptor.Encrypt(ms, false))
+                        {
+                            enc.Write(data, 0, data.Length);
+                        }
+
+                        data = ms.ToArray();
                     }
                 }
             }

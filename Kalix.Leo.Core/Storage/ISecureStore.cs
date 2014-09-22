@@ -1,6 +1,5 @@
 ﻿using Kalix.Leo.Encryption;
 using System;
-using System.Reactive;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -30,7 +29,7 @@ namespace Kalix.Leo.Storage
 
         Task<IDisposable> Lock(StoreLocation location);
         Task RunOnce(StoreLocation location, Func<Task> action);
-        IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
+        IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
 
         IUniqueIdGenerator GetIdGenerator(StoreLocation location);
 

@@ -6,8 +6,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reactive;
-using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,41 +43,41 @@ namespace Kalix.Leo.Amazon.Storage
                 var uploadLock = new object();
                 int partNumber = 1;
 
-                await data.Stream
-                    .BufferBytes(ReadWriteBufferSize, false)
-                    .Select(async b =>
-                    {
-                        if (firstHit == null)
-                        {
-                            firstHit = b;
-                        }
-                        else
-                        {
-                            var pNum = Interlocked.Increment(ref partNumber);
+                byte[] buff = new byte[ReadWriteBufferSize];
+                int r;
+                while ((r = await data.Stream.ReadAsync(buff, 0, buff.Length)) > 0)
+                {
+                    var d = new byte[r];
+                    Buffer.BlockCopy(buff, 0, d, 0, r);
 
-                            if (uploadClient == null)
+                    if (firstHit == null)
+                    {
+                        firstHit = d;
+                    }
+                    else
+                    {
+                        var pNum = Interlocked.Increment(ref partNumber);
+
+                        if (uploadClient == null)
+                        {
+                            lock (uploadLock)
                             {
-                                lock (uploadLock)
+                                if (uploadClient == null)
                                 {
-                                    if (uploadClient == null)
-                                    {
-                                        uploadClient = new AmazonMultiUpload(_client, _bucket, key, data.Metadata);
-                                    }
+                                    uploadClient = new AmazonMultiUpload(_client, _bucket, key, data.Metadata);
                                 }
                             }
-
-                            if (pNum == 2)
-                            {
-                                await uploadClient.PushBlockOfData(firstHit, 1).ConfigureAwait(false);
-                            }
-
-                            // We are doing multipart here!
-                            await uploadClient.PushBlockOfData(b, pNum).ConfigureAwait(false);
                         }
 
-                        return Unit.Default;
-                    })
-                    .Merge();
+                        if (pNum == 2)
+                        {
+                            await uploadClient.PushBlockOfData(firstHit, 1).ConfigureAwait(false);
+                        }
+
+                        // We are doing multipart here!
+                        await uploadClient.PushBlockOfData(d, pNum).ConfigureAwait(false);
+                    }
+                }
 
                 // If we didnt do multimerge then just do single!
                 if (uploadClient == null)
@@ -163,9 +161,7 @@ namespace Kalix.Leo.Amazon.Storage
 
                 var resp = await _client.GetObjectAsync(request).ConfigureAwait(false);
                 var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
-                var stream = resp.ResponseStream.ToObservable(ReadWriteBufferSize);
-
-                return new DataWithMetadata(stream, metadata, () => resp.Dispose());
+                return new DataWithMetadata(resp.ResponseStream, metadata);
             }
             catch (AmazonS3Exception e)
             {
@@ -183,7 +179,6 @@ namespace Kalix.Leo.Amazon.Storage
             var key = GetObjectKey(location);
             return Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
-                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.Key == key && !v.IsDeleteMarker) // Make sure we are not getting anything unexpected
                 .Select(GetSnapshotFromVersion)
                 .Merge();
@@ -194,7 +189,6 @@ namespace Kalix.Leo.Amazon.Storage
             var containerPrefix = container + "\\";
             return Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, containerPrefix + (prefix ?? string.Empty).Replace("/", "\\"), ct))
-                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.IsLatest)
                 .Select(async v =>
                 {
@@ -237,7 +231,6 @@ namespace Kalix.Leo.Amazon.Storage
             // We have to iterate though every object and delete it...
             var snapshots = Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
-                .SubscribeOn(TaskPoolScheduler.Default)
                 .Where(v => v.Key == key) // Make sure we are not getting anything unexpected
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
@@ -268,7 +261,6 @@ namespace Kalix.Leo.Amazon.Storage
             // We have to iterate though every object in a container and then delete it...
             var snapshots = Observable
                 .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, container + "/", ct))
-                .SubscribeOn(TaskPoolScheduler.Default)
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
             await snapshots.Buffer(1000).Select(d =>

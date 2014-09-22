@@ -4,6 +4,7 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using NUnit.Framework;
 using System;
+using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
 
@@ -31,7 +32,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void HasMetadataCorrectlySavesIt()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
@@ -43,11 +44,12 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void AlwaysOverridesMetadata()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
+                data.Position = 0;
                 var m2 = new Metadata();
                 m2["metadata2"] = "othermetadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m2)).Wait();
@@ -60,7 +62,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MultiUploadLargeFileIsSuccessful()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(7));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(7));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
                 Assert.IsTrue(_blob.Exists());
@@ -80,7 +82,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void FindsMetadataIncludingSizeAndLength()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
@@ -99,60 +101,55 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MetadataIsTransferedWhenSelectingAStream()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-                using (var result = _store.LoadData(_location).Result)
-                {
-                    Assert.AreEqual("metadata", result.Metadata["metadata1"]);
-                }
+                var result = _store.LoadData(_location).Result;
+                Assert.AreEqual("metadata", result.Metadata["metadata1"]);
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
-                using (var result = _store.LoadData(_location).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
             }
 
             [Test]
             public void NoContainerReturnsFalse()
             {
-                using(var result = _store.LoadData(new StoreLocation("blahblahblah", "blah")).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(new StoreLocation("blahblahblah", "blah")).Result;
+                Assert.IsNull(result);
             }
 
             [Test]
             public void FileMarkedAsDeletedReturnsNull()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["leodeleted"] = DateTime.UtcNow.Ticks.ToString();
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
 
-                using (var result = _store.LoadData(_location).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
             }
 
             [Test]
             public void AllDataLoadsCorrectly()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, new DataWithMetadata(Observable.Return(data))).Wait();
+                _store.SaveData(_location, new DataWithMetadata(new MemoryStream(data))).Wait();
 
-                using (var result = _store.LoadData(_location).Result)
+                var result = _store.LoadData(_location).Result;
+                byte[] resData;
+                using(var ms = new MemoryStream())
                 {
-                    var resData = result.Stream.ToEnumerable().SelectMany(b => b).ToArray();
-                    Assert.IsTrue(data.SequenceEqual(resData));
+                    result.Stream.CopyTo(ms);
+                    resData = ms.ToArray();
                 }
+                Assert.IsTrue(data.SequenceEqual(resData));
             }
         }
 
@@ -170,7 +167,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void SingleSnapshotCanBeFound()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
@@ -183,12 +180,13 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void SubItemBlobSnapshotsAreNotIncluded()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
                 var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
                 var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
 
+                data.Position = 0;
                 _store.SaveData(location2, new DataWithMetadata(data)).Wait();
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
@@ -203,25 +201,21 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MetadataIsTransferedWhenSelectingAStream()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
                 _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-                using (var res = _store.LoadData(_location, shapshot).Result)
-                {
-                    Assert.AreEqual("metadata", res.Metadata["metadata1"]);
-                }
+                var res = _store.LoadData(_location, shapshot).Result;
+                Assert.AreEqual("metadata", res.Metadata["metadata1"]);
             }
 
             [Test]
             public void NoFileReturnsFalse()
             {
-                using (var result = _store.LoadData(_location, DateTime.UtcNow.Ticks.ToString()).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location, DateTime.UtcNow.Ticks.ToString()).Result;
+                Assert.IsNull(result);
             }
         }
 
@@ -237,30 +231,26 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
                 _store.SoftDelete(_location).Wait();
 
-                using (var result = _store.LoadData(_location).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
             }
 
             [Test]
             public void ShouldNotDeleteSnapshots()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.SoftDelete(_location).Wait();
 
-                using (var result = _store.LoadData(_location, shapshot).Result)
-                {
-                    Assert.IsNotNull(result);
-                }
+                var result = _store.LoadData(_location, shapshot).Result;
+                Assert.IsNotNull(result);
             }
         }
 
@@ -276,30 +266,26 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
 
                 _store.PermanentDelete(_location).Wait();
 
-                using (var result = _store.LoadData(_location).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location).Result;
+                Assert.IsNull(result);
             }
 
             [Test]
             public void ShouldDeleteAllSnapshots()
             {
-                var data = Observable.Return(AzureTestsHelper.RandomData(1));
+                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
                 _store.SaveData(_location, new DataWithMetadata(data)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.PermanentDelete(_location).Wait();
 
-                using (var result = _store.LoadData(_location, shapshot).Result)
-                {
-                    Assert.IsNull(result);
-                }
+                var result = _store.LoadData(_location, shapshot).Result;
+                Assert.IsNull(result);
             }
         }
 

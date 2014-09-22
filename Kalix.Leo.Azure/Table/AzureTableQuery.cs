@@ -1,11 +1,10 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Encryption;
+﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
 using Newtonsoft.Json;
 using System;
+using System.IO;
 using System.Linq;
-using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -155,20 +154,10 @@ namespace Kalix.Leo.Azure.Table
                 {
                     obs.OnError(e);
                 }
-            }).SubscribeOn(TaskPoolScheduler.Default);
+            });
         }
 
-        private T ConvertFatEntity(FatEntity entity)
-        {
-            T result = default(T);
-            using (var w = AsyncHelper.Wait)
-            {
-                w.Run(ConvertFatEntityAsync(entity), f => result = f);
-            }
-            return result;
-        }
-
-        private async Task<T> ConvertFatEntityAsync(FatEntity fat)
+        private T ConvertFatEntity(FatEntity fat)
         {
             T result;
             var data = fat.GetData();
@@ -181,13 +170,14 @@ namespace Kalix.Leo.Azure.Table
             {
                 if (_decryptor != null)
                 {
-                    var decrypted = await _decryptor.Decrypt(Observable.Return(data, TaskPoolScheduler.Default)).ToList();
-                    data = new byte[decrypted.Sum(d => d.LongLength)];
-                    int offset = 0;
-                    foreach (var d in decrypted)
+                    using(var ms = new MemoryStream())
                     {
-                        Buffer.BlockCopy(d, 0, data, offset, d.Length);
-                        offset += d.Length;
+                        using(var dc = _decryptor.Decrypt(ms, false))
+                        {
+                            dc.Write(data, 0, data.Length);
+                        }
+
+                        data = ms.ToArray();
                     }
                 }
 

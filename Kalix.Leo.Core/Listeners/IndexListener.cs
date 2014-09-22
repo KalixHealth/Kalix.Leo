@@ -4,10 +4,8 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive;
-using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Listeners
@@ -66,42 +64,82 @@ namespace Kalix.Leo.Listeners
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            // Special queue system
-            // We buffer up messages and execute either once every second, or wait until the previous execution has finished.
-            // The messages in parrallel option will limit the total number of messages available
-            var waitSubject = new Subject<Unit>();
-            var subcr = _indexQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
-                .Buffer(waitSubject)
-                .SelectMany(async (l) =>
+            var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
+            var token = new CancellationTokenSource();
+            var ct = token.Token;
+
+            Task.Run(async () =>
+            {
+                // Special queue system
+                // We grab messages as soon as we have free slots, and then queue them up by type and org
+                var hash = new Dictionary<string, Task>();
+                while(!ct.IsCancellationRequested)
                 {
-                    if (l.Count == 0)
+                    try
                     {
-                        // wait 1 sec till we try again...
-                        await Task.Delay(1000);
+                        // Clean up any finished tasks
+                        foreach (var item in hash.ToList())
+                        {
+                            if (item.Value.IsCanceled || item.Value.IsCompleted || item.Value.IsFaulted)
+                            {
+                                try
+                                {
+                                    hash.Remove(item.Key);
+                                }
+                                catch (Exception e)
+                                {
+                                    if (uncaughtException != null)
+                                    {
+                                        uncaughtException(e);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Wait until we have free slots...
+                        if (hash.Count >= maxMessages)
+                        {
+                            await Task.Delay(1000, ct).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        // Get more messages
+                        var messages = await _indexQueue.ListenForNextMessage(maxMessages, ct).ConfigureAwait(false);
+                        if (!messages.Any())
+                        {
+                            await Task.Delay(2000, ct).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        // Group the messages into buckets
+                        foreach (var g in messages.GroupBy(FindKey))
+                        {
+                            var items = g.ToList();
+                            if (hash.ContainsKey(g.Key))
+                            {
+                                // If the bucket is already running, queue the next action
+                                hash[g.Key] = hash[g.Key]
+                                    .ContinueWith(t => ExecuteMessages(items, uncaughtException), ct)
+                                    .Unwrap();
+                            }
+                            else
+                            {
+                                // Start a new independant thread
+                                hash[g.Key] = Task.Run(() => ExecuteMessages(items, uncaughtException), ct);
+                            }
+                        }
                     }
-                    else
+                    catch(Exception e)
                     {
-                        // parse all groups in parrallel
-                        await Task.WhenAll(l.GroupBy(m => FindKey(m)).Select(g => ExecuteMessages(g, uncaughtException)));
+                        if(uncaughtException != null)
+                        {
+                            uncaughtException(e);
+                        }
                     }
+                }
+            }, ct);
 
-                    // We can execute the next set
-                    waitSubject.OnNext(Unit.Default);
-                    return Unit.Default;
-                })
-                .Catch<Unit, Exception>(e => 
-                {
-                    // Start a timer that will start the next buffer call when the whole thing has been repeated
-                    Task.Delay(1000).ContinueWith(_ => waitSubject.OnNext(Unit.Default));
-                    return Observable.Empty<Unit>(); 
-                })
-                .Repeat()
-                .Subscribe();
-
-            // Do the first hit...
-            waitSubject.OnNext(Unit.Default);
-
-            return subcr;
+            return token;
         }
 
         private string FindKey(IQueueMessage message)

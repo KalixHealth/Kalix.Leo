@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -16,7 +17,7 @@ namespace Kalix.Leo
         /// <param name="data">The stream of data to save</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that completes when the record is saved</returns>
-        Task Save(string path, IObservable<byte[]> data, Metadata metadata = null);
+        Task Save(string path, Stream data, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified path, does not override it

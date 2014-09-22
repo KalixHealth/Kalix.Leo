@@ -2,8 +2,8 @@
 using Kalix.Leo.Storage;
 using Newtonsoft.Json;
 using System;
-using System.Reactive;
-using System.Reactive.Linq;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Listeners
@@ -23,17 +23,37 @@ namespace Kalix.Leo.Listeners
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            return _backupQueue.ListenForMessages(uncaughtException, messagesToProcessInParallel)
-                .Select(m => Observable.FromAsync(() => MessageRecieved(m))) // Make sure this listener doesnt stop due to errors!
-                .Merge()
-                .Catch((Func<Exception, IObservable<Unit>>)(e =>
+            var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
+            var token = new CancellationTokenSource();
+            var ct = token.Token;
+
+            Task.Run(async () =>
+            {
+                while(!ct.IsCancellationRequested)
                 {
-                    LeoTrace.WriteLine("Backup listener error caught: " + e.Message);
-                    if (uncaughtException != null) { uncaughtException(e); }
-                    return Observable.Empty<Unit>();
-                }))
-                .Repeat()
-                .Subscribe(); // Start listening
+                    try
+                    {
+                        var messages = await _backupQueue.ListenForNextMessage(maxMessages, ct).ConfigureAwait(false);
+                        if (messages.Any())
+                        {
+                            await Task.WhenAll(messages.Select(MessageRecieved)).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await Task.Delay(2000, ct).ConfigureAwait(false);
+                        }
+                    }
+                    catch(Exception e)
+                    {
+                        if(uncaughtException != null)
+                        {
+                            uncaughtException(e);
+                        }
+                    }
+                }
+            }, ct);
+
+            return token;
         }
 
         private async Task MessageRecieved(IQueueMessage message)
@@ -42,22 +62,21 @@ namespace Kalix.Leo.Listeners
             {
                 var details = JsonConvert.DeserializeObject<StoreDataDetails>(message.Message);
                 var location = details.GetLocation();
+                var data = await _originalStore.LoadData(location).ConfigureAwait(false);
 
-                using (var data = await _originalStore.LoadData(location))
+                if (data == null)
                 {
-                    if (data == null)
-                    {
-                        // Need to make sure to soft delete in our backup...
-                        await _backupStore.SoftDelete(location);
-                    }
-                    else
-                    {
-                        // Just save it right back into the backup!
-                        await _backupStore.SaveData(location, data);
-                    }
+                    // Need to make sure to soft delete in our backup...
+                    await _backupStore.SoftDelete(location).ConfigureAwait(false);
+                }
+                else
+                {
+                    // Just save it right back into the backup!
+                    await _backupStore.SaveData(location, data).ConfigureAwait(false);
+                    data.Stream.Dispose();
                 }
 
-                await message.Complete();
+                await message.Complete().ConfigureAwait(false);
             }
         }
     }

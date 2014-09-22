@@ -16,7 +16,7 @@ namespace Kalix.Leo
         {
         }
 
-        public Task Save(string path, IObservable<byte[]> data, Metadata metadata = null)
+        public Task Save(string path, Stream data, Metadata metadata = null)
         {
             var obj = new DataWithMetadata(data, metadata);
             return _store.SaveData(GetLocation(path), obj, _encryptor.Value, _options);

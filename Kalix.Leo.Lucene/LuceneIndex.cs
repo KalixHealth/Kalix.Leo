@@ -8,7 +8,6 @@ using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
-using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +28,7 @@ namespace Kalix.Leo.Lucene
         private double _RAMSizeMb;
         private bool _isDisposed;
 
-        private static readonly string _baseDirectory = IO.Path.GetTempPath();
+        private static readonly string _baseDirectory = IO.Path.Combine(IO.Path.GetTempPath(), IO.Path.GetRandomFileName());
 
         /// <summary>
         /// Create a lucene index over the top of a secure store, using an encrypted file cache and english analyzer
@@ -122,7 +121,7 @@ namespace Kalix.Leo.Lucene
                 }, token);
 
                 return cts;
-            }).SubscribeOn(TaskPoolScheduler.Default);
+            });
         }
 
         public Task DeleteAll()

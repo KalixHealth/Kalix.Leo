@@ -1,5 +1,4 @@
 ﻿using AsyncBridge;
-using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.IO;
@@ -80,10 +79,8 @@ namespace Kalix.Leo.Lucene.Store
 
         private async Task CopyDataFromCache()
         {
-            using(var data = await _cache.LoadAllData(_cachePath))
-            {
-                await _saveTask(data);
-            }
+            var data = await _cache.LoadAllData(_cachePath).ConfigureAwait(false);
+            await _saveTask(data).ConfigureAwait(false);
         }
 
         private T GetSyncVal<T>(Task<T> task)

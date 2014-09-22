@@ -20,6 +20,7 @@ namespace Kalix.Leo.Azure.Storage
     {
         private const string IdExtension = ".id";
         private const string DefaultDeletedKey = "leodeleted";
+        private const string VersionKey = "leoazureversion";
         private const int AzureBlockSize = 4194304;
 
         private readonly CloudBlobClient _blobStorage;
@@ -110,9 +111,9 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        public IObservable<Unit> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        public IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
         {
-            return Observable.Create<Unit>(async (obs, ct) =>
+            return Observable.Create<bool>(async (obs, ct) =>
             {
                 var blob = GetBlockBlob(location);
 
@@ -134,7 +135,7 @@ namespace Kalix.Leo.Azure.Storage
                                 }
                                 if (DateTimeOffset.UtcNow >= lastPerformed + interval)
                                 {
-                                    obs.OnNext(Unit.Default);
+                                    obs.OnNext(true);
                                     lastPerformed = DateTimeOffset.UtcNow;
                                     blob.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
                                     await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null).ConfigureAwait(false);
@@ -147,22 +148,15 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     catch (Exception e)
                     {
-                        try
+                        if (unhandledExceptions != null)
                         {
-                            if (unhandledExceptions != null)
-                            {
-                                unhandledExceptions(e);
-                            }
+                            unhandledExceptions(e);
+                        }
                             
-                            LeoTrace.WriteLine("Error on lock loop: " + e.Message);
-                        }
-                        catch (Exception)
-                        {
-                            // This thing needs to keep running!!!
-                        }
+                        LeoTrace.WriteLine("Error on lock loop: " + e.Message);
                     }
                 }
-            }).SubscribeOn(NewThreadScheduler.Default);
+            });
         }
 
         public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
@@ -171,7 +165,7 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 await blob.FetchAttributesAsync().ConfigureAwait(false);
-                LeoTrace.WriteLine("Got Metdata: " + blob.Name);
+                LeoTrace.WriteLine("Got Metadata: " + blob.Name);
             }
             catch (StorageException e)
             {
@@ -196,10 +190,11 @@ namespace Kalix.Leo.Azure.Storage
             var blob = GetBlockBlob(location, snapshot);
 
             // Get metadata first - this record might be deleted so quicker to test this than to download whole record...
+            Stream baseStream;
             try
             {
                 LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
+                baseStream = await blob.OpenReadAsync().ConfigureAwait(false);
             }
             catch (StorageException e)
             {
@@ -217,41 +212,17 @@ namespace Kalix.Leo.Azure.Storage
             var metadata = GetActualMetadata(blob);
             if (metadata.ContainsKey(_deletedKey))
             {
+                baseStream.Dispose();
                 return null;
             }
 
-            var data = Observable.Create<byte[]>((obs, ct) =>
+            // If we are using older stream we need to fall back to it :(
+            if (!metadata.ContainsKey(VersionKey))
             {
-                return obs.UseWriteStream(
-                    async s =>
-                    {
-                        var blockList = (await blob.DownloadBlockListAsync().ConfigureAwait(false)).ToList();
-                        if (blockList.Any())
-                        {
-                            LeoTrace.WriteLine("Downloading blob in blocks: " + blob.Name + "\r\nBlocks: " + string.Join(",", blockList.Select(b => b.Name + " (" + b.Length + ")")));
-                            // TODO: download blocks in parallel
+                baseStream = new AzureBlockBlobStream(blob);
+            }
 
-                            // Make sure that we get the blocks in order...
-                            var orderedList = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).Select(o => Tuple.Create(blockList.IndexOf(o), o)).ToList();
-                            foreach (var o in orderedList)
-                            {
-                                // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                                var start = orderedList.Where(ol => ol.Item1 < o.Item1).Sum(ol => ol.Item2.Length);
-                                LeoTrace.WriteLine("Downloading block " + o.Item1 + " starting at " + start + " with length " + o.Item2.Length);
-                                await blob.DownloadRangeToStreamAsync(s, start, o.Item2.Length, ct).ConfigureAwait(false);
-                            }
-                        }
-                        else
-                        {
-                            LeoTrace.WriteLine("Downloading blob: " + blob.Name);
-                            await blob.DownloadToStreamAsync(s, ct).ConfigureAwait(false);
-                            LeoTrace.WriteLine("Finished Downloading blob: " + blob.Name);
-                        }
-                    }
-                );
-            }).SubscribeOn(TaskPoolScheduler.Default);
-
-            return new DataWithMetadata(data, metadata);
+            return new DataWithMetadata(baseStream, metadata);
         }
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
@@ -260,7 +231,7 @@ namespace Kalix.Leo.Azure.Storage
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
                 return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
-            }).SubscribeOn(TaskPoolScheduler.Default);
+            });
 
             return results
                 .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
@@ -277,7 +248,7 @@ namespace Kalix.Leo.Azure.Storage
             {
                 var c = _blobStorage.GetContainerReference(SafeContainerName(container));
                 return ListBlobs(observer, c, prefix, BlobListingDetails.Metadata, ct);
-            }).SubscribeOn(TaskPoolScheduler.Default);
+            });
 
             return results
                 .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
@@ -368,7 +339,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 while (token != null && !ct.IsCancellationRequested);
 
-                ct.ThrowIfCancellationRequested(); // Just in case...
+                ct.ThrowIfCancellationRequested(); // We should throw this to be consistent...
                 observer.OnCompleted();
             }
             catch (StorageException e)
@@ -463,7 +434,7 @@ namespace Kalix.Leo.Azure.Storage
             // Every 30 secs keep the lock renewed
             IDisposable keepAlive = null;
             keepAlive = Observable
-                .Interval(TimeSpan.FromSeconds(30), Scheduler.Default)
+                .Interval(TimeSpan.FromSeconds(30))
                 .Subscribe(
                     _ =>
                     {
@@ -494,79 +465,18 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 var blob = GetBlockBlob(location);
-
-                // Copy the metadata across
-                foreach (var m in data.Metadata)
+                using (var stream = await blob.OpenWriteAsync().ConfigureAwait(false))
                 {
-                    blob.Metadata[m.Key] = m.Value;
-                }
-
-                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-
-                byte[] firstHit = null;
-                var bag = new ConcurrentDictionary<int, string>();
-                int partNumber = 1;
-
-                await data.Stream
-                    .BufferBytes(AzureBlockSize, true)
-                    .Select(async b =>
+                    // Copy the metadata across
+                    foreach (var m in data.Metadata)
                     {
-                        if (firstHit == null)
-                        {
-                            firstHit = b;
-                        }
-                        else
-                        {
-                            var pNum = Interlocked.Increment(ref partNumber);
-
-                            string blockStr;
-                            if (pNum == 2)
-                            {
-                                blockStr = Convert.ToBase64String(BitConverter.GetBytes(1));
-                                using (var ms = new MemoryStream(firstHit))
-                                {
-                                    await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                    LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                                }
-                                if(!bag.TryAdd(1, blockStr))
-                                {
-                                    throw new InvalidOperationException("Block 1 has already been added");
-                                }
-                            }
-
-                            // We are doing multipart here!
-                            blockStr = Convert.ToBase64String(BitConverter.GetBytes(pNum));
-                            using (var ms = new MemoryStream(b))
-                            {
-                                await blob.PutBlockAsync(blockStr, ms, null, condition, null, null).ConfigureAwait(false);
-                                LeoTrace.WriteLine("Put Block '" + blockStr + "': " + blob.Name);
-                            }
-                            if(!bag.TryAdd(pNum, blockStr))
-                            {
-                                throw new InvalidOperationException("Block " + pNum + " has already been added");
-                            }
-                        }
-
-                        return Unit.Default;
-                    })
-                    .Merge();
-
-                // Did we do multimerge or not?
-                if (bag.Any())
-                {
-                    // Make sure keys are saved in the right order...
-                    var ordered = bag.OrderBy(b => b.Key).Select(b => b.Value).ToList();
-                    await blob.PutBlockListAsync(ordered).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Finished Put Blocks: " + blob.Name + "\r\nBlocks: " + string.Join(",", ordered.Select(o => o)));
-                }
-                else
-                {
-                    // If we didnt do multimerge then just do single!
-                    using (var ms = new MemoryStream(firstHit))
-                    {
-                        await blob.UploadFromStreamAsync(ms, condition, null, null).ConfigureAwait(false);
-                        LeoTrace.WriteLine("Uploaded Single Block: " + blob.Name);
+                        blob.Metadata[m.Key] = m.Value;
                     }
+
+                    blob.Metadata[VersionKey] = "v2";
+                    var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
+
+                    await data.Stream.CopyToAsync(stream).ConfigureAwait(false);
                 }
 
                 // Create a snapshot straight away on azure

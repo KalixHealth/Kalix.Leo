@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Globalization;
-using System.Linq;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -80,15 +78,18 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            var limitData = new DataWithMetadata(Observable.Return(limitBytes, TaskPoolScheduler.Default));
-            if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
+            using (var ms = new MemoryStream(limitBytes))
             {
-                // This will force a refresh on the Next
-                _upperIdLimit = 0;
-            }
-            else
-            {
-                throw new InvalidOperationException("Could not update the id");
+                var limitData = new DataWithMetadata(ms);
+                if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
+                {
+                    // This will force a refresh on the Next
+                    _upperIdLimit = 0;
+                }
+                else
+                {
+                    throw new InvalidOperationException("Could not update the id");
+                }
             }
         }
 
@@ -104,8 +105,12 @@ namespace Kalix.Leo.Storage
                 var dataStream = await _store.LoadData(_location).ConfigureAwait(false);
                 if (dataStream != null)
                 {
-                    var all = await dataStream.Stream.ToBytes().ConfigureAwait(false);
-                    data = Encoding.UTF8.GetString(all, 0, all.Length);
+                    using(var ms = new MemoryStream())
+                    {
+                        await dataStream.Stream.CopyToAsync(ms);
+                        var all = ms.ToArray();
+                        data = Encoding.UTF8.GetString(all, 0, all.Length);
+                    }
                 }
 
                 long currentId;
@@ -128,15 +133,18 @@ namespace Kalix.Leo.Storage
                 var upperLimit = currentId + _rangeSize;
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
-                var limitData = new DataWithMetadata(Observable.Return(limitBytes, TaskPoolScheduler.Default));
-                if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
+                using (var ms = new MemoryStream(limitBytes))
                 {
-                    // First update currentId
-                    // Then upper limit, this will avoid any need for locks etc
-                    _internalId = currentId;
-                    _upperIdLimit = upperLimit;
+                    var limitData = new DataWithMetadata(ms);
+                    if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
+                    {
+                        // First update currentId
+                        // Then upper limit, this will avoid any need for locks etc
+                        _internalId = currentId;
+                        _upperIdLimit = upperLimit;
 
-                    return;
+                        return;
+                    }
                 }
 
                 retryCount++;

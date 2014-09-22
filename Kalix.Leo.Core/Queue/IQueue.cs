@@ -1,4 +1,5 @@
-﻿using System;
+﻿using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Queue
@@ -19,15 +20,11 @@ namespace Kalix.Leo.Queue
         /// <summary>
         /// Listen for messages originating from this queue
         /// </summary>
-        /// <param name="uncaughtException">If there are any internal errors you can listen to them here</param>
-        /// <param name="messagesToProcessInParallel">The number of messages to read at once</param>
-        /// <param name="millisecondPollInterval">The amount of time to poll in milliseconds</param>
+        /// <param name="maxMessages">Max number of messages to pull</param>
         /// <returns>
-        /// An observable of queue messages
-        /// 
-        /// Note: the queue messages must be completed and disposed, otherwise they will return to the queue
+        /// An list of queue messages - might be empty (task may take some time to return due to long polling of messages...)
         /// </returns>
-        IObservable<IQueueMessage> ListenForMessages(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null, int millisecondPollInterval = 2000);
+        Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, CancellationToken token);
 
         /// <summary>
         /// Make sure that the queue has been created
