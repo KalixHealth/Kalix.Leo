@@ -59,6 +59,43 @@ namespace Kalix.Leo.Azure.Storage
             return length;
         }
 
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_data == null)
+            {
+                using (var ms = new MemoryStream())
+                {
+                    var blockList = _blob.DownloadBlockList().ToList();
+                    if (blockList.Any())
+                    {
+                        // Make sure that we get the blocks in order...
+                        var orderedList = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).Select(o => Tuple.Create(blockList.IndexOf(o), o)).ToList();
+                        foreach (var o in orderedList)
+                        {
+                            // Do not assume each block is uniform... Make sure to use length info of previous blocks
+                            var start = orderedList.Where(ol => ol.Item1 < o.Item1).Sum(ol => ol.Item2.Length);
+                            _blob.DownloadRangeToStream(ms, start, o.Item2.Length);
+                        }
+                    }
+                    else
+                    {
+                        _blob.DownloadToStreamAsync(ms);
+                    }
+
+                    _data = ms.ToArray();
+                }
+            }
+
+            var length = Math.Min(_data.Length - _position, count);
+            if (length > 0)
+            {
+                Buffer.BlockCopy(_data, _position, buffer, offset, length);
+                _position += length;
+            }
+
+            return length;
+        }
+
         public override bool CanRead
         {
             get { return true; }
@@ -94,11 +131,6 @@ namespace Kalix.Leo.Azure.Storage
             {
                 throw new NotImplementedException();
             }
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            throw new NotImplementedException("Only the async version of read is implemented");
         }
 
         public override long Seek(long offset, SeekOrigin origin)
