@@ -79,7 +79,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     else
                     {
-                        _blob.DownloadToStreamAsync(ms);
+                        _blob.DownloadToStream(ms);
                     }
 
                     _data = ms.ToArray();
