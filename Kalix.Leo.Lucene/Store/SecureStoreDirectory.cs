@@ -123,7 +123,7 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.Size = data.Metadata.Size;
                 metadata.LastModified = data.Metadata.LastModified;
 
-                await _store.SaveData(loc, new DataWithMetadata(data.Stream, metadata), _encryptor, _options).ConfigureAwait(false);
+                await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s), _encryptor, _options).ConfigureAwait(false);
             });
 
             _disposables.Add(output);

@@ -1,11 +1,6 @@
 ﻿using Kalix.Leo.Storage;
 using NSubstitute;
 using NUnit.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reactive.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Core.Tests.Storage
@@ -27,7 +22,7 @@ namespace Kalix.Leo.Core.Tests.Storage
         public void FirstCallFetchesNewItems()
         {
             _store.LoadData(_loc).Returns(Task.FromResult<DataWithMetadata>(null));
-            _store.TryOptimisticWrite(_loc, null).ReturnsForAnyArgs(Task.FromResult(true));
+            _store.TryOptimisticWrite(_loc, null, null).ReturnsForAnyArgs(Task.FromResult(true));
 
             var generator = GetGenerator(10);
             var id = generator.NextId().Result;

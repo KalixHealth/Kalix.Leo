@@ -1,6 +1,5 @@
 ﻿using Amazon.S3;
 using Amazon.S3.Model;
-using Kalix.Leo.Storage;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -24,19 +23,21 @@ namespace Kalix.Leo.Amazon.Storage
 
             // Fire up the multipart upload request...
             var req = new InitiateMultipartUploadRequest { BucketName = _bucket, Key = key };
-            foreach (var m in metadata)
+            if (metadata != null)
             {
-                req.Metadata.Add(m.Key, m.Value);
+                foreach (var m in metadata)
+                {
+                    req.Metadata.Add(m.Key, m.Value);
+                }
             }
 
             _uploadId = _client.InitiateMultipartUploadAsync(req).ContinueWith(r => r.Result.UploadId);
         }
 
-        public Task PushBlockOfData(byte[] data, int partNumber)
+        public void PushBlockOfData(byte[] data, int partNumber)
         {
             var task = PushBlockOfDataInteral(data, partNumber);
             _blocks.Add(task);
-            return task;
         }
 
         public async Task Complete()
@@ -55,7 +56,7 @@ namespace Kalix.Leo.Amazon.Storage
             await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
         }
 
-        public void Abort()
+        public async Task Abort()
         {
             // No need to cancel if the uploadid call is the thing that failed
             if (_uploadId.IsFaulted || !_uploadId.IsCompleted) { return; }
@@ -67,7 +68,7 @@ namespace Kalix.Leo.Amazon.Storage
                 UploadId = _uploadId.Result
             };
 
-            _client.AbortMultipartUpload(abortMPURequest);
+            await _client.AbortMultipartUploadAsync(abortMPURequest).ConfigureAwait(false);
         }
 
         private async Task<UploadPartResponse> PushBlockOfDataInteral(byte[] data, int partNumber)

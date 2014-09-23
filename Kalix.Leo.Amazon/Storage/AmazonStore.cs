@@ -15,8 +15,7 @@ namespace Kalix.Leo.Amazon.Storage
     public class AmazonStore : IStore
     {
         private const string IdExtension = ".dat";
-        private const int ReadWriteBufferSize = 6291456; // 6Mb
-
+        
         private readonly AmazonS3Client _client;
         private readonly string _bucket;
 
@@ -32,89 +31,24 @@ namespace Kalix.Leo.Amazon.Storage
             _bucket = bucket;
         }
 
-        public async Task SaveData(StoreLocation location, DataWithMetadata data)
+        public async Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
         {
-            AmazonMultiUpload uploadClient = null;
-
-            try
+            var key = GetObjectKey(location);
+            using(var stream = new AmazonMultiUploadStream(_client, _bucket, key, metadata))
             {
-                var key = GetObjectKey(location);
-                byte[] firstHit = null;
-                var uploadLock = new object();
-                int partNumber = 1;
-
-                byte[] buff = new byte[ReadWriteBufferSize];
-                int r;
-                while ((r = await data.Stream.ReadAsync(buff, 0, buff.Length)) > 0)
+                Exception doCancel = null;
+                try
                 {
-                    var d = new byte[r];
-                    Buffer.BlockCopy(buff, 0, d, 0, r);
-
-                    if (firstHit == null)
-                    {
-                        firstHit = d;
-                    }
-                    else
-                    {
-                        var pNum = Interlocked.Increment(ref partNumber);
-
-                        if (uploadClient == null)
-                        {
-                            lock (uploadLock)
-                            {
-                                if (uploadClient == null)
-                                {
-                                    uploadClient = new AmazonMultiUpload(_client, _bucket, key, data.Metadata);
-                                }
-                            }
-                        }
-
-                        if (pNum == 2)
-                        {
-                            await uploadClient.PushBlockOfData(firstHit, 1).ConfigureAwait(false);
-                        }
-
-                        // We are doing multipart here!
-                        await uploadClient.PushBlockOfData(d, pNum).ConfigureAwait(false);
-                    }
+                    await savingFunc(stream).ConfigureAwait(false);
+                    await stream.Complete().ConfigureAwait(false);
                 }
+                catch (Exception e) { doCancel = e; }
 
-                // If we didnt do multimerge then just do single!
-                if (uploadClient == null)
+                if (doCancel != null)
                 {
-                    using (var ms = new MemoryStream(firstHit))
-                    {
-                        var request = new PutObjectRequest
-                        {
-                            AutoCloseStream = false,
-                            AutoResetStreamPosition = false,
-                            BucketName = _bucket,
-                            Key = GetObjectKey(location),
-                            InputStream = ms
-                        };
-
-                        // Copy the metadata across
-                        foreach (var m in data.Metadata)
-                        {
-                            request.Metadata.Add(m.Key, m.Value);
-                        }
-
-                        await _client.PutObjectAsync(request).ConfigureAwait(false);
-                    }
+                    await stream.Abort().ConfigureAwait(false);
+                    throw doCancel;
                 }
-                else
-                {
-                    await uploadClient.Complete().ConfigureAwait(false);
-                }
-            }
-            catch(Exception)
-            {
-                if(uploadClient != null)
-                {
-                    uploadClient.Abort();
-                }
-
-                throw;
             }
         }
 

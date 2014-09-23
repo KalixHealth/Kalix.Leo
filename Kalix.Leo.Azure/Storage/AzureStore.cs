@@ -2,13 +2,10 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
-using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reactive;
-using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading;
@@ -40,9 +37,9 @@ namespace Kalix.Leo.Azure.Storage
             _deletedKey = deletedKey ?? DefaultDeletedKey;
         }
 
-        public Task SaveData(StoreLocation location, DataWithMetadata data)
+        public Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
         {
-            return SaveDataInternal(location, data, false);
+            return SaveDataInternal(location, metadata, savingFunc, false);
         }
 
         public async Task SaveMetadata(StoreLocation location, Metadata metadata)
@@ -71,9 +68,9 @@ namespace Kalix.Leo.Azure.Storage
             await blob.SetMetadataAsync().ConfigureAwait(false);
         }
 
-        public Task<bool> TryOptimisticWrite(StoreLocation location, DataWithMetadata data)
+        public Task<bool> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
         {
-            return SaveDataInternal(location, data, true);
+            return SaveDataInternal(location, metadata, savingFunc, true);
         }
 
         public async Task<IDisposable> Lock(StoreLocation location)
@@ -460,7 +457,7 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
         }
 
-        private async Task<bool> SaveDataInternal(StoreLocation location, DataWithMetadata data, bool isOptimistic)
+        private async Task<bool> SaveDataInternal(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc, bool isOptimistic)
         {
             try
             {
@@ -468,15 +465,18 @@ namespace Kalix.Leo.Azure.Storage
                 using (var stream = await blob.OpenWriteAsync().ConfigureAwait(false))
                 {
                     // Copy the metadata across
-                    foreach (var m in data.Metadata)
+                    if (metadata != null)
                     {
-                        blob.Metadata[m.Key] = m.Value;
+                        foreach (var m in metadata)
+                        {
+                            blob.Metadata[m.Key] = m.Value;
+                        }
                     }
 
                     blob.Metadata[VersionKey] = "v2";
                     var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
 
-                    await data.Stream.CopyToAsync(stream).ConfigureAwait(false);
+                    await savingFunc(stream).ConfigureAwait(false);
                 }
 
                 // Create a snapshot straight away on azure

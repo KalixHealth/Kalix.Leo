@@ -3,7 +3,6 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
 
 namespace Kalix.Leo.Amazon.Tests
@@ -18,9 +17,8 @@ namespace Kalix.Leo.Amazon.Tests
 
         static AmazonTestsHelper()
         {
-            var systemName = ConfigurationManager.AppSettings["RegionSystemName"];
-            var region = RegionEndpoint.GetBySystemName(systemName);
-            _client = new AmazonS3Client(region);
+            var region = RegionEndpoint.GetBySystemName("ap-southeast-2");
+            _client = new AmazonS3Client("AWSAccessKey", "AWSSecretKey", region);
         }
 
         public static AmazonS3Client SetupBlob(string container, string path)

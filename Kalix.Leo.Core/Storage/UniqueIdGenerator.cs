@@ -78,18 +78,14 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            using (var ms = new MemoryStream(limitBytes))
+            if (await _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
             {
-                var limitData = new DataWithMetadata(ms);
-                if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
-                {
-                    // This will force a refresh on the Next
-                    _upperIdLimit = 0;
-                }
-                else
-                {
-                    throw new InvalidOperationException("Could not update the id");
-                }
+                // This will force a refresh on the Next
+                _upperIdLimit = 0;
+            }
+            else
+            {
+                throw new InvalidOperationException("Could not update the id");
             }
         }
 
@@ -133,18 +129,14 @@ namespace Kalix.Leo.Storage
                 var upperLimit = currentId + _rangeSize;
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
-                using (var ms = new MemoryStream(limitBytes))
+                if (await _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
                 {
-                    var limitData = new DataWithMetadata(ms);
-                    if (await _store.TryOptimisticWrite(_location, limitData).ConfigureAwait(false))
-                    {
-                        // First update currentId
-                        // Then upper limit, this will avoid any need for locks etc
-                        _internalId = currentId;
-                        _upperIdLimit = upperLimit;
+                    // First update currentId
+                    // Then upper limit, this will avoid any need for locks etc
+                    _internalId = currentId;
+                    _upperIdLimit = upperLimit;
 
-                        return;
-                    }
+                    return;
                 }
 
                 retryCount++;

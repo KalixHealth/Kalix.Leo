@@ -153,55 +153,71 @@ namespace Kalix.Leo.Storage
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            using (var ms = new MemoryStream(data))
-            {
-                await SaveData(location, new DataWithMetadata(ms, obj.Metadata), encryptor, options);
-            }
+            await SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length), encryptor, options);
         }
 
-        public async Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task SaveData(StoreLocation location, Metadata mdata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
-            var metadata = new Metadata(data.Metadata);
-            var dataStream = data.Stream;
+            var metadata = new Metadata(mdata);
 
             /****************************************************
-             *  PREPARE THE STREAM
+             *  SETUP METADATA
              * ***************************************************/
-            // Data is a read stream, lets layer like an an onion :)
-            // First is compression
-            if(options.HasFlag(SecureStoreOptions.Compress))
+            if (encryptor != null)
             {
-                if(_compressor == null)
-                {
-                    throw new ArgumentException("Compression option should not be used if no compressor has been implemented", "options");
-                }
-
-                dataStream = _compressor.Compress(dataStream, true);
-                metadata[MetadataConstants.CompressionMetadataKey] = _compressor.Algorithm;
-            }
-            else
-            {
-                // Make sure to remove to not confuse loaders!
-                metadata.Remove(MetadataConstants.CompressionMetadataKey);
-            }
-
-            // Next is encryption
-            if(encryptor != null)
-            {
-                dataStream = encryptor.Encrypt(dataStream, true);
                 metadata[MetadataConstants.EncryptionMetadataKey] = encryptor.Algorithm;
             }
             else
             {
-                // Make sure to remove to not confuse loaders!
                 metadata.Remove(MetadataConstants.EncryptionMetadataKey);
             }
 
+            if (options.HasFlag(SecureStoreOptions.Compress))
+            {
+                if (_compressor == null)
+                {
+                    throw new ArgumentException("Compression option should not be used if no compressor has been implemented", "options");
+                }
+                metadata[MetadataConstants.CompressionMetadataKey] = _compressor.Algorithm;
+            }
+            else
+            {
+                metadata.Remove(MetadataConstants.CompressionMetadataKey);
+            }
+
             /****************************************************
-             *  SAVE THE INITIAL DATA
+             *  PREPARE THE SAVE STREAM
              * ***************************************************/
-            await _store.SaveData(location, new DataWithMetadata(dataStream, metadata)).ConfigureAwait(false);
+            await _store.SaveData(location, metadata, async (s) =>
+            {
+                Stream encStream = null;
+                Stream compStream = null;
+
+                try
+                {
+                    // Encrypt just before writing to the stream (if we need)
+                    if (encryptor != null)
+                    {
+                        encStream = encryptor.Encrypt(s, true);
+                    }
+
+                    // Data is a read stream, lets layer like an an onion :)
+                    // First is compression
+                    if(options.HasFlag(SecureStoreOptions.Compress))
+                    {
+                        compStream = _compressor.Compress(encStream ?? s, true);
+                    }
+
+                    var writeStream = compStream ?? encStream ?? s;
+                    await savingFunc(writeStream).ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (compStream != null) { compStream.Dispose(); }
+                    if (encStream != null) { encStream.Dispose(); }
+                }
+            }).ConfigureAwait(false);
 
             /****************************************************
              *  POST SAVE TASKS (BACKUP, INDEX)

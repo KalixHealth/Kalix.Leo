@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -12,9 +13,10 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Save Data to a specified location, metadata is completely overriden
         /// </summary>
-        /// <param name="data">Data to save</param>
+        /// <param name="metadata">Metadata to save</param>
         /// <param name="location">Location to store the file</param>
-        Task SaveData(StoreLocation location, DataWithMetadata data);
+        /// <returns>Stream to write to storage with</returns>
+        Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc);
 
         /// <summary>
         /// Update the metadata at the specified location, does not override it

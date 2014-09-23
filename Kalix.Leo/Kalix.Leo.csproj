@@ -84,7 +84,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="app.config" />
+    <Content Include="app.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <None Include="Kalix.Leo.nuspec" />
     <None Include="packages.config" />
   </ItemGroup>

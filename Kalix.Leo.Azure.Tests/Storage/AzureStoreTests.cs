@@ -32,10 +32,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void HasMetadataCorrectlySavesIt()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 _blob.FetchAttributes();
                 Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
@@ -44,15 +44,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void AlwaysOverridesMetadata()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
-                data.Position = 0;
                 var m2 = new Metadata();
                 m2["metadata2"] = "othermetadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m2)).Wait();
+                _store.SaveData(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 _blob.FetchAttributes();
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
@@ -62,8 +61,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MultiUploadLargeFileIsSuccessful()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(7));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(7);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 Assert.IsTrue(_blob.Exists());
             }
@@ -82,10 +81,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void FindsMetadataIncludingSizeAndLength()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var result = _store.GetMetadata(_location).Result;
 
@@ -101,10 +100,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MetadataIsTransferedWhenSelectingAStream()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var result = _store.LoadData(_location).Result;
                 Assert.AreEqual("metadata", result.Metadata["metadata1"]);
@@ -127,10 +126,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void FileMarkedAsDeletedReturnsNull()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["leodeleted"] = DateTime.UtcNow.Ticks.ToString();
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var result = _store.LoadData(_location).Result;
                 Assert.IsNull(result);
@@ -140,7 +139,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void AllDataLoadsCorrectly()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, new DataWithMetadata(new MemoryStream(data))).Wait();
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var result = _store.LoadData(_location).Result;
                 byte[] resData;
@@ -167,10 +166,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void SingleSnapshotCanBeFound()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -180,14 +179,13 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void SubItemBlobSnapshotsAreNotIncluded()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
                 var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
 
-                data.Position = 0;
-                _store.SaveData(location2, new DataWithMetadata(data)).Wait();
+                _store.SaveData(location2, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -201,10 +199,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void MetadataIsTransferedWhenSelectingAStream()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
+                var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, new DataWithMetadata(data, m)).Wait();
+                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 var res = _store.LoadData(_location, shapshot).Result;
@@ -231,8 +229,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 _store.SoftDelete(_location).Wait();
 
@@ -243,8 +241,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void ShouldNotDeleteSnapshots()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.SoftDelete(_location).Wait();
@@ -266,8 +264,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
 
                 _store.PermanentDelete(_location).Wait();
 
@@ -278,8 +276,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void ShouldDeleteAllSnapshots()
             {
-                var data = new MemoryStream(AzureTestsHelper.RandomData(1));
-                _store.SaveData(_location, new DataWithMetadata(data)).Wait();
+                var data = AzureTestsHelper.RandomData(1);
+                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.PermanentDelete(_location).Wait();

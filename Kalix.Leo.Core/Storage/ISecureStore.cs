@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -15,7 +16,7 @@ namespace Kalix.Leo.Storage
 
         Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null);
 
-        Task SaveData(StoreLocation location, DataWithMetadata data, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
+        Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
         Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
         Task SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All);
 
