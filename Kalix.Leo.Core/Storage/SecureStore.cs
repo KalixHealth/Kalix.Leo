@@ -199,16 +199,16 @@ namespace Kalix.Leo.Storage
                     // Encrypt just before writing to the stream (if we need)
                     if (encryptor != null)
                     {
-                        encStream = encryptor.Encrypt(s, true);
+                        encStream = encryptor.Encrypt(s, false);
                     }
 
-                    // Data is a read stream, lets layer like an an onion :)
-                    // First is compression
+                    // Compression comes right before encryption
                     if(options.HasFlag(SecureStoreOptions.Compress))
                     {
-                        compStream = _compressor.Compress(encStream ?? s, true);
+                        compStream = _compressor.Compress(encStream ?? s, false);
                     }
 
+                    // Work out which stream we are actually writing to...
                     var writeStream = compStream ?? encStream ?? s;
                     await savingFunc(writeStream).ConfigureAwait(false);
                 }
