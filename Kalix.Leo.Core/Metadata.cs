@@ -25,7 +25,7 @@ namespace Kalix.Leo
         /// Simple constructor to add a number of initial metadata keys
         /// </summary>
         /// <param name="initial">Dictionary of values</param>
-        public Metadata(IDictionary<string, string> initial) : base(initial) { }
+        public Metadata(IDictionary<string, string> initial) : base(initial ?? new Dictionary<string, string>()) { }
 
         /// <summary>
         /// Common metadata key, holds the date that a record was modified
