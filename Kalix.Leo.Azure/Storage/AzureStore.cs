@@ -476,7 +476,6 @@ namespace Kalix.Leo.Azure.Storage
                     var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
 
                     await savingFunc(stream).ConfigureAwait(false);
-                    await Task.Factory.FromAsync((c, s) => stream.BeginCommit(c, s), (r) => stream.EndCommit(r), null);
                 }
 
                 // Create a snapshot straight away on azure
