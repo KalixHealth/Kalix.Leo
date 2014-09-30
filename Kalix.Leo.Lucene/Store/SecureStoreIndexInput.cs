@@ -3,92 +3,183 @@ using Kalix.Leo.Encryption;
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
-using System.IO;
-using System.Reactive.Disposables;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Store
 {
     public class SecureStoreIndexInput : IndexInput
     {
-        private readonly IFileCache _cache;
-        private readonly string _cachePath;
-        private readonly Lazy<Stream> _stream;
-        private readonly CompositeDisposable _inputs;
+        private SecureStoreDirectory _directory;
+        private Directory _cache;
+        private string _name;
 
-        private bool _isDisposed;
+        private IndexInput _indexInput;
+        private Mutex _fileMutex;
 
-        public SecureStoreIndexInput(IFileCache cache, ISecureStore store, IEncryptor encryptor, StoreLocation location, string cachePath, CompositeDisposable inputs)
+        private static long ticks1970 = new DateTime(1970, 1, 1, 0, 0, 0).Ticks / TimeSpan.TicksPerMillisecond;
+
+        public SecureStoreIndexInput(SecureStoreDirectory directory, Directory cache, ISecureStore store, IEncryptor encryptor, StoreLocation location, string cachePath)
         {
+            _directory = directory;
             _cache = cache;
-            _cachePath = cachePath;
-            _inputs = inputs;
+            _name = cachePath;
 
-            _stream = new Lazy<Stream>(() => 
+            _fileMutex = BlobMutexManager.GrabMutex(_name);
+            _fileMutex.WaitOne();
+            try
             {
-                // When we open it for the first time we should we loading the latest data...
-                GetSyncVal(_cache.UpdateIfModified(_cachePath, store.LoadData(location, null, encryptor)));
-                LeoTrace.WriteLine("Opened IndexInput Stream");
+                bool fFileNeeded = false;
+                if (!_cache.FileExists(_name))
+                {
+                    fFileNeeded = true;
+                }
+                else
+                {
+                    long cachedLength = _cache.FileLength(_name);
+                    var metadata = GetSyncVal(store.GetMetadata(location));
+                    var blobLength = metadata.Size.Value;
+                    var blobLastModifiedUTC = metadata.LastModified.Value;
 
-                return GetSyncVal(_cache.GetReadonlyStream(_cachePath));
-            });   
+                    if (cachedLength != blobLength)
+                    {
+                        fFileNeeded = true;
+                    }
+                    else
+                    {
+                        // there seems to be an error of 1 tick which happens every once in a while 
+                        // for now we will say that if they are within 1 tick of each other and same length 
+                        var elapsed = _cache.FileModified(_name);
+
+                        // normalize RAMDirectory and FSDirectory times
+                        if (elapsed > ticks1970)
+                        {
+                            elapsed -= ticks1970;
+                        }
+
+                        var cachedLastModifiedUTC = new DateTime(elapsed, DateTimeKind.Local).ToUniversalTime();
+                        if (cachedLastModifiedUTC != blobLastModifiedUTC)
+                        {
+                            var timeSpan = blobLastModifiedUTC.Subtract(cachedLastModifiedUTC);
+                            if (timeSpan.TotalSeconds > 1)
+                            {
+                                fFileNeeded = true;
+                            }
+                        }
+                    }
+                }
+
+                // if the file does not exist
+                // or if it exists and it is older then the lastmodified time in the blobproperties (which always comes from the blob storage)
+                if (fFileNeeded)
+                {
+                    using(StreamOutput fileStream = _directory.CreateCachedOutputAsStream(_name))
+                    {
+                        var data = GetSyncVal(store.LoadData(location, null, encryptor));
+                        using (var s = data.Stream)
+                        {
+                            s.CopyTo(fileStream);
+                        }
+                    }
+
+                    // and open it as an input 
+                    _indexInput = _cache.OpenInput(_name);
+                }
+                else
+                {
+                    // open the file in read only mode
+                    _indexInput = _cache.OpenInput(_name);
+                }
+            }
+            finally
+            {
+                _fileMutex.ReleaseMutex();
+            }
         }
 
-        // Cloning method, makes sure that it is still trying to load from the same data/cache
-        // however the pointer can be different!
-        protected SecureStoreIndexInput(IFileCache cache, string cachePath, long pointer, CompositeDisposable inputs)
+        private SecureStoreIndexInput(SecureStoreIndexInput cloneInput)
         {
-            _cache = cache;
-            _cachePath = cachePath;
-            _inputs = inputs;
+            _fileMutex = BlobMutexManager.GrabMutex(cloneInput._name);
+            _fileMutex.WaitOne();
 
-            _stream = new Lazy<Stream>(() => GetSyncVal(_cache.GetReadonlyStream(_cachePath, pointer)));  
-        }
-
-        public override long FilePointer
-        {
-            get { return _stream.Value.Position; }
-        }
-
-        public override long Length()
-        {
-            return _stream.Value.Length;
+            try
+            {
+                _directory = cloneInput._directory;
+                _cache = cloneInput._cache;
+                _name = cloneInput._name;
+                _indexInput = cloneInput._indexInput.Clone() as IndexInput;
+            }
+            catch (Exception)
+            {
+                // sometimes we get access denied on the 2nd stream...but not always. I haven't tracked it down yet
+                // but this covers our tail until I do
+                LeoTrace.WriteLine(String.Format("Falling back to memory clone for {0}", cloneInput._name));
+            }
+            finally
+            {
+                _fileMutex.ReleaseMutex();
+            }
         }
 
         public override byte ReadByte()
         {
-            return (byte)_stream.Value.ReadByte();
+            return _indexInput.ReadByte();
         }
 
         public override void ReadBytes(byte[] b, int offset, int len)
         {
-            _stream.Value.Read(b, offset, len);
+            _indexInput.ReadBytes(b, offset, len);
+        }
+
+        public override long FilePointer
+        {
+            get
+            {
+                return _indexInput.FilePointer;
+            }
         }
 
         public override void Seek(long pos)
         {
-            _stream.Value.Seek(pos, SeekOrigin.Begin);
-        }
-
-        public override object Clone()
-        {
-            var input = new SecureStoreIndexInput(_cache, _cachePath, FilePointer, _inputs);
-            _inputs.Add(input);
-            return input;
+            _indexInput.Seek(pos);
         }
 
         protected override void Dispose(bool disposing)
         {
-            // Only dispose update task if we havent cloned...
-            if(!_isDisposed)
+            _fileMutex.WaitOne();
+            try
             {
-                if(_stream.IsValueCreated)
-                {
-                    _stream.Value.Dispose();
-                }
-
-                _isDisposed = true;
+                _indexInput.Dispose();
+                _indexInput = null;
+                _directory = null;
+                _cache = null;
+                GC.SuppressFinalize(this);
             }
+            finally
+            {
+                _fileMutex.ReleaseMutex();
+            }
+        }
+
+        public override long Length()
+        {
+            return _indexInput.Length();
+        }
+
+        public override System.Object Clone()
+        {
+            IndexInput clone = null;
+            try
+            {
+                _fileMutex.WaitOne();
+                var input = new SecureStoreIndexInput(this);
+                clone = (IndexInput)input;
+            }
+            finally
+            {
+                _fileMutex.ReleaseMutex();
+            }
+            return clone;
         }
 
         private T GetSyncVal<T>(Task<T> task)
@@ -109,11 +200,11 @@ namespace Kalix.Leo.Lucene.Store
                         w.Run(task.ContinueWith(t => { val = t.Result; }));
                     }
                 }
-                catch(AggregateException e)
+                catch (AggregateException e)
                 {
                     Exception ex = e;
                     // Unwrap aggregate exceptions
-                    while(ex is AggregateException)
+                    while (ex is AggregateException)
                     {
                         ex = ex.InnerException;
                     }

@@ -56,18 +56,20 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\packages\Rx-Linq.2.2.5\lib\net45\System.Reactive.Linq.dll</HintPath>
     </Reference>
+    <Reference Include="System.Runtime.Caching" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analysis\EnglishAnalyzer.cs" />
     <Compile Include="ILuceneIndex.cs" />
     <Compile Include="LuceneIndex.cs" />
-    <Compile Include="Store\EncryptedFileCache.cs" />
-    <Compile Include="Store\IFileCache.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Store\BlobMutexManager.cs" />
     <Compile Include="Store\SecureStoreDirectory.cs" />
     <Compile Include="Store\SecureStoreIndexInput.cs" />
     <Compile Include="Store\SecureStoreIndexOutput.cs" />
     <Compile Include="Store\SecureStoreLock.cs" />
+    <Compile Include="Store\SteamOutput.cs" />
+    <Compile Include="Store\StreamInput.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

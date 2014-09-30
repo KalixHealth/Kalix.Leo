@@ -46,7 +46,7 @@ namespace Kalix.Leo.Lucene
         /// <param name="encryptor">The encryptor to encryt any records being saved</param>
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
-            : this(new SecureStoreDirectory(store, container, basePath, new EncryptedFileCache(_baseDirectory), encryptor), new EnglishAnalyzer(), RAMSizeMb, secsTillReaderRefresh)
+            : this(new SecureStoreDirectory(new RAMDirectory(), store, container, basePath, encryptor), new EnglishAnalyzer(), RAMSizeMb, secsTillReaderRefresh)
         {
         }
 

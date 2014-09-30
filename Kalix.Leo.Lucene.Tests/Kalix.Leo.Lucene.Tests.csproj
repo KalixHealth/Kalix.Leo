@@ -91,7 +91,6 @@
   <ItemGroup>
     <Compile Include="LuceneIndexTests.cs" />
     <Compile Include="netfx\Testing\Ipsum.cs" />
-    <Compile Include="Store\EncryptedFileCacheTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

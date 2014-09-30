@@ -4,7 +4,6 @@ using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
-using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Threading.Tasks;
 using Path = System.IO.Path;
@@ -17,17 +16,15 @@ namespace Kalix.Leo.Lucene.Store
         private readonly string _container;
         private readonly string _basePath;
         private readonly IEncryptor _encryptor;
-        private readonly IFileCache _cache;
         private readonly SecureStoreOptions _options;
-        private readonly CompositeDisposable _disposables;
+        private readonly Directory _cache;
 
-        public SecureStoreDirectory(ISecureStore store, string container, string basePath, IFileCache cache, IEncryptor encryptor)
+        public SecureStoreDirectory(Directory cache, ISecureStore store, string container, string basePath, IEncryptor encryptor)
         {
             _container = container;
             _basePath = basePath ?? string.Empty;
             _cache = cache;
             _store = store;
-            _disposables = new CompositeDisposable();
             _encryptor = encryptor;
 
             _options = SecureStoreOptions.None;
@@ -39,47 +36,15 @@ namespace Kalix.Leo.Lucene.Store
             store.CreateContainerIfNotExists(container);
         }
 
-        public override void DeleteFile(string name)
+        public void ClearCache()
         {
-            using (var w = AsyncHelper.Wait)
+            foreach (string file in _cache.ListAll())
             {
-                w.Run(_store.Delete(GetLocation(name), SecureStoreOptions.None));
-                w.Run(_cache.Delete(GetCachePath(name)));
+                _cache.DeleteFile(file);
             }
         }
 
-        public override bool FileExists(string name)
-        {
-            var metadata = _cache.GetMetadata(GetCachePath(name));
-            if (metadata != null) { return true; }
-            
-            // Fallback to the server
-            LeoTrace.WriteLine("SecureStore.FileExists");
-            return GetSyncVal(_store.GetMetadata(GetLocation(name))) != null;
-        }
-
-        public override long FileLength(string name)
-        {
-            var metadata = _cache.GetMetadata(GetCachePath(name));
-            if (metadata != null) { return metadata.Size.Value; }
-
-            // Fallback to the server
-            LeoTrace.WriteLine("SecureStore.FileLength");
-            metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
-            return metadata == null || !metadata.Size.HasValue ? 0 : metadata.Size.Value;
-        }
-
-        public override long FileModified(string name)
-        {
-            var metadata = _cache.GetMetadata(GetCachePath(name));
-            if (metadata != null) { return metadata.LastModified.Value.ToFileTimeUtc(); }
-
-            // Fallback to the server
-            LeoTrace.WriteLine("SecureStore.FileModified");
-            metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
-            return metadata == null || !metadata.LastModified.HasValue ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
-        }
-
+        /// <summary>Returns an array of strings, one for each file in the directory. </summary>
         public override string[] ListAll()
         {
             string[] result = null;
@@ -100,23 +65,58 @@ namespace Kalix.Leo.Lucene.Store
                 .ToArray(); // This will block until executed
         }
 
+        /// <summary>Returns true if a file with the given name exists. </summary>
+        public override bool FileExists(string name)
+        {
+            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            return metadata != null;
+        }
+
+        /// <summary>Returns the time the named file was last modified. </summary>
+        public override long FileModified(string name)
+        {
+            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            return metadata == null ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
+        }
+
+        /// <summary>Set the modified time of an existing file to now. </summary>
         public override void TouchFile(string name)
         {
-            // Not sure this is used... (would be a annoying if it is!)
-            throw new NotImplementedException();
+            // I have no idea what the semantics of this should be...
+            // we never seem to get called
+            _cache.TouchFile(name);
         }
 
-        public override IndexInput OpenInput(string name)
+        /// <summary>Removes an existing file in the directory. </summary>
+        public override void DeleteFile(string name)
         {
-            var input = new SecureStoreIndexInput(_cache, _store, _encryptor, GetLocation(name), GetCachePath(name), _disposables);
-            _disposables.Add(input);
-            return input;
+            var location = GetLocation(name);
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(_store.Delete(location, _options));
+            }
+            LeoTrace.WriteLine(String.Format("DELETE {0}", location.BasePath));
+
+            if (_cache.FileExists(name))
+            {
+                _cache.DeleteFile(name);
+            }
         }
 
+        /// <summary>Returns the length of a file in the directory. </summary>
+        public override long FileLength(string name)
+        {
+            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            return metadata.Size.Value;
+        }
+
+        /// <summary>Creates a new, empty file in the directory with the given name.
+        /// Returns a stream writing this file. 
+        /// </summary>
         public override IndexOutput CreateOutput(string name)
         {
             var loc = GetLocation(name);
-            var output = new SecureStoreIndexOutput(_cache, GetCachePath(name), async data => 
+            return new SecureStoreIndexOutput(_cache, name, async data =>
             {
                 // Overwrite metadata for better effiency (size/modified)
                 var metadata = new Metadata();
@@ -125,12 +125,16 @@ namespace Kalix.Leo.Lucene.Store
 
                 await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s), _encryptor, _options).ConfigureAwait(false);
             });
+        }
 
-            _disposables.Add(output);
-            return output;
+        /// <summary>Returns a stream reading an existing file. </summary>
+        public override IndexInput OpenInput(System.String name)
+        {
+            return new SecureStoreIndexInput(this, _cache, _store, _encryptor, GetLocation(name), name);
         }
 
         private Dictionary<string, SecureStoreLock> _locks = new Dictionary<string, SecureStoreLock>();
+
         public override Lock MakeLock(string name)
         {
             lock (_locks)
@@ -153,35 +157,33 @@ namespace Kalix.Leo.Lucene.Store
                     _locks[name].Release();
                 }
             }
+            _cache.ClearLock(name);
         }
 
-        public override string GetLockId()
+        protected override void Dispose(bool disposing)
         {
-            return Path.Combine(_container, _basePath);
+            if (disposing)
+            {
+                foreach (var l in _locks.Values)
+                {
+                    l.Dispose();
+                }
+            }
+        }
+
+        public StreamInput OpenCachedInputAsStream(string name)
+        {
+            return new StreamInput(_cache.OpenInput(name));
+        }
+
+        public StreamOutput CreateCachedOutputAsStream(string name)
+        {
+            return new StreamOutput(_cache.CreateOutput(name));
         }
 
         private StoreLocation GetLocation(string name)
         {
             return new StoreLocation(_container, Path.Combine(_basePath, name));
-        }
-
-        private string GetCachePath(string name)
-        {
-            return Path.Combine(_container, _basePath, name);
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (!_disposables.IsDisposed)
-            {
-                foreach(var l in _locks.Values)
-                {
-                    l.Dispose();
-                }
-
-                _disposables.Dispose();
-                _cache.Dispose();
-            }
         }
 
         private T GetSyncVal<T>(Task<T> task)
