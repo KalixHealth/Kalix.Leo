@@ -82,9 +82,11 @@
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AzureException.cs" />
     <Compile Include="Queue\AzureQueueStorage.cs" />
     <Compile Include="Queue\AzureQueueStorageMessage.cs" />
     <Compile Include="SafePath.cs" />
+    <Compile Include="StorageExceptionExtensions.cs" />
     <Compile Include="Storage\AzureBlockBlobStream.cs" />
     <Compile Include="Storage\AzureStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

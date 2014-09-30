@@ -57,7 +57,7 @@ namespace Kalix.Leo.Azure.Storage
                     return;
                 }
 
-                throw;
+                throw e.Wrap();
             }
 
             foreach(var m in metadata)
@@ -171,7 +171,7 @@ namespace Kalix.Leo.Azure.Storage
                     return null;
                 }
 
-                throw;
+                throw e.Wrap();
             }
 
             var metadata = GetActualMetadata(blob);
@@ -199,10 +199,8 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     return null;
                 }
-                else
-                {
-                    throw;
-                }
+
+                throw e.Wrap();
             }
 
             // If deleted then return null...
@@ -283,7 +281,8 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     return;
                 }
-                throw;
+
+                throw e.Wrap();
             }
 
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
@@ -348,7 +347,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 else
                 {
-                    observer.OnError(e);
+                    observer.OnError(e.Wrap());
                 }
             }
             catch (Exception e)
@@ -380,7 +379,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 else
                 {
-                    throw;
+                    throw e.Wrap();
                 }
             }
 
@@ -410,7 +409,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     else
                     {
-                        throw;
+                        throw e.Wrap();
                     }
                 }
             }
@@ -477,6 +476,7 @@ namespace Kalix.Leo.Azure.Storage
                     var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
 
                     await savingFunc(stream).ConfigureAwait(false);
+                    await Task.Factory.FromAsync((c, s) => stream.BeginCommit(c, s), (r) => stream.EndCommit(r), null);
                 }
 
                 // Create a snapshot straight away on azure
@@ -497,7 +497,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                 }
 
-                throw;
+                throw exc.Wrap();
             }
 
             return true;

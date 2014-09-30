@@ -82,17 +82,7 @@ namespace Kalix.Leo.Listeners
                         {
                             if (item.Value.IsCanceled || item.Value.IsCompleted || item.Value.IsFaulted)
                             {
-                                try
-                                {
-                                    hash.Remove(item.Key);
-                                }
-                                catch (Exception e)
-                                {
-                                    if (uncaughtException != null)
-                                    {
-                                        uncaughtException(e);
-                                    }
-                                }
+                                hash.Remove(item.Key);
                             }
                         }
 
@@ -133,7 +123,8 @@ namespace Kalix.Leo.Listeners
                     {
                         if(uncaughtException != null)
                         {
-                            uncaughtException(e);
+                            var ex = new Exception("An exception occured in the message handling loop: " + e.Message, e);
+                            uncaughtException(ex);
                         }
                     }
                 }
@@ -189,7 +180,8 @@ namespace Kalix.Leo.Listeners
             {
                 if(uncaughtException != null)
                 {
-                    uncaughtException(e);
+                    var ex = new Exception("An exception occurred while handling a message: " + e.Message, e);
+                    uncaughtException(ex);
                 }
                 throw;
             }

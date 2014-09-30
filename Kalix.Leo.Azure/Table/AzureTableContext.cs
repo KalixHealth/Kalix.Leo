@@ -93,9 +93,7 @@ namespace Kalix.Leo.Azure.Table
                         throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
                     }
 
-                    // Throw an error with more details...
-                    var extraData = JsonConvert.SerializeObject(ex.RequestInformation.ExtendedErrorInformation);
-                    throw new Exception("Storage Exception occured with additional details: " + extraData, ex);
+                    throw ex.Wrap();
                 }
 
                 _hasSaved = true;

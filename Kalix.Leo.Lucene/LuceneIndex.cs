@@ -20,6 +20,11 @@ namespace Kalix.Leo.Lucene
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
 
+        // Only one index writer per lucene index, however all the writing happens on the single write thread
+        private readonly Lazy<IndexWriter> _writer;
+        private object _writeLock = new object();
+        private Task _writeThread = Task.FromResult(0);
+
         private int _readerRefreshRate;
         private IndexReader _reader;
         private DateTime _lastRefresh; // We use this to refresh every n secs or so
@@ -58,39 +63,64 @@ namespace Kalix.Leo.Lucene
             _analyzer = analyzer;
             _RAMSizeMb = RAMSizeMb;
             _readerRefreshRate = secsTillReaderRefresh;
+
+            _writer = new Lazy<IndexWriter>(InitWriter);
         }
 
-        public async Task WriteToIndex(IObservable<Document> documents)
+        public Task WriteToIndex(IObservable<Document> documents)
         {
-            using (var writer = Writer())
+            if (_isDisposed)
             {
-                await documents
-                    .Do(writer.AddDocument)
-                    .LastOrDefaultAsync();
+                throw new ObjectDisposedException("LuceneIndex");
+            }
 
-                writer.Commit();
+            lock(_writeLock)
+            {
+                return _writeThread = _writeThread.ContinueWith(async (t) =>
+                {
+                    await documents
+                        .Do(_writer.Value.AddDocument)
+                        .LastOrDefaultAsync();
+
+                    _writer.Value.Commit();
+                }).Unwrap();
             }
         }
 
-        public async Task WriteToIndex(Action<IndexWriter> writeUsingIndex)
+        public Task WriteToIndex(Action<IndexWriter> writeUsingIndex)
         {
-            await Task.Run(() =>
+            if (_isDisposed)
             {
-                using (var writer = Writer())
+                throw new ObjectDisposedException("LuceneIndex");
+            }
+
+            lock (_writeLock)
+            {
+                return _writeThread = _writeThread.ContinueWith((t) =>
                 {
-                    writeUsingIndex(writer);
-                    writer.Commit();
-                }
-            }).ConfigureAwait(false);
+                    writeUsingIndex(_writer.Value);
+                    _writer.Value.Commit();
+                });
+            }
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
         {
+            if (_isDisposed)
+            {
+                throw new ObjectDisposedException("LuceneIndex");
+            }
+
             return SearchDocuments((s, a) => doSearchFunc(s));
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc)
         {
+            if (_isDisposed)
+            {
+                throw new ObjectDisposedException("LuceneIndex");
+            }
+
             return Observable.Create<Document>(obs =>
             {
                 var cts = new CancellationTokenSource();
@@ -126,18 +156,28 @@ namespace Kalix.Leo.Lucene
 
         public Task DeleteAll()
         {
-            return Task.Run(() =>
+            if (_isDisposed)
             {
-                using (var writer = Writer())
+                throw new ObjectDisposedException("LuceneIndex");
+            }
+
+            lock (_writeLock)
+            {
+                return _writeThread = _writeThread.ContinueWith((t) =>
                 {
-                    writer.DeleteAll();
-                    writer.Commit();
-                }
-            });
+                    _writer.Value.DeleteAll();
+                    _writer.Value.Commit();
+                });
+            }
         }
 
-        private IndexWriter Writer()
+        private IndexWriter InitWriter()
         {
+            if (_isDisposed)
+            {
+                throw new ObjectDisposedException("LuceneIndex");
+            }
+
             IndexWriter writer;
             try
             {
@@ -157,7 +197,7 @@ namespace Kalix.Leo.Lucene
         {
             if(_isDisposed)
             {
-                throw new ObjectDisposedException("Indexer");
+                throw new ObjectDisposedException("LuceneIndex");
             }
 
             if(_reader == null || _lastRefresh < DateTime.UtcNow)
@@ -208,6 +248,11 @@ namespace Kalix.Leo.Lucene
                 if(_reader != null)
                 {
                     _reader.Dispose();
+                }
+
+                if(_writer.IsValueCreated)
+                {
+                    _writer.Value.Dispose();
                 }
 
                 _analyzer.Dispose();
