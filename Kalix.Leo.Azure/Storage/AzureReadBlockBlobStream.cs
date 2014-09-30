@@ -7,17 +7,14 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    /// <summary>
-    /// This is here just so that we support old streams
-    /// </summary>
-    public class AzureBlockBlobStream : Stream
+    public class AzureReadBlockBlobStream : Stream
     {
         private readonly CloudBlockBlob _blob;
         private byte[] _data;
 
         private int _position;
 
-        public AzureBlockBlobStream(CloudBlockBlob blob)
+        public AzureReadBlockBlobStream(CloudBlockBlob blob)
         {
             _blob = blob;
         }

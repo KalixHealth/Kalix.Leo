@@ -17,8 +17,6 @@ namespace Kalix.Leo.Azure.Storage
     {
         private const string IdExtension = ".id";
         private const string DefaultDeletedKey = "leodeleted";
-        private const string VersionKey = "leoazureversion";
-        private const int AzureBlockSize = 4194304;
 
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
@@ -187,11 +185,10 @@ namespace Kalix.Leo.Azure.Storage
             var blob = GetBlockBlob(location, snapshot);
 
             // Get metadata first - this record might be deleted so quicker to test this than to download whole record...
-            Stream baseStream;
             try
             {
                 LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
-                baseStream = await blob.OpenReadAsync().ConfigureAwait(false);
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
             }
             catch (StorageException e)
             {
@@ -207,17 +204,10 @@ namespace Kalix.Leo.Azure.Storage
             var metadata = GetActualMetadata(blob);
             if (metadata.ContainsKey(_deletedKey))
             {
-                baseStream.Dispose();
                 return null;
             }
 
-            // If we are using older stream we need to fall back to it :(
-            if (!metadata.ContainsKey(VersionKey))
-            {
-                baseStream = new AzureBlockBlobStream(blob);
-            }
-
-            return new DataWithMetadata(baseStream, metadata);
+            return new DataWithMetadata(new AzureReadBlockBlobStream(blob), metadata);
         }
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
@@ -461,21 +451,26 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 var blob = GetBlockBlob(location);
-                using (var stream = await blob.OpenWriteAsync().ConfigureAwait(false))
+                if(isOptimistic)
                 {
-                    // Copy the metadata across
-                    if (metadata != null)
+                    await blob.FetchAttributesAsync().ConfigureAwait(false);
+                }
+
+                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
+
+                // Copy the metadata across
+                if (metadata != null)
+                {
+                    foreach (var m in metadata)
                     {
-                        foreach (var m in metadata)
-                        {
-                            blob.Metadata[m.Key] = m.Value;
-                        }
+                        blob.Metadata[m.Key] = m.Value;
                     }
+                }
 
-                    blob.Metadata[VersionKey] = "v2";
-                    var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
-
+                using (var stream = new AzureWriteBlockBlobStream(blob, condition))
+                {
                     await savingFunc(stream).ConfigureAwait(false);
+                    await stream.Complete().ConfigureAwait(false);
                 }
 
                 // Create a snapshot straight away on azure

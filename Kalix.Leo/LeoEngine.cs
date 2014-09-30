@@ -35,7 +35,15 @@ namespace Kalix.Leo
             _cachePolicy = new CacheItemPolicy
             {
                 Priority = CacheItemPriority.Default,
-                SlidingExpiration = TimeSpan.FromHours(1)
+                SlidingExpiration = TimeSpan.FromHours(1),
+                RemovedCallback = (a) => 
+                {
+                    var disp = a.CacheItem.Value as IDisposable;
+                    if(disp != null)
+                    {
+                        disp.Dispose();
+                    }
+                }
             };
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
