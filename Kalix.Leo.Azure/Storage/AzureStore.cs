@@ -380,7 +380,11 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     using (var stream = new MemoryStream(new byte[1]))
                     {
-                        await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                        try
+                        {
+                            await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
+                        }
+                        catch (StorageException e) { }  // Just eat storage exceptions at this point... something was created obviously
                     }
                     leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
                     LeoTrace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
@@ -453,12 +457,24 @@ namespace Kalix.Leo.Azure.Storage
                 var blob = GetBlockBlob(location);
                 if(isOptimistic)
                 {
-                    await blob.FetchAttributesAsync().ConfigureAwait(false);
+                    try
+                    {
+                        await blob.FetchAttributesAsync().ConfigureAwait(false);
+                    }
+                    catch(StorageException e)
+                    {
+                        // 404s are ok!
+                        if (e.RequestInformation.HttpStatusCode != 404)
+                        {
+                            throw;
+                        }
+                    }
                 }
 
                 var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
 
                 // Copy the metadata across
+                blob.Metadata.Clear();
                 if (metadata != null)
                 {
                     foreach (var m in metadata)

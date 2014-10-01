@@ -69,6 +69,63 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
+        public class TryOptimisticWriteMethod : AzureStoreTests
+        {
+            [Test]
+            public void HasMetadataCorrectlySavesIt()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                var m = new Metadata();
+                m["metadata1"] = "somemetadata";
+                var success = _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                _blob.FetchAttributes();
+                Assert.IsTrue(success);
+                Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
+            }
+
+            [Test]
+            public void AlwaysOverridesMetadata()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                var m = new Metadata();
+                m["metadata1"] = "somemetadata";
+                var success1 = _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                var m2 = new Metadata();
+                m2["metadata2"] = "othermetadata";
+                var success2 = _store.TryOptimisticWrite(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                _blob.FetchAttributes();
+                Assert.IsTrue(success1, "first write failed");
+                Assert.IsTrue(success2, "second write failed");
+                Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
+                Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
+            }
+
+            [Test]
+            public void MultiUploadLargeFileIsSuccessful()
+            {
+                var data = AzureTestsHelper.RandomData(7);
+                var success = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                Assert.IsTrue(success);
+                Assert.IsTrue(_blob.Exists());
+            }
+
+            [Test]
+            public void IfFileLockedReturnsFalse()
+            {
+                using(var l = _store.Lock(_location).Result)
+                {
+                    var data = AzureTestsHelper.RandomData(1);
+                    var success = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+                    Assert.IsFalse(success);
+                }
+            }
+        }
+
+        [TestFixture]
         public class GetMetadataMethod : AzureStoreTests
         {
             [Test]
