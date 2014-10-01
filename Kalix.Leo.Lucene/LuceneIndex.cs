@@ -20,6 +20,8 @@ namespace Kalix.Leo.Lucene
         private readonly Directory _directory;
         private readonly Analyzer _analyzer;
 
+        private readonly Directory _cacheDirectory;
+
         // Only one index writer per lucene index, however all the writing happens on the single write thread
         private readonly Lazy<IndexWriter> _writer;
         private object _writeLock = new object();
@@ -46,8 +48,14 @@ namespace Kalix.Leo.Lucene
         /// <param name="encryptor">The encryptor to encryt any records being saved</param>
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
-            : this(new SecureStoreDirectory(new RAMDirectory(), store, container, basePath, encryptor), new EnglishAnalyzer(), RAMSizeMb, secsTillReaderRefresh)
         {
+            _cacheDirectory = new RAMDirectory();
+            _directory = new SecureStoreDirectory(_cacheDirectory, store, container, basePath, encryptor);
+            _analyzer = new EnglishAnalyzer();
+            _RAMSizeMb = RAMSizeMb;
+            _readerRefreshRate = secsTillReaderRefresh;
+
+            _writer = new Lazy<IndexWriter>(InitWriter);
         }
 
         /// <summary>
@@ -257,6 +265,11 @@ namespace Kalix.Leo.Lucene
 
                 _analyzer.Dispose();
                 _directory.Dispose();
+
+                if(_cacheDirectory != null)
+                {
+                    _cacheDirectory.Dispose();
+                }
             }
         }
     }

@@ -38,6 +38,11 @@ namespace Kalix.Leo.Lucene.Store
                 {
                     long cachedLength = _cache.FileLength(_name);
                     var metadata = GetSyncVal(store.GetMetadata(location));
+                    if(metadata == null)
+                    {
+                        throw new System.IO.FileNotFoundException(_name);
+                    }
+
                     var blobLength = metadata.Size.Value;
                     var blobLastModifiedUTC = metadata.LastModified.Value;
 

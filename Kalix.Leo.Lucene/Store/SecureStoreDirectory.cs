@@ -128,7 +128,7 @@ namespace Kalix.Leo.Lucene.Store
         }
 
         /// <summary>Returns a stream reading an existing file. </summary>
-        public override IndexInput OpenInput(System.String name)
+        public override IndexInput OpenInput(string name)
         {
             return new SecureStoreIndexInput(this, _cache, _store, _encryptor, GetLocation(name), name);
         }
