@@ -33,7 +33,10 @@ namespace Kalix.Leo.Lucene.Store
                 _options = _options | SecureStoreOptions.Compress;
             }
 
-            store.CreateContainerIfNotExists(container);
+            using (var w = AsyncHelper.Wait)
+            {
+                w.Run(store.CreateContainerIfNotExists(container));
+            }
         }
 
         public void ClearCache()
@@ -76,7 +79,7 @@ namespace Kalix.Leo.Lucene.Store
         public override long FileModified(string name)
         {
             var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
-            return metadata == null ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
+            return metadata == null || !metadata.LastModified.HasValue ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
         }
 
         /// <summary>Set the modified time of an existing file to now. </summary>
@@ -107,7 +110,7 @@ namespace Kalix.Leo.Lucene.Store
         public override long FileLength(string name)
         {
             var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
-            return metadata.Size.Value;
+            return metadata == null || !metadata.Size.HasValue ? 0 : metadata.Size.Value;
         }
 
         /// <summary>Creates a new, empty file in the directory with the given name.

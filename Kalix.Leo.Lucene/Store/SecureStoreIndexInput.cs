@@ -43,8 +43,8 @@ namespace Kalix.Leo.Lucene.Store
                         throw new System.IO.FileNotFoundException(_name);
                     }
 
-                    var blobLength = metadata.Size.Value;
-                    var blobLastModifiedUTC = metadata.LastModified.Value;
+                    var blobLength = metadata.Size ?? 0;
+                    var blobLastModifiedUTC = metadata.LastModified ?? DateTime.UtcNow;
 
                     if (cachedLength != blobLength)
                     {
@@ -81,6 +81,10 @@ namespace Kalix.Leo.Lucene.Store
                     using(StreamOutput fileStream = _directory.CreateCachedOutputAsStream(_name))
                     {
                         var data = GetSyncVal(store.LoadData(location, null, encryptor));
+                        if (data == null)
+                        {
+                            throw new System.IO.FileNotFoundException(_name);
+                        }
                         using (var s = data.Stream)
                         {
                             s.CopyTo(fileStream);
