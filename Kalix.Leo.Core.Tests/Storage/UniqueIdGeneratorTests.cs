@@ -28,7 +28,24 @@ namespace Kalix.Leo.Core.Tests.Storage
             var id = generator.NextId().Result;
 
             _store.Received(1).LoadData(_loc);
-            Assert.Greater(id, 0);
+            Assert.AreEqual(1, id);
+        }
+
+        [Test]
+        public void GrabsTenItemsWithCallingOutMoreThanOnce()
+        {
+            _store.LoadData(_loc).Returns(Task.FromResult<DataWithMetadata>(null));
+            _store.TryOptimisticWrite(_loc, null, null).ReturnsForAnyArgs(Task.FromResult(true));
+
+            var generator = GetGenerator(10);
+            long id = 0;
+            for (int i = 0; i < 10; i++)
+            {
+                id = generator.NextId().Result;
+            }
+
+            _store.Received(1).LoadData(_loc);
+            Assert.AreEqual(10, id);
         }
 
         private UniqueIdGenerator GetGenerator(int range)

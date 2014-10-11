@@ -37,8 +37,9 @@ namespace Kalix.Leo.Lucene.Store
                 else
                 {
                     long cachedLength = _cache.FileLength(_name);
+                    
                     var metadata = GetSyncVal(store.GetMetadata(location));
-                    if(metadata == null)
+                    if (metadata == null)
                     {
                         throw new System.IO.FileNotFoundException(_name);
                     }

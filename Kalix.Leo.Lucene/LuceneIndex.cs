@@ -24,18 +24,18 @@ namespace Kalix.Leo.Lucene
 
         // Only one index writer per lucene index, however all the writing happens on the single write thread
         private readonly Lazy<IndexWriter> _writer;
+        private readonly Lazy<IndexReader> _reader;
         private object _writeLock = new object();
         private Task _writeThread = Task.FromResult(0);
 
-        private int _readerRefreshRate;
-        private IndexReader _reader;
-        private DateTime _lastRefresh; // We use this to refresh every n secs or so
-        private object _readerLock = new object();
+        private IndexSearcher _searcher;
+        private DateTime _searcherExpiry;
 
-        private double _RAMSizeMb;
+        private readonly double _RAMSizeMb;
+        private readonly int _secsTillSearcherRefresh;
         private bool _isDisposed;
 
-        private static readonly string _baseDirectory = IO.Path.Combine(IO.Path.GetTempPath(), IO.Path.GetRandomFileName());
+        private static readonly string _baseDirectory = IO.Path.Combine(IO.Path.GetTempPath(), "LeoLuceneIndexes");
 
         /// <summary>
         /// Create a lucene index over the top of a secure store, using an encrypted file cache and english analyzer
@@ -49,13 +49,16 @@ namespace Kalix.Leo.Lucene
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
         {
-            _cacheDirectory = new RAMDirectory();
+            var path = IO.Path.Combine(_baseDirectory, container, basePath);
+            _cacheDirectory = FSDirectory.Open(path);
             _directory = new SecureStoreDirectory(_cacheDirectory, store, container, basePath, encryptor);
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;
-            _readerRefreshRate = secsTillReaderRefresh;
+            _secsTillSearcherRefresh = secsTillReaderRefresh;
+            _searcherExpiry = DateTime.MinValue;
 
             _writer = new Lazy<IndexWriter>(InitWriter);
+            _reader = new Lazy<IndexReader>(InitReader);
         }
 
         /// <summary>
@@ -70,7 +73,7 @@ namespace Kalix.Leo.Lucene
             _directory = directory;
             _analyzer = analyzer;
             _RAMSizeMb = RAMSizeMb;
-            _readerRefreshRate = secsTillReaderRefresh;
+            _secsTillSearcherRefresh = secsTillReaderRefresh;
 
             _writer = new Lazy<IndexWriter>(InitWriter);
         }
@@ -138,16 +141,13 @@ namespace Kalix.Leo.Lucene
                 {
                     try
                     {
-                        using(var reader = Reader())
-                        using (var searcher = new IndexSearcher(reader))
-                        {
-                            var docs = doSearchFunc(searcher, _analyzer);
+                        var searcher = GetSearcher();
+                        var docs = doSearchFunc(searcher, _analyzer);
 
-                            foreach (var doc in docs.ScoreDocs)
-                            {
-                                obs.OnNext(searcher.Doc(doc.Doc));
-                                token.ThrowIfCancellationRequested();
-                            }
+                        foreach (var doc in docs.ScoreDocs)
+                        {
+                            obs.OnNext(searcher.Doc(doc.Doc));
+                            token.ThrowIfCancellationRequested();
                         }
 
                         obs.OnCompleted();
@@ -201,50 +201,36 @@ namespace Kalix.Leo.Lucene
             return writer;
         }
 
-        private IndexReader Reader()
+        private IndexReader InitReader()
         {
             if(_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            if(_reader == null || _lastRefresh < DateTime.UtcNow)
+            try
             {
-                lock(_readerLock)
-                {
-                    if (_reader == null)
-                    {
-                        try
-                        {
-                            _reader = IndexReader.Open(_directory, true);
-                        }
-                        catch (System.IO.FileNotFoundException)
-                        {
-                            // Fire up the index if it doesnt exist yet!
-                            var writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
-                            writer.Dispose();
+                return IndexReader.Open(_directory, true);
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                // Fire up the index if it doesnt exist yet!
+                var writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
+                writer.Dispose();
 
-                            _reader = IndexReader.Open(_directory, true);
-                        }
+                return IndexReader.Open(_directory, true);
+            }
+        }
 
-                        _lastRefresh = DateTime.UtcNow.Add(TimeSpan.FromSeconds(_readerRefreshRate));
-                    }
-                    else if(_lastRefresh < DateTime.UtcNow)
-                    {
-                        var newReader = _reader.Reopen();
-                        if(newReader != _reader)
-                        {
-                            _reader.Dispose();
-                            _reader = newReader;
-                        }
-
-                        _lastRefresh = DateTime.UtcNow.Add(TimeSpan.FromSeconds(_readerRefreshRate));
-                    }
-                }
+        private IndexSearcher GetSearcher()
+        {
+            if(_searcher == null || _searcherExpiry < DateTime.UtcNow)
+            {
+                _searcher = new IndexSearcher(_writer.IsValueCreated ? _writer.Value.GetReader() : _reader.Value);
+                _searcherExpiry = DateTime.UtcNow.AddSeconds(_secsTillSearcherRefresh);
             }
 
-            // Always return a disposable instance...
-            return _reader.Clone(true);
+            return _searcher;
         }
 
         public void Dispose()
@@ -253,9 +239,14 @@ namespace Kalix.Leo.Lucene
             {
                 _isDisposed = true;
 
-                if(_reader != null)
+                if(_searcher != null)
                 {
-                    _reader.Dispose();
+                    _searcher.Dispose();
+                }
+
+                if (_reader.IsValueCreated)
+                {
+                    _reader.Value.Dispose();
                 }
 
                 if(_writer.IsValueCreated)
