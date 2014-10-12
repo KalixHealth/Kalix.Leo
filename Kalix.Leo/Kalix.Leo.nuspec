@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>4.0.2</version>
+    <version>4.0.3</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Library to abstract indexing, querying, encryption and compression on a NoSQL store
     </description>
     <releaseNotes>
-      Make sure that all partitions are disposed of properly when removed from the memory cache
+      Added locks around accessing partition caches
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

@@ -28,9 +28,6 @@ namespace Kalix.Leo.Lucene
         private object _writeLock = new object();
         private Task _writeThread = Task.FromResult(0);
 
-        private IndexSearcher _searcher;
-        private DateTime _searcherExpiry;
-
         private readonly double _RAMSizeMb;
         private readonly int _secsTillSearcherRefresh;
         private bool _isDisposed;
@@ -55,7 +52,6 @@ namespace Kalix.Leo.Lucene
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;
             _secsTillSearcherRefresh = secsTillReaderRefresh;
-            _searcherExpiry = DateTime.MinValue;
 
             _writer = new Lazy<IndexWriter>(InitWriter);
             _reader = new Lazy<IndexReader>(InitReader);
@@ -141,16 +137,18 @@ namespace Kalix.Leo.Lucene
                 {
                     try
                     {
-                        var searcher = GetSearcher();
-                        var docs = doSearchFunc(searcher, _analyzer);
-
-                        foreach (var doc in docs.ScoreDocs)
+                        using (var searcher = new IndexSearcher(_reader.Value))
                         {
-                            obs.OnNext(searcher.Doc(doc.Doc));
-                            token.ThrowIfCancellationRequested();
-                        }
+                            var docs = doSearchFunc(searcher, _analyzer);
 
-                        obs.OnCompleted();
+                            foreach (var doc in docs.ScoreDocs)
+                            {
+                                obs.OnNext(searcher.Doc(doc.Doc));
+                                token.ThrowIfCancellationRequested();
+                            }
+
+                            obs.OnCompleted();
+                        }
                     }
                     catch (Exception e)
                     {
@@ -222,27 +220,11 @@ namespace Kalix.Leo.Lucene
             }
         }
 
-        private IndexSearcher GetSearcher()
-        {
-            if(_searcher == null || _searcherExpiry < DateTime.UtcNow)
-            {
-                _searcher = new IndexSearcher(_writer.IsValueCreated ? _writer.Value.GetReader() : _reader.Value);
-                _searcherExpiry = DateTime.UtcNow.AddSeconds(_secsTillSearcherRefresh);
-            }
-
-            return _searcher;
-        }
-
         public void Dispose()
         {
             if(!_isDisposed)
             {
                 _isDisposed = true;
-
-                if(_searcher != null)
-                {
-                    _searcher.Dispose();
-                }
 
                 if (_reader.IsValueCreated)
                 {

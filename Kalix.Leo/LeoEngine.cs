@@ -18,6 +18,7 @@ namespace Kalix.Leo
         private readonly IIndexListener _indexListener;
         private readonly Lazy<IRecordSearchComposer> _composer;
         
+        private static readonly object _cacheLock = new object();
         private readonly MemoryCache _cache;
         private readonly CacheItemPolicy _cachePolicy;
         private readonly string _baseName;
@@ -94,11 +95,16 @@ namespace Kalix.Leo
                 throw new InvalidOperationException("The object type '" + typeof(T).FullName + "' is not registered");
             }
             var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
-            var cacheVal = _cache.Get(key) as ObjectPartition<T>;
-            if (cacheVal == null)
+
+            ObjectPartition<T> cacheVal;
+            lock (_cacheLock)
             {
-                cacheVal = new ObjectPartition<T>(_config, partitionId, config);
-                _cache.Set(key, cacheVal, _cachePolicy); 
+                cacheVal = _cache.Get(key) as ObjectPartition<T>;
+                if(cacheVal == null)
+                {
+                    cacheVal = new ObjectPartition<T>(_config, partitionId, config);
+                    _cache.Set(key, cacheVal, _cachePolicy);
+                }
             }
             return cacheVal;
         }
@@ -112,12 +118,18 @@ namespace Kalix.Leo
             }
 
             var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
-            var cacheVal = _cache.Get(key) as DocumentPartition;
-            if (cacheVal == null)
+
+            DocumentPartition cacheVal;
+            lock (_cacheLock)
             {
-                cacheVal = new DocumentPartition(_config, partitionId, config);
-                _cache.Set(key, cacheVal, _cachePolicy);
+                cacheVal = _cache.Get(key) as DocumentPartition;
+                if (cacheVal == null)
+                {
+                    cacheVal = new DocumentPartition(_config, partitionId, config);
+                    _cache.Set(key, cacheVal, _cachePolicy);
+                }
             }
+
             return cacheVal;
         }
 
