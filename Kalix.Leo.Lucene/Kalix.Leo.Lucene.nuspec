@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>4.0.9</version>
+    <version>4.0.10</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      Reset writer/readers when there is an exception
+      Always use a new reader, possibly from the writer
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
