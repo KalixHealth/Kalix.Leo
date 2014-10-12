@@ -23,8 +23,8 @@ namespace Kalix.Leo.Lucene
         private readonly Directory _cacheDirectory;
 
         // Only one index writer per lucene index, however all the writing happens on the single write thread
-        private readonly Lazy<IndexWriter> _writer;
-        private readonly Lazy<IndexReader> _reader;
+        private IndexWriter _writer;
+        private IndexReader _reader;
         private object _writeLock = new object();
         private Task _writeThread = Task.FromResult(0);
 
@@ -52,9 +52,6 @@ namespace Kalix.Leo.Lucene
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;
             _secsTillSearcherRefresh = secsTillReaderRefresh;
-
-            _writer = new Lazy<IndexWriter>(InitWriter);
-            _reader = new Lazy<IndexReader>(InitReader);
         }
 
         /// <summary>
@@ -70,8 +67,6 @@ namespace Kalix.Leo.Lucene
             _analyzer = analyzer;
             _RAMSizeMb = RAMSizeMb;
             _secsTillSearcherRefresh = secsTillReaderRefresh;
-
-            _writer = new Lazy<IndexWriter>(InitWriter);
         }
 
         public Task WriteToIndex(IObservable<Document> documents)
@@ -85,11 +80,20 @@ namespace Kalix.Leo.Lucene
             {
                 return _writeThread = _writeThread.ContinueWith(async (t) =>
                 {
-                    await documents
-                        .Do(_writer.Value.AddDocument)
-                        .LastOrDefaultAsync();
+                    try
+                    {
+                        var writer = GetWriter();
+                        await documents
+                            .Do(writer.AddDocument)
+                            .LastOrDefaultAsync();
 
-                    _writer.Value.Commit();
+                        writer.Commit();
+                    }
+                    catch (Exception)
+                    {
+                        ResetReaderWriter();
+                        throw;
+                    }
                 }).Unwrap();
             }
         }
@@ -105,8 +109,17 @@ namespace Kalix.Leo.Lucene
             {
                 return _writeThread = _writeThread.ContinueWith((t) =>
                 {
-                    writeUsingIndex(_writer.Value);
-                    _writer.Value.Commit();
+                    try
+                    {
+                        var writer = GetWriter();
+                        writeUsingIndex(writer);
+                        writer.Commit();
+                    }
+                    catch (Exception)
+                    {
+                        ResetReaderWriter();
+                        throw;
+                    }
                 });
             }
         }
@@ -137,7 +150,7 @@ namespace Kalix.Leo.Lucene
                 {
                     try
                     {
-                        using (var searcher = new IndexSearcher(_reader.Value))
+                        using (var searcher = new IndexSearcher(GetReader()))
                         {
                             var docs = doSearchFunc(searcher, _analyzer);
 
@@ -152,6 +165,7 @@ namespace Kalix.Leo.Lucene
                     }
                     catch (Exception e)
                     {
+                        ResetReaderWriter();
                         obs.OnError(e);
                     }
                 }, token);
@@ -171,53 +185,89 @@ namespace Kalix.Leo.Lucene
             {
                 return _writeThread = _writeThread.ContinueWith((t) =>
                 {
-                    _writer.Value.DeleteAll();
-                    _writer.Value.Commit();
+                    try
+                    {
+                        var writer = GetWriter();
+                        writer.DeleteAll();
+                        writer.Commit();
+                    }
+                    catch(Exception)
+                    {
+                        ResetReaderWriter();
+                        throw;
+                    }
                 });
             }
         }
 
-        private IndexWriter InitWriter()
+        private IndexWriter GetWriter()
         {
             if (_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            IndexWriter writer;
-            try
+            if (_writer == null)
             {
-                writer = new IndexWriter(_directory, _analyzer, false, IndexWriter.MaxFieldLength.UNLIMITED);
+                IndexWriter writer;
+                try
+                {
+                    writer = new IndexWriter(_directory, _analyzer, false, IndexWriter.MaxFieldLength.UNLIMITED);
+                }
+                catch (System.IO.FileNotFoundException)
+                {
+                    writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
+                }
+                writer.UseCompoundFile = false;
+                writer.SetRAMBufferSizeMB(_RAMSizeMb);
+                writer.MergeFactor = 10;
+                _writer = writer;
             }
-            catch(System.IO.FileNotFoundException)
-            {
-                writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
-            }
-            writer.UseCompoundFile = false;
-            writer.SetRAMBufferSizeMB(_RAMSizeMb);
-            writer.MergeFactor = 10;
-            return writer;
+
+            return _writer;
         }
 
-        private IndexReader InitReader()
+        private IndexReader GetReader()
         {
             if(_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            try
+            if (_reader == null)
             {
-                return IndexReader.Open(_directory, true);
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                // Fire up the index if it doesnt exist yet!
-                var writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
-                writer.Dispose();
+                try
+                {
+                    _reader = IndexReader.Open(_directory, true);
+                }
+                catch (System.IO.FileNotFoundException)
+                {
+                    // Fire up the index if it doesnt exist yet!
+                    var writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
+                    writer.Dispose();
 
-                return IndexReader.Open(_directory, true);
+                    _reader = IndexReader.Open(_directory, true);
+                }
             }
+
+            return _reader;
+        }
+
+        private void ResetReaderWriter()
+        {
+            if (_reader != null)
+            {
+                _reader.Dispose();
+                _reader = null;
+            }
+
+            if (_writer != null)
+            {
+                _writer.Dispose();
+                _writer = null;
+            }
+
+            _writeThread = Task.FromResult(0);
         }
 
         public void Dispose()
@@ -225,16 +275,7 @@ namespace Kalix.Leo.Lucene
             if(!_isDisposed)
             {
                 _isDisposed = true;
-
-                if (_reader.IsValueCreated)
-                {
-                    _reader.Value.Dispose();
-                }
-
-                if(_writer.IsValueCreated)
-                {
-                    _writer.Value.Dispose();
-                }
+                ResetReaderWriter();
 
                 _analyzer.Dispose();
                 _directory.Dispose();

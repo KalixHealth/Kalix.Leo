@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>4.0.8</version>
+    <version>4.0.9</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      For now recreate the indexsearcher every time
+      Reset writer/readers when there is an exception
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
