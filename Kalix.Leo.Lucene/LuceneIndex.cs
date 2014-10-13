@@ -46,8 +46,9 @@ namespace Kalix.Leo.Lucene
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
         public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
         {
-            var path = IO.Path.Combine(_baseDirectory, container, basePath);
-            _cacheDirectory = FSDirectory.Open(path);
+            //var path = IO.Path.Combine(_baseDirectory, container, basePath);
+            //_cacheDirectory = FSDirectory.Open(path);
+            _cacheDirectory = new RAMDirectory();
             _directory = new SecureStoreDirectory(_cacheDirectory, store, container, basePath, encryptor);
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;

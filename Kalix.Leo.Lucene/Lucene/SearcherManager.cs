@@ -1,4 +1,5 @@
-﻿using Lucene.Net.Index;
+﻿using Kalix.Leo;
+using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
@@ -44,39 +45,47 @@ namespace Lucene.Net.Contrib.Management
             EnsureOpen();
             if (Monitor.TryEnter(_reopenLock))
             {
-                var currentReader = _currentSearcher.IndexReader;
-                IndexReader newReader;
                 try
                 {
-                    newReader = _currentSearcher.IndexReader.Reopen();
-                }
-                catch(System.IO.FileNotFoundException)
-                {
-                    return false;
-                }
-
-                if (newReader != currentReader)
-                {
-                    var newSearcher = new IndexSearcher(newReader);
-                    var success = false;
+                    var currentReader = _currentSearcher.IndexReader;
+                    IndexReader newReader;
                     try
                     {
-                        if (_warmer != null)
-                        {
-                            _warmer.Warm(newSearcher);
-                        }
-                        SwapSearcher(newSearcher);
-                        success = true;
+                        LeoTrace.WriteLine("Reopening Lucene Index Reader");
+                        newReader = _currentSearcher.IndexReader.Reopen();
                     }
-                    finally
+                    catch (System.IO.FileNotFoundException)
                     {
-                        if (!success)
+                        return false;
+                    }
+
+                    if (newReader != currentReader)
+                    {
+                        var newSearcher = new IndexSearcher(newReader);
+                        var success = false;
+                        try
                         {
-                            ReleaseSearcher(newSearcher);
+                            if (_warmer != null)
+                            {
+                                _warmer.Warm(newSearcher);
+                            }
+                            SwapSearcher(newSearcher);
+                            success = true;
+                        }
+                        finally
+                        {
+                            if (!success)
+                            {
+                                ReleaseSearcher(newSearcher);
+                            }
                         }
                     }
+                    return true;
                 }
-                return true;
+                finally
+                {
+                    Monitor.Exit(_reopenLock);
+                }
             }
 
             return false;
@@ -105,6 +114,7 @@ namespace Lucene.Net.Contrib.Management
 
         private IndexSearcher AcquireSearcher()
         {
+            LeoTrace.WriteLine("Acquiring Lucene Searcher");
             IndexSearcher searcher;
 
             if ((searcher = _currentSearcher) == null)
@@ -117,6 +127,7 @@ namespace Lucene.Net.Contrib.Management
 
         private void ReleaseSearcher(IndexSearcher searcher)
         {
+            LeoTrace.WriteLine("Releasing Lucene Searcher");
             searcher.IndexReader.DecRef();
         }
 
@@ -130,6 +141,7 @@ namespace Lucene.Net.Contrib.Management
 
         private void SwapSearcher(IndexSearcher newSearcher)
         {
+            LeoTrace.WriteLine("Swapping Lucene Searcher");
             EnsureOpen();
             var oldSearcher = _currentSearcher;
             _currentSearcher = newSearcher;

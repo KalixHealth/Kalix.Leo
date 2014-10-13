@@ -12,6 +12,7 @@ using System.Linq;
 using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Tests
@@ -187,6 +188,27 @@ namespace Kalix.Leo.Lucene.Tests
 
             Assert.AreEqual(null, error);
             Assert.Greater(numDocs, 0);
+        }
+
+        [Test]
+        public void TwoIndexesOneRefreshesTheOther()
+        {
+            LeoTrace.WriteLine = (s) => Trace.WriteLine(s);
+
+            var store = new SecureStore(_store);
+            var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null, 20, 1);
+
+            _indexer.WriteToIndex(CreateIpsumDocs(2000)).Wait();
+
+            Thread.Sleep(2000);
+
+            var number = Task.Run(async () => await indexer2.SearchDocuments(ind =>
+            {
+                var query = new TermQuery(new Term("words", "ipsum"));
+                return ind.Search(query, 20);
+            }).ToList()).Result;
+
+            Assert.Greater(number.Count, 0);
         }
 
         private IObservable<Document> CreateIpsumDocs(int number)
