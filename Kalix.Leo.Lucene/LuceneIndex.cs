@@ -25,6 +25,7 @@ namespace Kalix.Leo.Lucene
 
         private readonly SearcherManager _searcherManager;
         private readonly IDisposable _searcherManagerRefresher;
+        private bool _needsRefresh;
 
         // Only one index writer per lucene index, however all the writing happens on the single write thread
         private Lazy<IndexWriter> _writer;
@@ -58,7 +59,7 @@ namespace Kalix.Leo.Lucene
 
             _searcherManagerRefresher = Observable
                 .Interval(TimeSpan.FromSeconds(secsTillReaderRefresh))
-                .Subscribe(i => _searcherManager.MaybeReopen());
+                .Subscribe(_ => _needsRefresh = true);
         }
 
         /// <summary>
@@ -79,7 +80,7 @@ namespace Kalix.Leo.Lucene
 
             _searcherManagerRefresher = Observable
                 .Interval(TimeSpan.FromSeconds(secsTillReaderRefresh))
-                .Subscribe(i => _searcherManager.MaybeReopen());
+                .Subscribe(_ => _needsRefresh = true);
         }
 
         public async Task WriteToIndex(IObservable<Document> documents)
@@ -97,7 +98,7 @@ namespace Kalix.Leo.Lucene
                     .LastOrDefaultAsync();
 
                 writer.Commit();
-                _searcherManager.MaybeReopen();
+                _needsRefresh = true;
             }
             catch (Exception)
             {
@@ -118,7 +119,7 @@ namespace Kalix.Leo.Lucene
                 var writer = _writer.Value;
                 writeUsingIndex(writer);
                 writer.Commit();
-                _searcherManager.MaybeReopen();
+                _needsRefresh = true;
             }
             catch (Exception)
             {
@@ -153,6 +154,12 @@ namespace Kalix.Leo.Lucene
 
                 Task.Run(() =>
                 {
+                    if(_needsRefresh)
+                    {
+                        _needsRefresh = false;
+                        _searcherManager.MaybeReopen();
+                    }
+
                     using (var searcher = _searcherManager.Acquire())
                     {
                         var docs = doSearchFunc(searcher.Searcher, _analyzer);
@@ -183,7 +190,7 @@ namespace Kalix.Leo.Lucene
                 var writer = _writer.Value;
                 writer.DeleteAll();
                 writer.Commit();
-                _searcherManager.MaybeReopen();
+                _needsRefresh = true;
             }
             catch (Exception)
             {
@@ -241,6 +248,7 @@ namespace Kalix.Leo.Lucene
                     _writer.Value.Dispose();
                 }
 
+                _needsRefresh = false;
                 _searcherManagerRefresher.Dispose();
                 _searcherManager.Dispose();
                 _analyzer.Dispose();

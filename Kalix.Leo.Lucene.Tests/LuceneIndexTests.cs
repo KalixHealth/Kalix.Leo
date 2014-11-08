@@ -172,7 +172,7 @@ namespace Kalix.Leo.Lucene.Tests
             {
                 for(int i=0; i<5; i++)
                 {
-                    Task.WaitAll(Enumerable.Range(0, 10).Select(async _ =>
+                    Task.WaitAll(Enumerable.Range(0, 3).Select(async _ =>
                     {
                         using (var indexer = new LuceneIndex(store, "testindexer", "basePath", null))
                         {
