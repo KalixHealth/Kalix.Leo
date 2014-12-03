@@ -66,36 +66,41 @@ namespace Kalix.Leo.Azure.Storage
 
         public async Task Complete()
         {
-            _hasCompleted = true;
-
-            if(_partNumber == 1)
+            if (!_hasCompleted)
             {
-                // We haven't even uploaded one block yet... just upload it straight...
-                using (var ms = new MemoryStream(_buffer, 0, _offset))
-                {
-                    await _blob.UploadFromStreamAsync(ms, _condition, null, null).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
-                }
-            }
-            else
-            {
-                if(_offset > 0)
-                {
-                    var key = GetKey(_partNumber);
-                    _uploads.Add(PutBlob(key, _buffer, _offset));
-                    _partNumber++;
-                }
+                _hasCompleted = true;
 
-                await Task.WhenAll(_uploads).ConfigureAwait(false);
-
-                var blocks = new List<string>();
-                for(var i = 1; i < _partNumber; i++)
+                if (_partNumber == 1)
                 {
-                    blocks.Add(GetKey(i));
+                    // We haven't even uploaded one block yet... just upload it straight...
+                    using (var ms = new MemoryStream(_buffer, 0, _offset))
+                    {
+                        await _blob.UploadFromStreamAsync(ms, _condition, null, null).ConfigureAwait(false);
+                        LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
+                    }
                 }
+                else
+                {
+                    if (_offset > 0)
+                    {
+                        var key = GetKey(_partNumber);
+                        _uploads.Add(PutBlob(key, _buffer, _offset));
+                        _offset = 0;
+                        _partNumber++;
+                    }
 
-                await _blob.PutBlockListAsync(blocks).ConfigureAwait(false);
-                LeoTrace.WriteLine("Finished Put Blocks using " + _partNumber + " total blocks: " + _blob.Name);
+                    _buffer = null;
+                    await Task.WhenAll(_uploads).ConfigureAwait(false);
+
+                    var blocks = new List<string>();
+                    for (var i = 1; i < _partNumber; i++)
+                    {
+                        blocks.Add(GetKey(i));
+                    }
+
+                    await _blob.PutBlockListAsync(blocks).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Finished Put Blocks using " + _partNumber + " total blocks: " + _blob.Name);
+                }
             }
         }
 
