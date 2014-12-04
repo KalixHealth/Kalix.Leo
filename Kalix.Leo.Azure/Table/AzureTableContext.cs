@@ -15,6 +15,7 @@ namespace Kalix.Leo.Azure.Table
     public sealed class AzureTableContext : ITableContext
     {
         private readonly TableBatchOperation _context;
+        private readonly TableBatchOperation _deleteBackupContext;
         private readonly CloudTable _table;
         private readonly IEncryptor _encryptor;
         private bool _hasSaved;
@@ -25,6 +26,7 @@ namespace Kalix.Leo.Azure.Table
             _table = table;
             _encryptor = encryptor;
             _context = new TableBatchOperation();
+            _deleteBackupContext = new TableBatchOperation();
         }
 
         public void Replace(E entity)
@@ -72,6 +74,7 @@ namespace Kalix.Leo.Azure.Table
                 ETag = "*"
             };
             _context.Delete(fat);
+            _deleteBackupContext.InsertOrReplace(fat);
             _isDirty = true;
         }
 
@@ -84,7 +87,28 @@ namespace Kalix.Leo.Azure.Table
             {
                 try
                 {
-                    await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                    bool tryWithDeletes = true;
+
+                    // If you try to delete a row that doesn't exist then you get a resource not found exception
+                    try
+                    {
+                        await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                        tryWithDeletes = false;
+                    }
+                    catch(StorageException ex)
+                    {
+                        if (ex.RequestInformation.ExtendedErrorInformation.ErrorCode != "ResourceNotFound")
+                        {
+                            throw;
+                        }
+                    }
+
+                    // In that case, we want to try and add the deleted items,
+                    if(tryWithDeletes)
+                    {
+                        await _table.ExecuteBatchAsync(_deleteBackupContext).ConfigureAwait(false);
+                        await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                    }
                 }
                 catch (StorageException ex)
                 {

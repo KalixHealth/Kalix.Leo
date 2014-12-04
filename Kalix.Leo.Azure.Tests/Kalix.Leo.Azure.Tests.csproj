@@ -85,6 +85,7 @@
     <Compile Include="Storage\AzureStoreTests.cs" />
     <Compile Include="AzureTestsHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Table\AzureTableContextTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kalix.Leo.Azure\Kalix.Leo.Azure.csproj">
