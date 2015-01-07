@@ -455,23 +455,11 @@ namespace Kalix.Leo.Azure.Storage
             try
             {
                 var blob = GetBlockBlob(location);
-                if(isOptimistic)
-                {
-                    try
-                    {
-                        await blob.FetchAttributesAsync().ConfigureAwait(false);
-                    }
-                    catch(StorageException e)
-                    {
-                        // 404s are ok!
-                        if (e.RequestInformation.HttpStatusCode != 404)
-                        {
-                            throw;
-                        }
-                    }
-                }
 
-                var condition = isOptimistic ? AccessCondition.GenerateIfMatchCondition(blob.Properties.ETag) : null;
+                // If the ETag value is empty then the store value must not exist yet...
+                var condition = isOptimistic ? 
+                    (metadata == null || string.IsNullOrEmpty(metadata.ETag) ? AccessCondition.GenerateIfNoneMatchCondition("*") : AccessCondition.GenerateIfMatchCondition(metadata.ETag)) 
+                    : null;
 
                 // Copy the metadata across
                 blob.Metadata.Clear();
@@ -501,10 +489,18 @@ namespace Kalix.Leo.Azure.Storage
             {
                 if (isOptimistic)
                 {
-                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed)
+                    // First condition occurrs when the eTags do not match
+                    // Second condition when we specified no eTag (ie must be new blob)
+                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed  
+                        || (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict && exc.RequestInformation.ExtendedErrorInformation.ErrorCode == "BlobAlreadyExists"))
                     {
                         return false;
                     }
+                }
+
+                if(exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict)
+                {
+                    throw new LockException("The underlying storage is currently locked for save");
                 }
 
                 throw exc.Wrap();
@@ -531,6 +527,8 @@ namespace Kalix.Leo.Azure.Storage
             {
                 metadata[MetadataConstants.ContentTypeMetadataKey] = blob.Properties.ContentType;
             }
+
+            metadata.ETag = blob.Properties.ETag;
 
             return metadata;
         }

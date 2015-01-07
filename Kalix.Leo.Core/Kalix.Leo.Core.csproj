@@ -37,7 +37,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\packages\Newtonsoft.Json.6.0.5\lib\portable-net45+wp80+win8+wpa81\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.6.0.7\lib\portable-net45+wp80+win8+wpa81+aspnetcore50\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -64,6 +64,7 @@
     <Compile Include="Indexing\IRecordSearchComposition.cs" />
     <Compile Include="Indexing\IRecordUniqueIndex.cs" />
     <Compile Include="LeoTrace.cs" />
+    <Compile Include="Storage\LockException.cs" />
     <Compile Include="Table\ITableClient.cs" />
     <Compile Include="Table\ITableContext.cs" />
     <Compile Include="Table\ITableEntity.cs" />

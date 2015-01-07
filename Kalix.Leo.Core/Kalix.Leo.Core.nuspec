@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>4.0.4</version>
+    <version>4.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       Core library that abstracts your storage layer, adds encryption/compression
     </description>
     <releaseNotes>
-      Better exception handling
+      Metadata now includes ETag
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
       <dependency id="Rx-Linq" version="2.2.5" />
-      <dependency id="Newtonsoft.Json" version="6.0.5" />
+      <dependency id="Newtonsoft.Json" version="6.0.7" />
       <dependency id="Zlib.Portable" version="1.10.0" />
     </dependencies>
   </metadata>

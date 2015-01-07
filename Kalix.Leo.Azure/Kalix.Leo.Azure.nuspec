@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>4.0.10</version>
+    <version>4.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,12 +12,12 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      Delete in a table batch now acts correctly as a 'DeleteIfExists'
+      Load ETag for metadata
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="4.0.0" />
+      <dependency id="Kalix.Leo.Core" version="4.1.0" />
       <dependency id="WindowsAzure.Storage" version="4.3.0" />
     </dependencies>
   </metadata>

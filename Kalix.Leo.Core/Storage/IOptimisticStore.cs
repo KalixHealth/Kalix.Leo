@@ -12,7 +12,7 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Save data to a specified location, but put a lock on it while writing. Does not support multipart...
         /// </summary>
-        /// <param name="metadata">Metadata to save</param>
+        /// <param name="metadata">Metadata to save, must include an eTag</param>
         /// <param name="savingFunc">A write stream so you can do what you want to save</param>
         /// <param name="location">Location to store the file</param>
         /// <returns>Whether the write was successful or not</returns>

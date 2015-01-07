@@ -91,8 +91,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 var success1 = _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var oldMetadata = _store.GetMetadata(_location).Result;
 
                 var m2 = new Metadata();
+                m2.ETag = oldMetadata.ETag;
                 m2["metadata2"] = "othermetadata";
                 var success2 = _store.TryOptimisticWrite(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Result;
 
@@ -104,6 +106,27 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
+            public void NoETagMustBeNewSave()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                var success1 = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success2 = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                Assert.IsTrue(success1, "first write failed");
+                Assert.IsFalse(success2, "second write succeeded");
+            }
+
+            [Test]
+            public void ETagDoesNotMatchFails()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                var metadata = new Metadata { ETag = "notreal" };
+                var success = _store.TryOptimisticWrite(_location, metadata, s => s.WriteAsync(data, 0, data.Length)).Result;
+
+                Assert.IsFalse(success, "write should not have succeeded with fake eTag");
+            }
+
+            [Test]
             public void MultiUploadLargeFileIsSuccessful()
             {
                 var data = AzureTestsHelper.RandomData(7);
@@ -111,17 +134,6 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 Assert.IsTrue(success);
                 Assert.IsTrue(_blob.Exists());
-            }
-
-            [Test]
-            public void IfFileLockedReturnsFalse()
-            {
-                using(var l = _store.Lock(_location).Result)
-                {
-                    var data = AzureTestsHelper.RandomData(1);
-                    var success = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
-                    Assert.IsFalse(success);
-                }
             }
         }
 
@@ -364,6 +376,24 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 {
                     Assert.IsNotNull(l);
                     Assert.IsNull(l2);
+                }
+            }
+
+            [Test]
+            [ExpectedException(typeof(LockException))]
+            public void IfFileLockedReturnsFalse()
+            {
+                using (var l = _store.Lock(_location).Result)
+                {
+                    var data = AzureTestsHelper.RandomData(1);
+                    try
+                    {
+                        _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                    }
+                    catch (AggregateException e)
+                    {
+                        throw e.InnerException;
+                    }
                 }
             }
         }

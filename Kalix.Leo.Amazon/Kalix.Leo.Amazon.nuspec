@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Amazon</id>
-    <version>4.0.1</version>
+    <version>4.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       (Incomplete) Amazon implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      Updated to be consistent with 4.0.0 Core
+      Load ETag for metadata
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="4.0.0" />
-      <dependency id="AWSSDK" version="2.3.0.0" />
+      <dependency id="Kalix.Leo.Core" version="4.1.0" />
+      <dependency id="AWSSDK" version="2.3.14.0" />
     </dependencies>
   </metadata>
 </package>

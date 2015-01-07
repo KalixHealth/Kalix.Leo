@@ -113,5 +113,10 @@ namespace Kalix.Leo
                 }
             }
         }
+
+        /// <summary>
+        /// A tag to indicate the current version of the metadata, only valid when loading from storage
+        /// </summary>
+        public string ETag { get; set; }
     }
 }

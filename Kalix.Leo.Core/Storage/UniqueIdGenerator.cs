@@ -55,7 +55,16 @@ namespace Kalix.Leo.Storage
                     // If inner task is done then reset!
                     if (_innerUpdateTask != null && _innerUpdateTask.IsCompleted)
                     {
+                        Exception e = null;
+                        if(_innerUpdateTask.IsFaulted)
+                        {
+                            e = _innerUpdateTask.Exception;
+                        }
                         _innerUpdateTask = null;
+                        if(e != null)
+                        {
+                            throw e;
+                        }
                     }
 
                     _innerUpdateTask = _innerUpdateTask ?? UpdateFromSyncStore();
@@ -78,15 +87,10 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            if (await _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
-            {
-                // This will force a refresh on the Next
-                _upperIdLimit = 0;
-            }
-            else
-            {
-                throw new InvalidOperationException("Could not update the id");
-            }
+            await _store.SaveData(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false);
+
+            // This will force a refresh on the Next
+            _upperIdLimit = 0;
         }
 
         private async Task UpdateFromSyncStore()
@@ -129,7 +133,8 @@ namespace Kalix.Leo.Storage
                 var upperLimit = currentId + _rangeSize;
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
-                if (await _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
+                var m = dataStream == null ? null : new Metadata() { ETag = dataStream.Metadata.ETag };
+                if (await _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
                 {
                     // First update currentId
                     // Then upper limit, this will avoid any need for locks etc

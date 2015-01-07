@@ -69,7 +69,7 @@ namespace Kalix.Leo.Amazon.Storage
             try
             {
                 var resp = await _client.GetObjectMetadataAsync(request).ConfigureAwait(false);
-                return ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
+                return ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength, resp.ETag);
             }
             catch (AmazonS3Exception e)
             {
@@ -94,7 +94,7 @@ namespace Kalix.Leo.Amazon.Storage
                 };
 
                 var resp = await _client.GetObjectAsync(request).ConfigureAwait(false);
-                var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength);
+                var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength, resp.ETag);
                 return new DataWithMetadata(resp.ResponseStream, metadata);
             }
             catch (AmazonS3Exception e)
@@ -212,7 +212,7 @@ namespace Kalix.Leo.Amazon.Storage
             .LastOrDefaultAsync(); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
-        private Metadata ActualMetadata(MetadataCollection m, DateTime modified, long size)
+        private Metadata ActualMetadata(MetadataCollection m, DateTime modified, long size, string eTag)
         {
             var metadata = new Metadata(m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]));
             if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
@@ -224,6 +224,8 @@ namespace Kalix.Leo.Amazon.Storage
             {
                 metadata.LastModified = modified;
             }
+
+            metadata.ETag = eTag;
 
             return metadata;
         }
@@ -259,7 +261,7 @@ namespace Kalix.Leo.Amazon.Storage
             return new Snapshot
             {
                 Id = version.VersionId,
-                Metadata = ActualMetadata(res.Metadata, res.LastModified, res.ContentLength)
+                Metadata = ActualMetadata(res.Metadata, res.LastModified, res.ContentLength, res.ETag)
             };
         }
 
