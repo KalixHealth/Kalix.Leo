@@ -70,14 +70,7 @@ namespace Kalix.Leo.Indexing
 
                     // Be specific about which update we want...
                     rowKeys.Add(newItem.RowKey);
-                    if (matchingOld == null)
-                    {
-                        context.Insert(newItem);
-                    }
-                    else
-                    {
-                        context.Replace(newItem);
-                    }
+                    context.InsertOrReplace(newItem);
                 }
             }
 
