@@ -1,6 +1,6 @@
 ﻿using Lucene.Net.Analysis;
+using Lucene.Net.Contrib.Management;
 using Lucene.Net.Documents;
-using Lucene.Net.Index;
 using Lucene.Net.Search;
 using System;
 using System.Threading.Tasks;
@@ -31,14 +31,14 @@ namespace Kalix.Leo.Lucene
         /// </summary>
         /// <param name="documents">The documents to load into the index</param>
         /// <returns>A task that is complete when all the documents have been indexed</returns>
-        Task WriteToIndex(IObservable<Document> documents);
+        Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false);
 
         /// <summary>
         /// Write documents with complete access to the lucene index
         /// </summary>
         /// <param name="writeUsingIndex">Do your indexing with the provided index</param>
         /// <returns>A task that is complete when all the documents have been indexed</returns>
-        Task WriteToIndex(Action<IndexWriter> writeUsingIndex);
+        Task WriteToIndex(Func<NrtManager, Task> writeUsingIndex);
 
         /// <summary>
         /// Delete the entire index

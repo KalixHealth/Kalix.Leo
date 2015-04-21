@@ -43,55 +43,10 @@ namespace Kalix.Leo.Lucene.Tests
 
         [Test]
         [ExpectedException(typeof(LockObtainFailedException))]
-        public void TwoSeperateIndexersWriteShouldFail()
+        public void CannotOpenTwoLuceneIndexesOnSameStore()
         {
             var store = new SecureStore(_store);
             var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null);
-
-            var task1 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
-            var task2 = indexer2.WriteToIndex(CreateIpsumDocs(30000));
-
-            try
-            {
-                Task.WaitAll(task1, task2);
-            }
-            catch(AggregateException e)
-            {
-                throw e.InnerException;
-            }
-        }
-
-        [Test]
-        public void TwoSeperateIndexersReadingAndWritingAtSameTimeNoErrors()
-        {
-            var store = new SecureStore(_store);
-            var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null);
-
-            var docs = CreateIpsumDocs(100000);
-
-            string error = null;
-            int numDocs = 0;
-
-            var writeTask = Task.Run(() =>
-            {
-                _indexer.WriteToIndex(docs).Wait();
-            });
-
-            Task.Run(async () =>
-            {
-                using (var reading = Observable.Interval(TimeSpan.FromSeconds(0.5))
-                    .SelectMany(t => indexer2.SearchDocuments(i =>
-                    {
-                        var query = new TermQuery(new Term("words", "ipsum"));
-                        return i.Search(query, 20);
-                    }))
-                    .Subscribe(d => { numDocs++; }, e => { error = e.GetBaseException().Message; }, () => { }))
-                {
-                    await writeTask;
-                }
-            }).Wait();
-
-            Assert.AreEqual(null, error);
         }
 
         [Test]
@@ -110,7 +65,7 @@ namespace Kalix.Leo.Lucene.Tests
                 }))
                 .Subscribe(d => { numDocs++; }, e => { error = e.GetBaseException().Message; }, () => { }))
             {
-                _indexer.WriteToIndex(docs).Wait();
+                _indexer.WriteToIndex(docs, true).Wait();
             }
 
             Assert.AreEqual(null, error);
@@ -152,57 +107,17 @@ namespace Kalix.Leo.Lucene.Tests
         }
 
         [Test]
-        public void IndexersManyWritesAsyncReadsWithoutIssues()
-        {
-            var store = new SecureStore(_store);
-
-            string error = null;
-            int numDocs = 0;
-
-            using (Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(async (t, ct) =>
-                {
-                    if (!ct.IsCancellationRequested)
-                    {
-                        await _indexer.WriteToIndex(CreateIpsumDocs(200));
-                    }
-                    return Unit.Default;
-                })
-                .Subscribe(d => { numDocs++; }, e => { error = e.GetBaseException().Message; }, () => { }))
-            {
-                for(int i=0; i<5; i++)
-                {
-                    Task.WaitAll(Enumerable.Range(0, 3).Select(async _ =>
-                    {
-                        using (var indexer = new LuceneIndex(store, "testindexer", "basePath", null))
-                        {
-                            await indexer.SearchDocuments(ind =>
-                            {
-                                var query = new TermQuery(new Term("words", "ipsum"));
-                                return ind.Search(query, 20);
-                            }).LastOrDefaultAsync();
-                        }
-                    }).ToArray());
-                }
-            }
-
-            Assert.AreEqual(null, error);
-            Assert.Greater(numDocs, 0);
-        }
-
-        [Test]
         public void TwoIndexesOneRefreshesTheOther()
         {
             LeoTrace.WriteLine = (s) => Trace.WriteLine(s);
 
             var store = new SecureStore(_store);
-            var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null, 20, 1);
 
-            _indexer.WriteToIndex(CreateIpsumDocs(2000)).Wait();
+            _indexer.WriteToIndex(CreateIpsumDocs(2000), true).Wait();
 
             Thread.Sleep(2000);
 
-            var number = Task.Run(async () => await indexer2.SearchDocuments(ind =>
+            var number = Task.Run(async () => await _indexer.SearchDocuments(ind =>
             {
                 var query = new TermQuery(new Term("words", "ipsum"));
                 return ind.Search(query, 20);

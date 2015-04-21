@@ -4,8 +4,8 @@ using Kalix.Leo.Lucene.Store;
 using Kalix.Leo.Storage;
 using Lucene.Net.Analysis;
 using Lucene.Net.Contrib.Management;
+using Lucene.Net.Contrib.Management.Client;
 using Lucene.Net.Documents;
-using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
@@ -23,12 +23,7 @@ namespace Kalix.Leo.Lucene
 
         private readonly Directory _cacheDirectory;
 
-        private readonly SearcherManager _searcherManager;
-        private readonly IDisposable _searcherManagerRefresher;
-        private bool _needsRefresh;
-
-        // Only one index writer per lucene index, however all the writing happens on the single write thread
-        private Lazy<IndexWriter> _writer;
+        private readonly SearcherContext _searcher;
 
         private readonly double _RAMSizeMb;
         private bool _isDisposed;
@@ -54,12 +49,7 @@ namespace Kalix.Leo.Lucene
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;
 
-            _writer = new Lazy<IndexWriter>(InitWriter);
-            _searcherManager = new SearcherManager(_directory, _analyzer);
-
-            _searcherManagerRefresher = Observable
-                .Interval(TimeSpan.FromSeconds(secsTillReaderRefresh))
-                .Subscribe(_ => _needsRefresh = true);
+            _searcher = new SearcherContext(_directory, _analyzer);
         }
 
         /// <summary>
@@ -75,59 +65,36 @@ namespace Kalix.Leo.Lucene
             _analyzer = analyzer;
             _RAMSizeMb = RAMSizeMb;
 
-            _writer = new Lazy<IndexWriter>(InitWriter);
-            _searcherManager = new SearcherManager(_directory, analyzer);
-
-            _searcherManagerRefresher = Observable
-                .Interval(TimeSpan.FromSeconds(secsTillReaderRefresh))
-                .Subscribe(_ => _needsRefresh = true);
+            _searcher = new SearcherContext(_directory, _analyzer);
         }
 
-        public async Task WriteToIndex(IObservable<Document> documents)
+        public async Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false)
         {
             if (_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            try
-            {
-                var writer = _writer.Value;
-                await documents
-                    .Do(writer.AddDocument)
-                    .LastOrDefaultAsync();
+            var writer = _searcher.Manager;
+            long gen = 0;
+            await documents
+                .Do((d) => gen = writer.AddDocument(d))
+                .LastOrDefaultAsync();
 
-                writer.Commit();
-                _needsRefresh = true;
-            }
-            catch (Exception)
+            if(waitForGeneration)
             {
-                ResetWriter();
-                throw;
+                writer.WaitForGeneration(gen);
             }
         }
 
-        public Task WriteToIndex(Action<IndexWriter> writeUsingIndex)
+        public async Task WriteToIndex(Func<NrtManager, Task> writeUsingIndex)
         {
             if (_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            try
-            {
-                var writer = _writer.Value;
-                writeUsingIndex(writer);
-                writer.Commit();
-                _needsRefresh = true;
-            }
-            catch (Exception)
-            {
-                ResetWriter();
-                throw;
-            }
-
-            return Task.FromResult(0);
+            await writeUsingIndex(_searcher.Manager).ConfigureAwait(false);
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
@@ -154,13 +121,7 @@ namespace Kalix.Leo.Lucene
 
                 Task.Run(() =>
                 {
-                    if(_needsRefresh)
-                    {
-                        _needsRefresh = false;
-                        _searcherManager.MaybeReopen();
-                    }
-
-                    using (var searcher = _searcherManager.Acquire())
+                    using (var searcher = _searcher.GetSearcher())
                     {
                         var docs = doSearchFunc(searcher.Searcher, _analyzer);
 
@@ -185,57 +146,8 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            try
-            {
-                var writer = _writer.Value;
-                writer.DeleteAll();
-                writer.Commit();
-                _needsRefresh = true;
-            }
-            catch (Exception)
-            {
-                ResetWriter();
-                throw;
-            }
-
+            _searcher.Manager.DeleteAll();
             return Task.FromResult(0);
-        }
-
-        private IndexWriter InitWriter()
-        {
-            if (_isDisposed)
-            {
-                throw new ObjectDisposedException("LuceneIndex");
-            }
-
-            IndexWriter writer;
-            try
-            {
-                writer = new IndexWriter(_directory, _analyzer, false, IndexWriter.MaxFieldLength.UNLIMITED);
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                writer = new IndexWriter(_directory, _analyzer, true, IndexWriter.MaxFieldLength.UNLIMITED);
-            }
-            writer.UseCompoundFile = false;
-            writer.SetRAMBufferSizeMB(_RAMSizeMb);
-            writer.MergeFactor = 10;
-            return writer;
-        }
-
-        private void ResetWriter()
-        {
-            if (_isDisposed)
-            {
-                throw new ObjectDisposedException("LuceneIndex");
-            }
-
-            if (_writer.IsValueCreated)
-            {
-                var current = _writer.Value;
-                _writer = new Lazy<IndexWriter>(InitWriter);
-                current.Dispose();
-            }
         }
 
         public void Dispose()
@@ -243,14 +155,7 @@ namespace Kalix.Leo.Lucene
             if (!_isDisposed)
             {
                 _isDisposed = true;
-                if (_writer.IsValueCreated)
-                {
-                    _writer.Value.Dispose();
-                }
-
-                _needsRefresh = false;
-                _searcherManagerRefresher.Dispose();
-                _searcherManager.Dispose();
+                _searcher.Dispose();
                 _analyzer.Dispose();
                 _directory.Dispose();
 

@@ -63,9 +63,9 @@ namespace Kalix.Leo.Lucene.Analysis
         /// Override of the token stream method, uses these filters in order:
         /// 
         /// Whitespace splitter
+        /// ASCII common folder (ie é goes to e)
         /// Lowercase
         /// Stopwords removed
-        /// ASCII common folder (ie é goes to e)
         /// Porter stemming (reduces words to common stem)
         /// </summary>
         /// <param name="fieldName"></param>
@@ -73,7 +73,7 @@ namespace Kalix.Leo.Lucene.Analysis
         /// <returns></returns>
         public override TokenStream TokenStream(string fieldName, TextReader reader)
         {
-            return new PorterStemFilter(new ASCIIFoldingFilter(new StopFilter(false, new LowerCaseFilter(new WhitespaceTokenizer(reader)), _words)));
+            return new PorterStemFilter(new StopFilter(false, new LowerCaseFilter(new ASCIIFoldingFilter(new WhitespaceTokenizer(reader))), _words));
         }
     }
 }
