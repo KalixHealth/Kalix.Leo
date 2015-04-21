@@ -23,7 +23,10 @@ namespace Kalix.Leo.Lucene
 
         private readonly Directory _cacheDirectory;
 
-        private readonly SearcherContext _searcher;
+        private IndexSearcher _reader;
+        private DateTime _lastRead;
+
+        private SearcherContext _writer;
 
         private readonly double _RAMSizeMb;
         private bool _isDisposed;
@@ -48,8 +51,6 @@ namespace Kalix.Leo.Lucene
             _directory = new SecureStoreDirectory(_cacheDirectory, store, container, basePath, encryptor);
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;
-
-            _searcher = new SearcherContext(_directory, _analyzer);
         }
 
         /// <summary>
@@ -64,8 +65,6 @@ namespace Kalix.Leo.Lucene
             _directory = directory;
             _analyzer = analyzer;
             _RAMSizeMb = RAMSizeMb;
-
-            _searcher = new SearcherContext(_directory, _analyzer);
         }
 
         public async Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false)
@@ -75,7 +74,7 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            var writer = _searcher.Manager;
+            var writer = GetWriter();
             long gen = 0;
             await documents
                 .Do((d) => gen = writer.AddDocument(d))
@@ -94,7 +93,7 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            await writeUsingIndex(_searcher.Manager).ConfigureAwait(false);
+            await writeUsingIndex(GetWriter()).ConfigureAwait(false);
         }
 
         public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
@@ -121,13 +120,29 @@ namespace Kalix.Leo.Lucene
 
                 Task.Run(() =>
                 {
-                    using (var searcher = _searcher.GetSearcher())
+                    if (_writer != null)
                     {
-                        var docs = doSearchFunc(searcher.Searcher, _analyzer);
+                        using (var searcher = _writer.GetSearcher())
+                        {
+                            var docs = doSearchFunc(searcher.Searcher, _analyzer);
+
+                            foreach (var doc in docs.ScoreDocs)
+                            {
+                                obs.OnNext(searcher.Searcher.Doc(doc.Doc));
+                                token.ThrowIfCancellationRequested();
+                            }
+
+                            obs.OnCompleted();
+                        }
+                    }
+                    else
+                    {
+                        var reader = GetReader();
+                        var docs = doSearchFunc(reader, _analyzer);
 
                         foreach (var doc in docs.ScoreDocs)
                         {
-                            obs.OnNext(searcher.Searcher.Doc(doc.Doc));
+                            obs.OnNext(reader.Doc(doc.Doc));
                             token.ThrowIfCancellationRequested();
                         }
 
@@ -146,8 +161,49 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            _searcher.Manager.DeleteAll();
+            var writer = GetWriter();
+            writer.DeleteAll();
             return Task.FromResult(0);
+        }
+
+        private IndexSearcher GetReader()
+        {
+            var currentReader = _reader;
+            if (currentReader == null)
+            {
+                currentReader = new IndexSearcher(_directory, true);
+                _lastRead = DateTime.UtcNow;
+            }
+
+            if (_lastRead < DateTime.UtcNow.AddSeconds(-10))
+            {
+                if (!currentReader.IndexReader.IsCurrent())
+                {
+                    // Note: we are specifically not disposing here so that any queries can finish on the old reader
+                    currentReader = new IndexSearcher(_directory, true);
+                }
+                _lastRead = DateTime.UtcNow;
+            }
+
+            _reader = currentReader;
+            return currentReader;
+        }
+
+        private NrtManager GetWriter()
+        {
+            if(_writer == null)
+            {
+                _writer = new SearcherContext(_directory, _analyzer);
+            }
+
+            // Once we have the writer that takes over!
+            if(_reader != null)
+            {
+                // Note: we are specifically not disposing here so that any queries can finish on the old reader
+                _reader = null;
+            }
+
+            return _writer.Manager;
         }
 
         public void Dispose()
@@ -155,7 +211,14 @@ namespace Kalix.Leo.Lucene
             if (!_isDisposed)
             {
                 _isDisposed = true;
-                _searcher.Dispose();
+                if(_reader != null)
+                {
+                    _reader.Dispose();
+                }
+                if(_writer != null)
+                {
+                    _writer.Dispose();
+                }
                 _analyzer.Dispose();
                 _directory.Dispose();
 

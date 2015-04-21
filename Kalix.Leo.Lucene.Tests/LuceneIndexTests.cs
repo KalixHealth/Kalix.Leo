@@ -9,7 +9,6 @@ using NUnit.Framework;
 using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Reactive;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Threading;
@@ -43,10 +42,15 @@ namespace Kalix.Leo.Lucene.Tests
 
         [Test]
         [ExpectedException(typeof(LockObtainFailedException))]
-        public void CannotOpenTwoLuceneIndexesOnSameStore()
+        public void CannotWriteTwoLuceneIndexesOnSameStore()
         {
+            _indexer.DeleteAll().Wait();
+
             var store = new SecureStore(_store);
-            var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null);
+            using (var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null))
+            {
+                indexer2.DeleteAll().Wait();
+            }
         }
 
         [Test]
@@ -111,11 +115,23 @@ namespace Kalix.Leo.Lucene.Tests
         {
             LeoTrace.WriteLine = (s) => Trace.WriteLine(s);
 
-            var store = new SecureStore(_store);
-
             _indexer.WriteToIndex(CreateIpsumDocs(2000), true).Wait();
 
-            Thread.Sleep(2000);
+            var number = Task.Run(async () => await _indexer.SearchDocuments(ind =>
+            {
+                var query = new TermQuery(new Term("words", "ipsum"));
+                return ind.Search(query, 20);
+            }).ToList()).Result;
+
+            Assert.Greater(number.Count, 0);
+        }
+
+        [Test]
+        public void CanDisposeAndRead()
+        {
+            _indexer.WriteToIndex(CreateIpsumDocs(2000), true).Wait();
+            _indexer.Dispose();
+            _indexer = new LuceneIndex(new SecureStore(_store), "testindexer", "basePath", null);
 
             var number = Task.Run(async () => await _indexer.SearchDocuments(ind =>
             {
