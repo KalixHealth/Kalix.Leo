@@ -63,7 +63,7 @@ namespace Kalix.Leo.Lucene.Store
             int basePathLength = string.IsNullOrEmpty(_basePath) ? 0 : _basePath.Length + 1;
 
             return await _store
-                .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + Path.DirectorySeparatorChar))
+                .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + '/'))
                 .Select(s => s.Location.BasePath.Substring(basePathLength))
                 .ToArray(); // This will block until executed
         }

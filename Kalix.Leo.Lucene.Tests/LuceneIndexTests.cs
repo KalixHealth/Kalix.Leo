@@ -142,6 +142,22 @@ namespace Kalix.Leo.Lucene.Tests
             Assert.Greater(number.Count, 0);
         }
 
+        [Test]
+        public void RecreatingWriterDoesNotRefreshIndex()
+        {
+            LeoTrace.WriteLine = Console.WriteLine;
+
+            _indexer.WriteToIndex(CreateIpsumDocs(3), true).Wait();
+            _indexer.Dispose();
+            _indexer = new LuceneIndex(new SecureStore(_store), "testindexer", "basePath", null);
+            _indexer.WriteToIndex(CreateIpsumDocs(3), true).Wait();
+            _indexer.Dispose();
+            _indexer = new LuceneIndex(new SecureStore(_store), "testindexer", "basePath", null);
+
+            var number = _indexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue)).ToEnumerable().Count();
+            Assert.AreEqual(6, number);
+        }
+
         private IObservable<Document> CreateIpsumDocs(int number)
         {
             return Observable.Range(0, number)
