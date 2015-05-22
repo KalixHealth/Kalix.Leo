@@ -13,6 +13,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IO = System.IO;
+using L = Lucene.Net.Index;
 
 namespace Kalix.Leo.Lucene
 {
@@ -171,7 +172,17 @@ namespace Kalix.Leo.Lucene
             var currentReader = _reader;
             if (currentReader == null)
             {
-                currentReader = new IndexSearcher(_directory, true);
+                try
+                {
+                    currentReader = new IndexSearcher(_directory, true);
+                }
+                catch (System.IO.FileNotFoundException)
+                {
+                    // this index doesn't exist... make it!
+                    using (new L.IndexWriter(_directory, _analyzer, true, L.IndexWriter.MaxFieldLength.UNLIMITED)) { }
+                    currentReader = new IndexSearcher(_directory, true);
+                }
+
                 _lastRead = DateTime.UtcNow;
             }
 

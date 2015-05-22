@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      Small bug fix in store for consistent folder naming
+      If an index doesn't exist, make it!
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
