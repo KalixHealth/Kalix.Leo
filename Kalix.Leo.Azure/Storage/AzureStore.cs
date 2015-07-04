@@ -318,11 +318,7 @@ namespace Kalix.Leo.Azure.Storage
 
                     foreach (var blob in segment.Results.OfType<ICloudBlob>())
                     {
-                        // This is required for development store, for some reason it doesn't filter by prefix right...
-                        if (prefix == null || blob.Name.StartsWith(prefix))
-                        {
-                            observer.OnNext(blob);
-                        }
+                        observer.OnNext(blob);
                     }
 
                     token = segment.ContinuationToken;
