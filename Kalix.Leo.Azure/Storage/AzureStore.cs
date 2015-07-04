@@ -20,6 +20,7 @@ namespace Kalix.Leo.Azure.Storage
 
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
+        private readonly string _containerPrefix;
         private readonly bool _enableSnapshots;
 
         /// <summary>
@@ -28,11 +29,13 @@ namespace Kalix.Leo.Azure.Storage
         /// <param name="blobStorage">The storage account that backs this store</param>
         /// <param name="enableSnapshots">Whether any save on this store should create snapshots</param>
         /// <param name="deletedKey">The metadata key to check if a store item is soft deleted</param>
-        public AzureStore(CloudBlobClient blobStorage, bool enableSnapshots, string deletedKey = null)
+        /// <param name="containerPrefix">Use this to namespace your containers if required</param>
+        public AzureStore(CloudBlobClient blobStorage, bool enableSnapshots, string deletedKey = null, string containerPrefix = null)
         {
             _blobStorage = blobStorage;
             _enableSnapshots = enableSnapshots;
             _deletedKey = deletedKey ?? DefaultDeletedKey;
+            _containerPrefix = containerPrefix;
         }
 
         public Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
@@ -567,6 +570,11 @@ namespace Kalix.Leo.Azure.Storage
 
         private string SafeContainerName(string containerName)
         {
+            if(_containerPrefix != null)
+            {
+                containerName = _containerPrefix + containerName;
+            }
+
             if(containerName.Length > 63)
             {
                 throw new ArgumentException("Container name cannot be longer than 63 chars", "containerName");
