@@ -1,14 +1,14 @@
 ﻿using Kalix.Leo.Encryption;
+using Kalix.Leo.Storage;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Indexing
 {
     public interface IRecordSearchComposition<TMain, TSearch>
     {
-        Task Save(long partitionKey, string id, TMain item, TMain previous, IEncryptor encryptor);
-        Task Delete(long partitionKey, string id, TMain main);
+        Task Save(long partitionKey, string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous, IEncryptor encryptor);
+        Task Delete(long partitionKey, string id, ObjectWithMetadata<TMain> main);
 
         IObservable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search);
         IObservable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search);

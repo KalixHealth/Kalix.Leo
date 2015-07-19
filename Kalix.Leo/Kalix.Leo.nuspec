@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>5.0.0</version>
+    <version>6.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -17,8 +17,8 @@
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="5.0.1" />
-      <dependency id="Kalix.Leo.Lucene" version="5.0.0" />
+      <dependency id="Kalix.Leo.Core" version="6.0.0" />
+      <dependency id="Kalix.Leo.Lucene" version="6.0.0" />
       <dependency id="Kalix.ApiCrypto" version="2.0.0" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
     </dependencies>

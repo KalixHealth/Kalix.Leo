@@ -1,4 +1,5 @@
 ﻿using Kalix.Leo.Indexing;
+using Kalix.Leo.Storage;
 using System;
 using System.Threading.Tasks;
 
@@ -6,10 +7,10 @@ namespace Kalix.Leo
 {
     public interface ISearchIndex<TMain, TSearch>
     {
-        Task Save(string id, TMain item, TMain previous);
-        Task Save(long id, TMain item, TMain previous);
-        Task Delete(string id, TMain current);
-        Task Delete(long id, TMain current);
+        Task Save(string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous);
+        Task Save(long id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous);
+        Task Delete(string id, ObjectWithMetadata<TMain> current);
+        Task Delete(long id, ObjectWithMetadata<TMain> current);
 
         IObservable<TSearch> SearchAll(IRecordSearch search);
         IObservable<TSearch> SearchAll<T1>(IRecordSearch<T1> search);

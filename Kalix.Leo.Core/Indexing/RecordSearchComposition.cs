@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing.Config;
+using Kalix.Leo.Storage;
 using Kalix.Leo.Table;
 using System;
 using System.Collections.Generic;
@@ -29,7 +30,7 @@ namespace Kalix.Leo.Indexing
             client.CreateTableIfNotExist(tableName);
         }
 
-        public async Task Save(long partitionKey, string id, TMain item, TMain previous, IEncryptor encryptor)
+        public async Task Save(long partitionKey, string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous, IEncryptor encryptor)
         {
             var context = _client.Context(_tableName, encryptor);
 
@@ -91,7 +92,7 @@ namespace Kalix.Leo.Indexing
             }
         }
 
-        public Task Delete(long partitionKey, string id, TMain main)
+        public Task Delete(long partitionKey, string id, ObjectWithMetadata<TMain> main)
         {
             var context = _client.Context(_tableName, null);
 

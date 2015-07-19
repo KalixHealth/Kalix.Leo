@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Table;
+﻿using Kalix.Leo.Storage;
+using Kalix.Leo.Table;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -17,7 +18,7 @@ namespace Kalix.Leo.Indexing.Config
             _client = client;
         }
 
-        public IRecordSearchConfig<TMain, TSearch> WithType<TSearch>(Func<TMain, TSearch> searchObjectMap)
+        public IRecordSearchConfig<TMain, TSearch> WithType<TSearch>(Func<TMain, Metadata, TSearch> searchObjectMap)
             where TSearch : class, new()
         {
             return new RecordSearchConfig<TMain, TSearch>(_client, _tableName, searchObjectMap);
@@ -28,11 +29,11 @@ namespace Kalix.Leo.Indexing.Config
     {
         private readonly ITableClient _client;
         private readonly string _tableName;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly List<IRecordMappingConfig<TMain>> _mappings;
         private readonly List<object> _searchandIndexObjects;
 
-        public RecordSearchConfig(ITableClient client, string tableName, Func<TMain, TSearch> searchObjectMap)
+        public RecordSearchConfig(ITableClient client, string tableName, Func<TMain, Metadata, TSearch> searchObjectMap)
         {
             _tableName = tableName;
             _searchObjectMap = searchObjectMap;
@@ -121,12 +122,12 @@ namespace Kalix.Leo.Indexing.Config
 
     public class RecordSearchMappingStart<TMain, TSearch> : IRecordSearchMappingStart<TMain, TSearch>
     {
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly string _prefix;
         private readonly IEnumerable<Func<TMain, IEnumerable<object>>> _keyMappings;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, IEnumerable<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, IEnumerable<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _searchObjectMap = searchObjectMap;
             _prefix = prefix;
@@ -141,11 +142,11 @@ namespace Kalix.Leo.Indexing.Config
 
         public IRecordSearchMappingEnd<TMain, TSearch> ConditionallyCreate(Func<TMain, bool> predicate)
         {
-            return new RecordSearchMappingEnd<TMain, TSearch>(_prefix, t =>
+            return new RecordSearchMappingEnd<TMain, TSearch>(_prefix, (t, m) =>
             {
                 if (predicate(t))
                 {
-                    return _searchObjectMap(t);
+                    return _searchObjectMap(t, m);
                 }
                 else
                 {
@@ -158,10 +159,10 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchMappingStart<TMain, TSearch, T1> : IRecordSearchMappingStart<TMain, TSearch, T1>
     {
         private readonly string _prefix;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _prefix = prefix;
             _searchObjectMap = searchObjectMap;
@@ -183,11 +184,11 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchLastMappingStart<TMain, TSearch, T1> : IRecordSearchLastMappingStart<TMain, TSearch, T1>
     {
         private readonly string _prefix;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly List<Func<TMain, IEnumerable<object>>> _keyMappings;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchLastMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchLastMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _prefix = prefix;
             _searchObjectMap = searchObjectMap;
@@ -211,10 +212,10 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchMappingStart<TMain, TSearch, T1, T2> : IRecordSearchMappingStart<TMain, TSearch, T1, T2>
     {
         private readonly string _prefix;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _prefix = prefix;
             _searchObjectMap = searchObjectMap;
@@ -235,11 +236,11 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchSecondMappingStart<TMain, TSearch, T1, T2> : IRecordSearchSecondMappingStart<TMain, TSearch, T1, T2>
     {
         private readonly string _prefix;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly List<Func<TMain, IEnumerable<object>>> _keyMappings;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchSecondMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchSecondMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _prefix = prefix;
             _searchObjectMap = searchObjectMap;
@@ -263,10 +264,10 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchMappingStart<TMain, TSearch, T1, T2, T3> : IRecordSearchMappingStart<TMain, TSearch, T1, T2, T3>
     {
         private readonly string _prefix;
-        private readonly Func<TMain, TSearch> _searchObjectMap;
+        private readonly Func<TMain, Metadata, TSearch> _searchObjectMap;
         private readonly Action<TMain, TSearch, IEnumerable<object>> _finalMapAction;
 
-        public RecordSearchMappingStart(string prefix, Func<TMain, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchMappingStart(string prefix, Func<TMain, Metadata, TSearch> searchObjectMap, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _prefix = prefix;
             _searchObjectMap = searchObjectMap;
@@ -287,7 +288,7 @@ namespace Kalix.Leo.Indexing.Config
     public class RecordSearchMappingEnd<TMain, TSearch> : IRecordSearchMappingEnd<TMain, TSearch>, IRecordMappingConfig<TMain>
     {
         private const string Underscore = "_";
-        private readonly Func<TMain, TSearch> _createFunc;
+        private readonly Func<TMain, Metadata, TSearch> _createFunc;
         private readonly string _prefix;
         private readonly List<Func<TMain, IEnumerable<object>>> _keyMappings;
         private readonly List<Action<TSearch, TSearch>> _newAndOldActions;
@@ -295,7 +296,7 @@ namespace Kalix.Leo.Indexing.Config
 
         private bool _addIdToRowKey = true;
 
-        public RecordSearchMappingEnd(string prefix, Func<TMain, TSearch> createFunc, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
+        public RecordSearchMappingEnd(string prefix, Func<TMain, Metadata, TSearch> createFunc, List<Func<TMain, IEnumerable<object>>> keyMappings, Action<TMain, TSearch, IEnumerable<object>> finalMapAction)
         {
             _createFunc = createFunc;
             _prefix = prefix;
@@ -318,20 +319,20 @@ namespace Kalix.Leo.Indexing.Config
 
         public IEnumerable<Action<ITableEntity, ITableEntity>> AdditionalActions { get { return _newAndOldActions.Select(ConvertActionFunc).ToList(); } }
 
-        public IEnumerable<ITableEntity> Create(long partitionKey, string id, TMain model, Func<object, string> keyParser)
+        public IEnumerable<ITableEntity> Create(long partitionKey, string id, ObjectWithMetadata<TMain> model, Func<object, string> keyParser)
         {
             if (_keyMappings.Any())
             {
-                var search = _createFunc(model);
+                var search = _createFunc(model.Data, model.Metadata);
                 if (search != null)
                 {
-                    var rowKeys = FindAllKeys(0, id, model, keyParser, new List<string>());
+                    var rowKeys = FindAllKeys(0, id, model.Data, keyParser, new List<string>());
                     foreach (var key in rowKeys)
                     {
-                        search = _createFunc(model); // Create a new model per item
+                        search = _createFunc(model.Data, model.Metadata); // Create a new model per item
                         if (_finalMapAction != null)
                         {
-                            _finalMapAction(model, search, key.Item2);
+                            _finalMapAction(model.Data, search, key.Item2);
                         }
                         yield return new TableEntity<TSearch>(partitionKey.ToString(CultureInfo.InvariantCulture), key.Item1, search);
                     }
@@ -339,12 +340,12 @@ namespace Kalix.Leo.Indexing.Config
             }
             else
             {
-                var search = _createFunc(model);
+                var search = _createFunc(model.Data, model.Metadata);
                 if (search != null)
                 {
                     if (_finalMapAction != null)
                     {
-                        _finalMapAction(model, search, null);
+                        _finalMapAction(model.Data, search, null);
                     }
                     yield return new TableEntity<TSearch>(partitionKey.ToString(CultureInfo.InvariantCulture), GetRowKey(id, null, null), search);
                 }
@@ -448,13 +449,13 @@ namespace Kalix.Leo.Indexing.Config
             get { return new List<Action<ITableEntity, ITableEntity>>(); }
         }
 
-        public IEnumerable<ITableEntity> Create(long partitionKey, string id, TMain model, Func<object, string> keyParser)
+        public IEnumerable<ITableEntity> Create(long partitionKey, string id, ObjectWithMetadata<TMain> model, Func<object, string> keyParser)
         {
             if (_keyMappings.Any())
             {
-                if (_createPredicate(model))
+                if (_createPredicate(model.Data))
                 {
-                    var rowKeys = FindAllKeys(0, model, keyParser, new List<string>());
+                    var rowKeys = FindAllKeys(0, model.Data, keyParser, new List<string>());
                     var partKey = partitionKey.ToString(CultureInfo.InvariantCulture);
                     foreach (var key in rowKeys)
                     {

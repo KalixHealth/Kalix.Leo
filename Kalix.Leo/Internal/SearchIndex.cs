@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
+using Kalix.Leo.Storage;
 using System;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -19,22 +20,22 @@ namespace Kalix.Leo.Internal
             _composition = composition;
         }
 
-        public Task Save(string id, TMain item, TMain previous)
+        public Task Save(string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
         {
             return _composition.Save(_partitionId, id, item, previous, _encryptor);
         }
 
-        public Task Save(long id, TMain item, TMain previous)
+        public Task Save(long id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
         {
             return Save(id.ToString(CultureInfo.InvariantCulture), item, previous);
         }
 
-        public Task Delete(string id, TMain current)
+        public Task Delete(string id, ObjectWithMetadata<TMain> current)
         {
             return _composition.Delete(_partitionId, id, current);
         }
 
-        public Task Delete(long id, TMain current)
+        public Task Delete(long id, ObjectWithMetadata<TMain> current)
         {
             return Delete(id.ToString(CultureInfo.InvariantCulture), current);
         }

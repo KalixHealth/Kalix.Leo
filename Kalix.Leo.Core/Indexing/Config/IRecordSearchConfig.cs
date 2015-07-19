@@ -1,4 +1,5 @@
-﻿using Kalix.Leo.Table;
+﻿using Kalix.Leo.Storage;
+using Kalix.Leo.Table;
 using System;
 using System.Collections.Generic;
 
@@ -6,7 +7,7 @@ namespace Kalix.Leo.Indexing.Config
 {
     public interface IRecordSearchConfig<TMain>
     {
-        IRecordSearchConfig<TMain, TSearch> WithType<TSearch>(Func<TMain, TSearch> searchObjectMap) where TSearch : class, new();
+        IRecordSearchConfig<TMain, TSearch> WithType<TSearch>(Func<TMain, Metadata, TSearch> searchObjectMap) where TSearch : class, new();
     }
 
     public interface IRecordSearchConfig<TMain, TSearch>
@@ -80,6 +81,6 @@ namespace Kalix.Leo.Indexing.Config
     public interface IRecordMappingConfig<TMain>
     {
         IEnumerable<Action<ITableEntity, ITableEntity>> AdditionalActions { get; }
-        IEnumerable<ITableEntity> Create(long partitionKey, string id, TMain model, Func<object, string> keyParser);
+        IEnumerable<ITableEntity> Create(long partitionKey, string id, ObjectWithMetadata<TMain> model, Func<object, string> keyParser);
     }
 }
