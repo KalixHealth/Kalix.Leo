@@ -17,14 +17,14 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to store the file</param>
         /// <param name="savingFunc">Function that runs where there is a stream to write to, it should return the real content length of data saved</param>
         /// <returns>Snapshot id if it exists</returns>
-        Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc);
+        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc);
 
         /// <summary>
         /// Update the metadata at the specified location, does not override it
         /// </summary>
         /// <param name="location">Location to update the metadata</param>
         /// <param name="metadata">Metadata to save</param>
-        Task SaveMetadata(StoreLocation location, Metadata metadata);
+        Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata);
 
         /// <summary>
         /// Gets the metadata at a certain location

@@ -46,6 +46,6 @@ namespace Kalix.Leo.Storage
     public class OptimisticStoreWriteResult
     {
         public bool Result { get; set; }
-        public string Snapshot { get; set; }
+        public Metadata Metadata { get; set; }
     }
 }

@@ -16,12 +16,12 @@ namespace Kalix.Leo
         {
         }
 
-        public Task<string> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null)
+        public Task<Metadata> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null)
         {
             return _store.SaveData(GetLocation(path), metadata, savingFunc, _encryptor.Value, _options);
         }
 
-        public Task SaveMetadata(string path, Metadata metadata)
+        public Task<Metadata> SaveMetadata(string path, Metadata metadata)
         {
             return _store.SaveMetadata(GetLocation(path), metadata, _options);
         }

@@ -39,13 +39,13 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public async Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
         {
             var result = await SaveDataInternal(location, metadata, savingFunc, false).ConfigureAwait(false);
-            return result.Snapshot;
+            return result.Metadata;
         }
 
-        public async Task SaveMetadata(StoreLocation location, Metadata metadata)
+        public async Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata)
         {
             var blob = GetBlockBlob(location);
             try
@@ -57,7 +57,7 @@ namespace Kalix.Leo.Azure.Storage
                 // No metadata to update in this case...
                 if (e.RequestInformation.HttpStatusCode == 404)
                 {
-                    return;
+                    return null;
                 }
 
                 throw e.Wrap();
@@ -69,6 +69,7 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             await blob.SetMetadataAsync().ConfigureAwait(false);
+            return await GetActualMetadata(blob).ConfigureAwait(false);
         }
 
         public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
@@ -498,10 +499,10 @@ namespace Kalix.Leo.Azure.Storage
                 if (_enableSnapshots)
                 {
                     var snapshotBlob = await blob.CreateSnapshotAsync().ConfigureAwait(false);
-                    result.Snapshot = snapshotBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
+                    var snapshot = snapshotBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
 
                     // Save the snapshot back to original blob...
-                    blob.Metadata[InternalSnapshotKey] = result.Snapshot;
+                    blob.Metadata[InternalSnapshotKey] = snapshot;
                     hasMetadataUpdate = true;
 
                     LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
@@ -512,6 +513,8 @@ namespace Kalix.Leo.Azure.Storage
                     // Update the metadata for last few keys
                     await blob.SetMetadataAsync().ConfigureAwait(false);
                 }
+
+                result.Metadata = await GetActualMetadata(blob).ConfigureAwait(false);
             }
             catch (StorageException exc)
             {

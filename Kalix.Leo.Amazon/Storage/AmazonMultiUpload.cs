@@ -53,8 +53,8 @@ namespace Kalix.Leo.Amazon.Storage
 
             req.AddPartETags(responses);
 
-            var response = await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
-            return response.VersionId;
+            var r = await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
+            return r.VersionId;
         }
 
         public async Task Abort()

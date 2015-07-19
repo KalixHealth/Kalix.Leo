@@ -31,10 +31,10 @@ namespace Kalix.Leo.Amazon.Storage
             _bucket = bucket;
         }
 
-        public async Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
         {
             var key = GetObjectKey(location);
-            string result = null;
+            string snapshot = null;
             long? length = null;
             using(var stream = new AmazonMultiUploadStream(_client, _bucket, key, metadata))
             {
@@ -42,7 +42,7 @@ namespace Kalix.Leo.Amazon.Storage
                 try
                 {
                     length = await savingFunc(stream).ConfigureAwait(false);
-                    result = await stream.Complete().ConfigureAwait(false);
+                    snapshot = await stream.Complete().ConfigureAwait(false);
                 }
                 catch (Exception e) { doCancel = e; }
 
@@ -55,10 +55,10 @@ namespace Kalix.Leo.Amazon.Storage
 
             // TODO: Save down real length if required...
 
-            return result;
+            return await GetMetadata(location, snapshot);
         }
 
-        public Task SaveMetadata(StoreLocation location, Metadata metadata)
+        public Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata)
         {
             throw new NotImplementedException();
         }
@@ -218,7 +218,7 @@ namespace Kalix.Leo.Amazon.Storage
             .LastOrDefaultAsync(); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
-        private Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
+        public static Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
         {
             var metadata = new Metadata(m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]));
 

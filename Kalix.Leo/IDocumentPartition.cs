@@ -17,7 +17,7 @@ namespace Kalix.Leo
         /// <param name="data">The stream of data to save</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that returns snapshot id when the record is saved</returns>
-        Task<string> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null);
+        Task<Metadata> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified path, does not override it
@@ -25,7 +25,7 @@ namespace Kalix.Leo
         /// <param name="path">The location to save the record (in this particular partition)</param>
         /// <param name="metadata">metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that completes when the metadata is saved</returns>
-        Task SaveMetadata(string path, Metadata metadata);
+        Task<Metadata> SaveMetadata(string path, Metadata metadata);
 
         /// <summary>
         /// Read the data from a specified path in this partition

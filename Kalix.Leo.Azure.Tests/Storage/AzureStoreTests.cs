@@ -32,7 +32,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 await s.WriteAsync(data, 0, data.Length);
                 return data.Length;
-            }).Result;
+            }).Result.Snapshot;
         }
 
         protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
@@ -99,7 +99,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _blob.FetchAttributes();
                 Assert.IsTrue(success.Result);
-                Assert.IsNotNull(success.Snapshot);
+                Assert.IsNotNull(success.Metadata.Snapshot);
                 Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
             }
 
@@ -121,9 +121,9 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 _blob.FetchAttributes();
                 Assert.IsTrue(success1.Result, "first write failed");
                 Assert.IsTrue(success2.Result, "second write failed");
-                Assert.AreEqual(success1.Snapshot, oldMetadata.Snapshot);
-                Assert.AreEqual(success2.Snapshot, newMetadata.Snapshot);
-                Assert.AreNotEqual(success1.Snapshot, success2.Snapshot);
+                Assert.AreEqual(success1.Metadata.Snapshot, oldMetadata.Snapshot);
+                Assert.AreEqual(success2.Metadata.Snapshot, newMetadata.Snapshot);
+                Assert.AreNotEqual(success1.Metadata.Snapshot, success2.Metadata.Snapshot);
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
                 Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
             }
@@ -156,7 +156,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var success = TryOptimisticWrite(_location, null, data);
 
                 Assert.IsTrue(success.Result);
-                Assert.IsNotNull(success.Snapshot);
+                Assert.IsNotNull(success.Metadata.Snapshot);
                 Assert.IsTrue(_blob.Exists());
             }
         }

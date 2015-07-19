@@ -16,9 +16,9 @@ namespace Kalix.Leo.Storage
 
         Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null);
 
-        Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
-        Task<string> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
-        Task SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All);
+        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
+        Task<Metadata> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All);
+        Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All);
 
         Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All);
 

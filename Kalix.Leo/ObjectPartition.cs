@@ -25,23 +25,23 @@ namespace Kalix.Leo
             });
         }
 
-        public async Task<ObjectPartitionWriteResult> Save(T data, long id, Metadata metadata = null)
+        public async Task<ObjectPartitionWriteResult<T>> Save(T data, long id, Metadata metadata = null)
         {
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var snapshot = await _store.SaveObject(GetLocation(id), obj, _encryptor.Value, _options).ConfigureAwait(false);
-            return new ObjectPartitionWriteResult
+            var result = await _store.SaveObject(GetLocation(id), obj, _encryptor.Value, _options).ConfigureAwait(false);
+            return new ObjectPartitionWriteResult<T>
             {
                 Id = id,
-                Snapshot = snapshot
+                Data = new ObjectWithMetadata<T>(data, result)
             };
         }
 
-        public Task SaveMetadata(long id, Metadata metadata)
+        public Task<Metadata> SaveMetadata(long id, Metadata metadata)
         {
             return _store.SaveMetadata(GetLocation(id), metadata, _options);
         }
 
-        public async Task<ObjectPartitionWriteResult> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
+        public async Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
             var member = idField.Body as MemberExpression;
             if(member == null)
@@ -68,11 +68,11 @@ namespace Kalix.Leo
             }
 
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var snapshot = await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options).ConfigureAwait(false);
-            return new ObjectPartitionWriteResult
+            var result = await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options).ConfigureAwait(false);
+            return new ObjectPartitionWriteResult<T>
             {
                 Id = id.Value,
-                Snapshot = snapshot
+                Data = new ObjectWithMetadata<T>(data, result)
             };
         }
 
