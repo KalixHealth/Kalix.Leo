@@ -44,7 +44,7 @@ namespace Kalix.Leo.Lucene.Store
                         throw new System.IO.FileNotFoundException(_name);
                     }
 
-                    var blobLength = metadata.Size ?? 0;
+                    var blobLength = metadata.ContentLength ?? 0;
                     var blobLastModifiedUTC = metadata.LastModified ?? DateTime.UtcNow;
 
                     if (cachedLength != blobLength)

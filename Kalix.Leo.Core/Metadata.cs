@@ -35,10 +35,10 @@ namespace Kalix.Leo
             get
             {
                 DateTime? val = null;
-                if(ContainsKey(MetadataConstants.ModifiedMetadataKey))
+                if (ContainsKey(MetadataConstants.ModifiedMetadataKey))
                 {
                     long ticks;
-                    if(long.TryParse(this[MetadataConstants.ModifiedMetadataKey], out ticks))
+                    if (long.TryParse(this[MetadataConstants.ModifiedMetadataKey], out ticks))
                     {
                         val = new DateTime(ticks, DateTimeKind.Utc);
                     }
@@ -47,11 +47,11 @@ namespace Kalix.Leo
             }
             set
             {
-                if(value.HasValue)
+                if (value.HasValue)
                 {
                     this[MetadataConstants.ModifiedMetadataKey] = value.Value.Ticks.ToString(CultureInfo.InvariantCulture);
                 }
-                else
+                else if (ContainsKey(MetadataConstants.ModifiedMetadataKey))
                 {
                     Remove(MetadataConstants.ModifiedMetadataKey);
                 }
@@ -61,14 +61,14 @@ namespace Kalix.Leo
         /// <summary>
         /// Common metadata key, holds the size of the specified record
         /// </summary>
-        public long? Size
+        public long? ContentLength
         {
             get
             {
-                if (ContainsKey(MetadataConstants.SizeMetadataKey))
+                if (ContainsKey(MetadataConstants.ContentLengthMetadataKey))
                 {
                     long size;
-                    if (long.TryParse(this[MetadataConstants.SizeMetadataKey], out size))
+                    if (long.TryParse(this[MetadataConstants.ContentLengthMetadataKey], out size))
                     {
                         return size;
                     }
@@ -79,11 +79,11 @@ namespace Kalix.Leo
             {
                 if (value.HasValue)
                 {
-                    this[MetadataConstants.SizeMetadataKey] = value.Value.ToString(CultureInfo.InvariantCulture);
+                    this[MetadataConstants.ContentLengthMetadataKey] = value.Value.ToString(CultureInfo.InvariantCulture);
                 }
-                else
+                else if (ContainsKey(MetadataConstants.ContentLengthMetadataKey))
                 {
-                    Remove(MetadataConstants.SizeMetadataKey);
+                    Remove(MetadataConstants.ContentLengthMetadataKey);
                 }
             }
         }
@@ -107,7 +107,7 @@ namespace Kalix.Leo
                 {
                     this[MetadataConstants.ContentTypeMetadataKey] = value;
                 }
-                else
+                else if (ContainsKey(MetadataConstants.ContentTypeMetadataKey))
                 {
                     Remove(MetadataConstants.ContentTypeMetadataKey);
                 }
@@ -118,5 +118,25 @@ namespace Kalix.Leo
         /// A tag to indicate the current version of the metadata, only valid when loading from storage
         /// </summary>
         public string ETag { get; set; }
+
+        /// <summary>
+        /// Snapshot id of the current data, should always have a value when loading from storage
+        /// </summary>
+        public string Snapshot { get; set; }
+
+        /// <summary>
+        /// The size of the file as stored via the storage provider, will generally be bigger than Size due to encryption etc
+        /// </summary>
+        public long? StoredContentLength { get; set; }
+
+        /// <summary>
+        /// The Content-Type of the file as stored in the storage provider, will generally be binary due to encryption
+        /// </summary>
+        public string StoredContentType { get; set; }
+
+        /// <summary>
+        /// Holds the date/time that a record was modified from the underlying storage provider
+        /// </summary>
+        public DateTime? StoredLastModified { get; set; }
     }
 }

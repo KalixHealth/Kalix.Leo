@@ -31,16 +31,18 @@ namespace Kalix.Leo.Amazon.Storage
             _bucket = bucket;
         }
 
-        public async Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
+        public async Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
         {
             var key = GetObjectKey(location);
+            string result = null;
+            long? length = null;
             using(var stream = new AmazonMultiUploadStream(_client, _bucket, key, metadata))
             {
                 Exception doCancel = null;
                 try
                 {
-                    await savingFunc(stream).ConfigureAwait(false);
-                    await stream.Complete().ConfigureAwait(false);
+                    length = await savingFunc(stream).ConfigureAwait(false);
+                    result = await stream.Complete().ConfigureAwait(false);
                 }
                 catch (Exception e) { doCancel = e; }
 
@@ -50,6 +52,10 @@ namespace Kalix.Leo.Amazon.Storage
                     throw doCancel;
                 }
             }
+
+            // TODO: Save down real length if required...
+
+            return result;
         }
 
         public Task SaveMetadata(StoreLocation location, Metadata metadata)
@@ -69,7 +75,7 @@ namespace Kalix.Leo.Amazon.Storage
             try
             {
                 var resp = await _client.GetObjectMetadataAsync(request).ConfigureAwait(false);
-                return ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength, resp.ETag);
+                return ActualMetadata(resp.Metadata, resp.VersionId, resp.LastModified, resp.ContentLength, resp.Headers.ContentType, resp.ETag);
             }
             catch (AmazonS3Exception e)
             {
@@ -94,7 +100,7 @@ namespace Kalix.Leo.Amazon.Storage
                 };
 
                 var resp = await _client.GetObjectAsync(request).ConfigureAwait(false);
-                var metadata = ActualMetadata(resp.Metadata, resp.LastModified, resp.ContentLength, resp.ETag);
+                var metadata = ActualMetadata(resp.Metadata, resp.VersionId, resp.LastModified, resp.ContentLength, resp.Headers.ContentType, resp.ETag);
                 return new DataWithMetadata(resp.ResponseStream, metadata);
             }
             catch (AmazonS3Exception e)
@@ -212,20 +218,19 @@ namespace Kalix.Leo.Amazon.Storage
             .LastOrDefaultAsync(); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
-        private Metadata ActualMetadata(MetadataCollection m, DateTime modified, long size, string eTag)
+        private Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
         {
             var metadata = new Metadata(m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]));
-            if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
-            {
-                metadata.Size = size;
-            }
 
-            if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey))
+            metadata.StoredContentType = contentType;
+            metadata.StoredContentLength = size;
+            metadata.ETag = eTag;
+            metadata.Snapshot = versionId;
+            metadata.StoredLastModified = modified;
+            if (!metadata.LastModified.HasValue)
             {
                 metadata.LastModified = modified;
             }
-
-            metadata.ETag = eTag;
 
             return metadata;
         }
@@ -261,7 +266,7 @@ namespace Kalix.Leo.Amazon.Storage
             return new Snapshot
             {
                 Id = version.VersionId,
-                Metadata = ActualMetadata(res.Metadata, res.LastModified, res.ContentLength, res.ETag)
+                Metadata = ActualMetadata(res.Metadata, res.VersionId, res.LastModified, res.ContentLength, res.Headers.ContentType, res.ETag)
             };
         }
 

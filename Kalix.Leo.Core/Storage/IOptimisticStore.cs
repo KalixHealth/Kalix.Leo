@@ -16,7 +16,7 @@ namespace Kalix.Leo.Storage
         /// <param name="savingFunc">A write stream so you can do what you want to save</param>
         /// <param name="location">Location to store the file</param>
         /// <returns>Whether the write was successful or not</returns>
-        Task<bool> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc);
+        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc);
 
         /// <summary>
         /// Locks the storage at the specified location
@@ -41,5 +41,11 @@ namespace Kalix.Leo.Storage
         /// <param name="action">The action to execute once</param>
         /// <returns>Task for when the action is complete</returns>
         Task RunOnce(StoreLocation location, Func<Task> action);
+    }
+
+    public class OptimisticStoreWriteResult
+    {
+        public bool Result { get; set; }
+        public string Snapshot { get; set; }
     }
 }

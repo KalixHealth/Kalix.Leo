@@ -65,7 +65,7 @@ namespace Kalix.Leo.Lucene.Store
             return await _store
                 .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + '/'))
                 .Select(s => s.Location.BasePath.Substring(basePathLength))
-                .ToArray(); // This will block until executed
+                .ToArray();
         }
 
         /// <summary>Returns true if a file with the given name exists. </summary>
@@ -110,7 +110,7 @@ namespace Kalix.Leo.Lucene.Store
         public override long FileLength(string name)
         {
             var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
-            return metadata == null || !metadata.Size.HasValue ? 0 : metadata.Size.Value;
+            return metadata == null || !metadata.ContentLength.HasValue ? 0 : metadata.ContentLength.Value;
         }
 
         /// <summary>Creates a new, empty file in the directory with the given name.
@@ -123,7 +123,7 @@ namespace Kalix.Leo.Lucene.Store
             {
                 // Overwrite metadata for better effiency (size/modified)
                 var metadata = new Metadata();
-                metadata.Size = data.Metadata.Size;
+                metadata.ContentLength = data.Metadata.ContentLength;
                 metadata.LastModified = data.Metadata.LastModified;
 
                 await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s), _encryptor, _options).ConfigureAwait(false);

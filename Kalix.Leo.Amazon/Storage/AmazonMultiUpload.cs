@@ -40,7 +40,7 @@ namespace Kalix.Leo.Amazon.Storage
             _blocks.Add(task);
         }
 
-        public async Task Complete()
+        public async Task<string> Complete()
         {
             var responses = await Task.WhenAll(_blocks).ConfigureAwait(false);
 
@@ -53,7 +53,8 @@ namespace Kalix.Leo.Amazon.Storage
 
             req.AddPartETags(responses);
 
-            await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
+            var response = await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
+            return response.VersionId;
         }
 
         public async Task Abort()

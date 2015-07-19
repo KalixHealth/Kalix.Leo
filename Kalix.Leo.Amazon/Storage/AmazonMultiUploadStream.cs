@@ -18,6 +18,7 @@ namespace Kalix.Leo.Amazon.Storage
         private int _partNumber = 1;
         private int _currentOffset = 0;
         private byte[] _buffer = new byte[ReadWriteBufferSize];
+        private long _length = 0;
 
         private AmazonMultiUpload _uploader;
 
@@ -37,13 +38,14 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
-        public async Task Complete()
+        public async Task<string> Complete()
         {
+            string result;
             if(_uploader != null)
             {
-                await _uploader.Complete().ConfigureAwait(false);
+                result = await _uploader.Complete().ConfigureAwait(false);
             }
-            else if(_currentOffset > 0)
+            else
             {
                 // Just a single upload request...
                 using (var ms = new MemoryStream(_buffer, 0, _currentOffset))
@@ -66,9 +68,11 @@ namespace Kalix.Leo.Amazon.Storage
                         }
                     }
 
-                    await _client.PutObjectAsync(request).ConfigureAwait(false);
+                    var response = await _client.PutObjectAsync(request).ConfigureAwait(false);
+                    result = response.VersionId;
                 }
             }
+            return result;
         }
 
         public override bool CanRead
@@ -92,6 +96,7 @@ namespace Kalix.Leo.Amazon.Storage
 
         public override void Write(byte[] buffer, int offset, int count)
         {
+            _length += count;
             while(count > 0)
             {
                 var toCopy = Math.Min(ReadWriteBufferSize - _currentOffset, count);
@@ -119,7 +124,7 @@ namespace Kalix.Leo.Amazon.Storage
 
         public override long Length
         {
-            get { throw new NotImplementedException(); }
+            get { return _length; }
         }
 
         public override long Position

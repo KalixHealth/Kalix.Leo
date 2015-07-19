@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>5.0.3</version>
+    <version>5.0.4</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      If an index doesn't exist, make it!
+      Major update - snapshot ids bubble on save, metadata includes snapshot id
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="4.1.0" />
+      <dependency id="Kalix.Leo.Core" version="5.0.1" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
       <dependency id="Lucene.Net.Contrib.Management" version="1.0.3" />
     </dependencies>

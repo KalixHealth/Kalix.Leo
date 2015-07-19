@@ -20,6 +20,7 @@ namespace Kalix.Leo.Azure.Storage
         private byte[] _buffer = null;
         private int _offset = 0;
         private int _partNumber = 1;
+        private long _length = 0;
 
         private bool _hasCompleted;
 
@@ -43,6 +44,7 @@ namespace Kalix.Leo.Azure.Storage
                 _buffer = new byte[AzureBlockSize];
             }
 
+            _length += count;
             while (count > 0)
             {
                 var read = Math.Min(_buffer.Length - _offset, count);
@@ -155,7 +157,7 @@ namespace Kalix.Leo.Azure.Storage
 
         public override long Length
         {
-            get { throw new NotImplementedException(); }
+            get { return _length; }
         }
 
         public override long Position

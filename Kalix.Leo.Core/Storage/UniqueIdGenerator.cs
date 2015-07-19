@@ -87,7 +87,11 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            await _store.SaveData(_location, null, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false);
+            await _store.SaveData(_location, null, async s => 
+            {
+                await s.WriteAsync(limitBytes, 0, limitBytes.Length).ConfigureAwait(false);
+                return limitBytes.Length;
+            }).ConfigureAwait(false);
 
             // This will force a refresh on the Next
             _upperIdLimit = 0;
@@ -134,7 +138,12 @@ namespace Kalix.Leo.Storage
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
                 var m = dataStream == null ? null : new Metadata() { ETag = dataStream.Metadata.ETag };
-                if (await _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(limitBytes, 0, limitBytes.Length)).ConfigureAwait(false))
+                var result = await _store.TryOptimisticWrite(_location, m, async s =>
+                {
+                    await s.WriteAsync(limitBytes, 0, limitBytes.Length).ConfigureAwait(false);
+                    return limitBytes.Length;
+                }).ConfigureAwait(false);
+                if (result.Result)
                 {
                     // First update currentId
                     // Then upper limit, this will avoid any need for locks etc

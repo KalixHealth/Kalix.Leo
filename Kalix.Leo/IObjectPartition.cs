@@ -19,7 +19,7 @@ namespace Kalix.Leo
         /// <param name="id">The id to save the record as</param>
         /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
         /// <returns>Task that completes when the record is saved</returns>
-        Task Save(T data, long id, Metadata metadata = null);
+        Task<ObjectPartitionWriteResult> Save(T data, long id, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified id value, does not override it
@@ -37,7 +37,7 @@ namespace Kalix.Leo
         /// <param name="preSaveProcessing">An optional step to do some processing after the id has been created but before the record is saved</param>
         /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
         /// <returns>Task that completes when the record is saved, returns the id</returns>
-        Task<long> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null);
+        Task<ObjectPartitionWriteResult> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null);
 
         /// <summary>
         /// Load a record by id
@@ -101,5 +101,11 @@ namespace Kalix.Leo
         /// <param name="newId">Id to set the generator to</param>
         /// <returns>Task when the generator has been changed</returns>
         Task SetInternalIdGenerator(long newId);
+    }
+
+    public class ObjectPartitionWriteResult
+    {
+        public long Id { get; set; }
+        public string Snapshot { get; set; }
     }
 }

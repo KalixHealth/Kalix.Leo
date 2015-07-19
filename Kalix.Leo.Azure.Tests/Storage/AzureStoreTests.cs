@@ -26,6 +26,24 @@ namespace Kalix.Leo.Azure.Tests.Storage
             _location = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata");
         }
 
+        protected string WriteData(StoreLocation location, Metadata m, byte[] data)
+        {
+            return _store.SaveData(location, m, async s =>
+            {
+                await s.WriteAsync(data, 0, data.Length);
+                return data.Length;
+            }).Result;
+        }
+
+        protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
+        {
+            return _store.TryOptimisticWrite(location, m, async s =>
+            {
+                await s.WriteAsync(data, 0, data.Length);
+                return data.Length;
+            }).Result;
+        }
+
         [TestFixture]
         public class SaveDataMethod : AzureStoreTests
         {
@@ -35,7 +53,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 _blob.FetchAttributes();
                 Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
@@ -47,11 +65,11 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var m2 = new Metadata();
                 m2["metadata2"] = "othermetadata";
-                _store.SaveData(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m2, data);
 
                 _blob.FetchAttributes();
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
@@ -62,7 +80,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void MultiUploadLargeFileIsSuccessful()
             {
                 var data = AzureTestsHelper.RandomData(7);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 Assert.IsTrue(_blob.Exists());
             }
@@ -77,10 +95,11 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                var success = _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success = TryOptimisticWrite(_location, m, data);
 
                 _blob.FetchAttributes();
-                Assert.IsTrue(success);
+                Assert.IsTrue(success.Result);
+                Assert.IsNotNull(success.Snapshot);
                 Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
             }
 
@@ -90,17 +109,21 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                var success1 = _store.TryOptimisticWrite(_location, m, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success1 = TryOptimisticWrite(_location, m, data);
                 var oldMetadata = _store.GetMetadata(_location).Result;
 
                 var m2 = new Metadata();
                 m2.ETag = oldMetadata.ETag;
                 m2["metadata2"] = "othermetadata";
-                var success2 = _store.TryOptimisticWrite(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success2 = TryOptimisticWrite(_location, m2, data);
+                var newMetadata = _store.GetMetadata(_location).Result;
 
                 _blob.FetchAttributes();
-                Assert.IsTrue(success1, "first write failed");
-                Assert.IsTrue(success2, "second write failed");
+                Assert.IsTrue(success1.Result, "first write failed");
+                Assert.IsTrue(success2.Result, "second write failed");
+                Assert.AreEqual(success1.Snapshot, oldMetadata.Snapshot);
+                Assert.AreEqual(success2.Snapshot, newMetadata.Snapshot);
+                Assert.AreNotEqual(success1.Snapshot, success2.Snapshot);
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
                 Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
             }
@@ -109,11 +132,11 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void NoETagMustBeNewSave()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var success1 = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
-                var success2 = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success1 = TryOptimisticWrite(_location, null, data);
+                var success2 = TryOptimisticWrite(_location, null, data);
 
-                Assert.IsTrue(success1, "first write failed");
-                Assert.IsFalse(success2, "second write succeeded");
+                Assert.IsTrue(success1.Result, "first write failed");
+                Assert.IsFalse(success2.Result, "second write succeeded");
             }
 
             [Test]
@@ -121,18 +144,19 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 var data = AzureTestsHelper.RandomData(1);
                 var metadata = new Metadata { ETag = "notreal" };
-                var success = _store.TryOptimisticWrite(_location, metadata, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success = TryOptimisticWrite(_location, metadata, data);
 
-                Assert.IsFalse(success, "write should not have succeeded with fake eTag");
+                Assert.IsFalse(success.Result, "write should not have succeeded with fake eTag");
             }
 
             [Test]
             public void MultiUploadLargeFileIsSuccessful()
             {
                 var data = AzureTestsHelper.RandomData(7);
-                var success = _store.TryOptimisticWrite(_location, null, s => s.WriteAsync(data, 0, data.Length)).Result;
+                var success = TryOptimisticWrite(_location, null, data);
 
-                Assert.IsTrue(success);
+                Assert.IsTrue(success.Result);
+                Assert.IsNotNull(success.Snapshot);
                 Assert.IsTrue(_blob.Exists());
             }
         }
@@ -153,12 +177,13 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var result = _store.GetMetadata(_location).Result;
 
-                Assert.AreEqual("1048576", result[MetadataConstants.SizeMetadataKey]);
+                Assert.AreEqual("1048576", result[MetadataConstants.ContentLengthMetadataKey]);
                 Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
+                Assert.IsNotNull(result.Snapshot);
                 Assert.AreEqual("somemetadata", result["metadata1"]);
             }
         }
@@ -172,9 +197,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var result = _store.LoadData(_location).Result;
+                Assert.IsNotNull(result.Metadata.Snapshot);
                 Assert.AreEqual("metadata", result.Metadata["metadata1"]);
             }
 
@@ -198,7 +224,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["leodeleted"] = DateTime.UtcNow.Ticks.ToString();
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var result = _store.LoadData(_location).Result;
                 Assert.IsNull(result);
@@ -208,7 +234,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void AllDataLoadsCorrectly()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 var result = _store.LoadData(_location).Result;
                 byte[] resData;
@@ -238,7 +264,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -249,12 +275,12 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void SubItemBlobSnapshotsAreNotIncluded()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
                 var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
 
-                _store.SaveData(location2, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(location2, null, data);
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -271,10 +297,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
-                var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+                var shapshot = WriteData(_location, m, data);
 
                 var res = _store.LoadData(_location, shapshot).Result;
+                Assert.AreEqual(shapshot, res.Metadata.Snapshot);
                 Assert.AreEqual("metadata", res.Metadata["metadata1"]);
             }
 
@@ -299,7 +325,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 _store.SoftDelete(_location).Wait();
 
@@ -311,7 +337,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void ShouldNotDeleteSnapshots()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.SoftDelete(_location).Wait();
@@ -334,7 +360,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 _store.PermanentDelete(_location).Wait();
 
@@ -346,7 +372,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void ShouldDeleteAllSnapshots()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.PermanentDelete(_location).Wait();
@@ -388,7 +414,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                     var data = AzureTestsHelper.RandomData(1);
                     try
                     {
-                        _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                        WriteData(_location, null, data);
                     }
                     catch (AggregateException e)
                     {

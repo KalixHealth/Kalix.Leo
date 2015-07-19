@@ -147,16 +147,16 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public async Task SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public Task<string> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             // Serialise to json as more cross platform
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            await SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length), encryptor, options);
+            return SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length), encryptor, options);
         }
 
-        public async Task SaveData(StoreLocation location, Metadata mdata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<string> SaveData(StoreLocation location, Metadata mdata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
             var metadata = new Metadata(mdata);
@@ -189,7 +189,7 @@ namespace Kalix.Leo.Storage
             /****************************************************
              *  PREPARE THE SAVE STREAM
              * ***************************************************/
-            await _store.SaveData(location, metadata, async (s) =>
+            var snapshotId = await _store.SaveData(location, metadata, async (s) =>
             {
                 Stream encStream = null;
                 Stream compStream = null;
@@ -209,8 +209,11 @@ namespace Kalix.Leo.Storage
                     }
 
                     // Work out which stream we are actually writing to...
-                    var writeStream = compStream ?? encStream ?? s;
-                    await savingFunc(writeStream).ConfigureAwait(false);
+                    using (var writeStream = new LengthCounterStream(compStream ?? encStream ?? s))
+                    {
+                        await savingFunc(writeStream).ConfigureAwait(false);
+                        return writeStream.Length;
+                    }
                 }
                 finally
                 {
@@ -249,6 +252,8 @@ namespace Kalix.Leo.Storage
             {
                 await Task.WhenAll(tasks).ConfigureAwait(false);
             }
+
+            return snapshotId;
         }
 
         public async Task SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All)

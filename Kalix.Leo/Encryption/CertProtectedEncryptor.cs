@@ -52,7 +52,11 @@ namespace Kalix.Leo.Encryption
             {
                 // Have to create a new key
                 blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
-                await store.SaveData(keyLocation, null, (s) => s.WriteAsync(blob, 0, blob.Length)).ConfigureAwait(false);
+                await store.SaveData(keyLocation, null, async s =>
+                {
+                    await s.WriteAsync(blob, 0, blob.Length).ConfigureAwait(false);
+                    return blob.Length;
+                }).ConfigureAwait(false);
             }
             else
             {

@@ -71,7 +71,7 @@ namespace Kalix.Leo.Lucene.Store
 
                     var data = new DataWithMetadata(blobStream, new Metadata
                     {
-                        Size = originalLength,
+                        ContentLength = originalLength,
                         LastModified = cachedLastModifiedUTC
                     });
 

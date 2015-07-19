@@ -17,6 +17,7 @@ namespace Kalix.Leo.Azure.Storage
     {
         private const string IdExtension = ".id";
         private const string DefaultDeletedKey = "leodeleted";
+        private const string InternalSnapshotKey = "leoazuresnapshot";
 
         private readonly CloudBlobClient _blobStorage;
         private readonly string _deletedKey;
@@ -38,9 +39,10 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public Task SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
+        public async Task<string> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
         {
-            return SaveDataInternal(location, metadata, savingFunc, false);
+            var result = await SaveDataInternal(location, metadata, savingFunc, false).ConfigureAwait(false);
+            return result.Snapshot;
         }
 
         public async Task SaveMetadata(StoreLocation location, Metadata metadata)
@@ -69,7 +71,7 @@ namespace Kalix.Leo.Azure.Storage
             await blob.SetMetadataAsync().ConfigureAwait(false);
         }
 
-        public Task<bool> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc)
+        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
         {
             return SaveDataInternal(location, metadata, savingFunc, true);
         }
@@ -175,7 +177,7 @@ namespace Kalix.Leo.Azure.Storage
                 throw e.Wrap();
             }
 
-            var metadata = GetActualMetadata(blob);
+            var metadata = await GetActualMetadata(blob).ConfigureAwait(false);
             if (metadata.ContainsKey(_deletedKey))
             {
                 metadata = null;
@@ -204,7 +206,7 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             // If deleted then return null...
-            var metadata = GetActualMetadata(blob);
+            var metadata = await GetActualMetadata(blob).ConfigureAwait(false);
             if (metadata.ContainsKey(_deletedKey))
             {
                 return null;
@@ -215,6 +217,8 @@ namespace Kalix.Leo.Azure.Storage
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
         {
+            if (!_enableSnapshots) { return Observable.Empty<Snapshot>(); }
+
             var blob = GetBlockBlob(location);
             var results = Observable.Create<ICloudBlob>((observer, ct) =>
             {
@@ -222,11 +226,11 @@ namespace Kalix.Leo.Azure.Storage
             });
 
             return results
-                .Where(b => b.Uri == blob.Uri && b.SnapshotTime.HasValue)
-                .Select(b => new Snapshot
+                .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
+                .SelectMany(async b => new Snapshot
                 {
-                    Id = b.SnapshotTime.Value.UtcDateTime.Ticks.ToString(),
-                    Metadata = GetActualMetadata(b)
+                    Id = b.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture),
+                    Metadata = await GetActualMetadata(b).ConfigureAwait(false)
                 });
         }
 
@@ -240,7 +244,7 @@ namespace Kalix.Leo.Azure.Storage
 
             return results
                 .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
-                .Select(b =>
+                .SelectMany(async b =>
                 {
                     long? id = null;
                     string path = b.Name;
@@ -255,7 +259,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     
                     var loc = new StoreLocation(container, path, id);
-                    return new LocationWithMetadata(loc, GetActualMetadata(b));
+                    return new LocationWithMetadata(loc, await GetActualMetadata(b).ConfigureAwait(false));
                 });
         }
 
@@ -453,8 +457,9 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
         }
 
-        private async Task<bool> SaveDataInternal(StoreLocation location, Metadata metadata, Func<Stream, Task> savingFunc, bool isOptimistic)
+        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc, bool isOptimistic)
         {
+            var result = new OptimisticStoreWriteResult() { Result = true };
             try
             {
                 var blob = GetBlockBlob(location);
@@ -474,18 +479,38 @@ namespace Kalix.Leo.Azure.Storage
                     }
                 }
 
+                bool hasMetadataUpdate = false;
+                long? length;
                 using (var stream = new AzureWriteBlockBlobStream(blob, condition))
                 {
-                    await savingFunc(stream).ConfigureAwait(false);
+                    length = await savingFunc(stream).ConfigureAwait(false);
                     await stream.Complete().ConfigureAwait(false);
+                }
+
+                if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
+                {
+                    blob.Metadata[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
+                    hasMetadataUpdate = true;
                 }
 
                 // Create a snapshot straight away on azure
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
                 if (_enableSnapshots)
                 {
-                    await blob.CreateSnapshotAsync().ConfigureAwait(false);
+                    var snapshotBlob = await blob.CreateSnapshotAsync().ConfigureAwait(false);
+                    result.Snapshot = snapshotBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
+
+                    // Save the snapshot back to original blob...
+                    blob.Metadata[InternalSnapshotKey] = result.Snapshot;
+                    hasMetadataUpdate = true;
+
                     LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
+                }
+
+                if (hasMetadataUpdate)
+                {
+                    // Update the metadata for last few keys
+                    await blob.SetMetadataAsync().ConfigureAwait(false);
                 }
             }
             catch (StorageException exc)
@@ -494,44 +519,76 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     // First condition occurrs when the eTags do not match
                     // Second condition when we specified no eTag (ie must be new blob)
-                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed  
+                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed
                         || (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict && exc.RequestInformation.ExtendedErrorInformation.ErrorCode == "BlobAlreadyExists"))
                     {
-                        return false;
+                        result.Result = false;
                     }
                 }
-
-                if(exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict)
+                else
                 {
-                    throw new LockException("The underlying storage is currently locked for save");
-                }
+                    if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict
+                        || exc.RequestInformation.ExtendedErrorInformation.ErrorCode == "LeaseIdMissing")
+                    {
+                        throw new LockException("The underlying storage is currently locked for save");
+                    }
 
-                throw exc.Wrap();
+                    throw exc.Wrap();
+                }
             }
 
-            return true;
+            return result;
         }
 
-        private Metadata GetActualMetadata(ICloudBlob blob)
+        private async Task<Metadata> GetActualMetadata(ICloudBlob blob)
         {
             var metadata = new Metadata(blob.Metadata);
 
-            if (!metadata.ContainsKey(MetadataConstants.ModifiedMetadataKey) && (blob.Properties.LastModified.HasValue || blob.SnapshotTime.HasValue))
+            if (blob.Properties.LastModified.HasValue || blob.SnapshotTime.HasValue)
             {
-                metadata[MetadataConstants.ModifiedMetadataKey] = blob.SnapshotTime.HasValue ? blob.SnapshotTime.Value.UtcTicks.ToString() : blob.Properties.LastModified.Value.UtcTicks.ToString();
+                metadata.StoredLastModified = blob.SnapshotTime.HasValue ? blob.SnapshotTime.Value.UtcDateTime : blob.Properties.LastModified.Value.UtcDateTime;
+                if(!metadata.LastModified.HasValue)
+                {
+                    metadata.LastModified = metadata.StoredLastModified;
+                }
             }
 
-            if (!metadata.ContainsKey(MetadataConstants.SizeMetadataKey))
-            {
-                metadata[MetadataConstants.SizeMetadataKey] = blob.Properties.Length.ToString();
-            }
-
-            if (!metadata.ContainsKey(MetadataConstants.ContentTypeMetadataKey))
-            {
-                metadata[MetadataConstants.ContentTypeMetadataKey] = blob.Properties.ContentType;
-            }
-
+            metadata.StoredContentLength = blob.Properties.Length;
+            metadata.StoredContentType = blob.Properties.ContentType;
             metadata.ETag = blob.Properties.ETag;
+
+            // Remove the snapshot key at this point if we have it
+            if(metadata.ContainsKey(InternalSnapshotKey))
+            {
+                metadata.Remove(InternalSnapshotKey);
+            }
+
+            if (_enableSnapshots)
+            {
+                if (blob.IsSnapshot)
+                {
+                    metadata.Snapshot = blob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
+                }
+                else if (blob.Metadata.ContainsKey(InternalSnapshotKey))
+                {
+                    // Try and use our save snapshot instead of making more calls...
+                    metadata.Snapshot = blob.Metadata[InternalSnapshotKey];
+                }
+                else
+                {
+                    // Try and find last snapshot
+                    // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
+                    var snapBlob = await Observable.Create<ICloudBlob>((observer, ct) =>
+                        {
+                            return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
+                        })
+                        .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
+                        .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
+                        .LastAsync();
+
+                    metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
+                }
+            }
 
             return metadata;
         }
@@ -541,7 +598,7 @@ namespace Kalix.Leo.Azure.Storage
             DateTime? snapshotDate = null;
             if (snapshot != null)
             {
-                snapshotDate = new DateTime(long.Parse(snapshot));
+                snapshotDate = new DateTime(long.Parse(snapshot, CultureInfo.InvariantCulture));
             }
 
             var container = _blobStorage.GetContainerReference(SafeContainerName(location.Container));

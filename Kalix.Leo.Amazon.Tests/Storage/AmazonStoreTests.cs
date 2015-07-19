@@ -28,6 +28,15 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             _store = new AmazonStore(_client, _bucket);
         }
 
+        protected void WriteData(StoreLocation location, Metadata m, byte[] data)
+        {
+            _store.SaveData(location, m, async s =>
+            {
+                await s.WriteAsync(data, 0, data.Length);
+                return data.Length;
+            }).Wait();
+        }
+
         [TestFixture]
         public class SaveDataMethod : AmazonStoreTests
         {
@@ -37,7 +46,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var metadata = GetMetadata(_location);
                 Assert.AreEqual("somemetadata", metadata["metadata1"]);
@@ -49,11 +58,11 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var m2 = new Metadata();
                 m2["metadata2"] = "othermetadata";
-                _store.SaveData(_location, m2, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m2, data);
 
                 var metadata = GetMetadata(_location);
                 Assert.IsFalse(metadata.ContainsKey("metadata1"));
@@ -64,7 +73,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void MultiUploadLargeFileIsSuccessful()
             {
                 var data = AmazonTestsHelper.RandomData(7 * 1024);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 var metadata = GetMetadata(_location);
                 Assert.IsNotNull(metadata);
@@ -98,11 +107,11 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var result = _store.GetMetadata(_location).Result;
 
-                Assert.AreEqual("1024", result[MetadataConstants.SizeMetadataKey]);
+                Assert.AreEqual("1024", result[MetadataConstants.ContentLengthMetadataKey]);
                 Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
                 Assert.AreEqual("somemetadata", result["metadata1"]);
             }
@@ -117,7 +126,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var result = _store.LoadData(_location).Result;
                 Assert.AreEqual("metadata", result.Metadata["metadata1"]);
@@ -134,7 +143,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void AllDataLoadsCorrectly()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 var result = _store.LoadData(_location).Result;
                 byte[] downloadedData;
@@ -165,7 +174,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -176,12 +185,12 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void SubItemBlobSnapshotsAreNotIncluded()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 AmazonTestsHelper.SetupBlob(_bucket, "kalix-leo-tests\\AzureStoreTests.testdata\\subitem.data");
                 var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata\\subitem.data");
 
-                _store.SaveData(location2, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
@@ -198,7 +207,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var data = AmazonTestsHelper.RandomData(1);
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
-                _store.SaveData(_location, m, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, m, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 var result = _store.LoadData(_location, shapshot).Result;
@@ -227,7 +236,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 _store.SoftDelete(_location).Wait();
 
@@ -239,7 +248,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void ShouldNotDeleteSnapshots()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.SoftDelete(_location).Wait();
@@ -262,7 +271,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void BlobThatIsSoftDeletedShouldNotBeLoadable()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
 
                 _store.PermanentDelete(_location).Wait();
 
@@ -274,7 +283,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
             public void ShouldDeleteAllSnapshots()
             {
                 var data = AmazonTestsHelper.RandomData(1);
-                _store.SaveData(_location, null, s => s.WriteAsync(data, 0, data.Length)).Wait();
+                WriteData(_location, null, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
                 _store.PermanentDelete(_location).Wait();
