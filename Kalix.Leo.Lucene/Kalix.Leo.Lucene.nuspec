@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>6.0.1</version>
+    <version>6.0.2</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -18,7 +18,7 @@
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="6.0.1" />
+      <dependency id="Kalix.Leo.Core" version="6.0.2" />
       <dependency id="AsynchronousBridge" version="1.2.2" />
       <dependency id="Lucene.Net.Contrib.Management" version="1.0.3" />
     </dependencies>
