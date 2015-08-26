@@ -587,7 +587,7 @@ namespace Kalix.Leo.Azure.Storage
                         })
                         .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                         .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
-                        .LastAsync();
+                        .LastOrDefaultAsync();
 
                     metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
                 }

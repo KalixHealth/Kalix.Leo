@@ -118,7 +118,7 @@ Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Azure.xml" "$(ProjectDir)package\lib\net45"
 Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.Azure.nuspec" "$(ProjectDir)package"
 cd "$(ProjectDir)package"
 "$(SolutionDir)Nuget.exe" pack Kalix.Leo.Azure.nuspec
-xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
+</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
