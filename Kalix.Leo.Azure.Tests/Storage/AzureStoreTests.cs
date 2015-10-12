@@ -245,6 +245,22 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));
             }
+
+            [Test]
+            public void AllDataLargeFileLoadsCorrectly()
+            {
+                var data = AzureTestsHelper.RandomData(14);
+                WriteData(_location, null, data);
+
+                var result = _store.LoadData(_location).Result;
+                byte[] resData;
+                using (var ms = new MemoryStream())
+                {
+                    result.Stream.CopyTo(ms);
+                    resData = ms.ToArray();
+                }
+                Assert.IsTrue(data.SequenceEqual(resData));
+            }
         }
 
         [TestFixture]

@@ -1,96 +1,100 @@
 ﻿using Microsoft.WindowsAzure.Storage.Blob;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
     public class AzureReadBlockBlobStream : Stream
     {
         private readonly CloudBlockBlob _blob;
-        private byte[] _data;
+        
+        private int _currentBlock;
+        private List<ListBlockItem> _orderedBlocks;
+        private byte[] _currentBlockData;
 
-        private int _position;
+        private int _offset;
+        private long _position;
 
         public AzureReadBlockBlobStream(CloudBlockBlob blob)
         {
             _blob = blob;
-        }
-
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
-        {
-            if (_data == null)
-            {
-                using (var ms = new MemoryStream())
-                {
-                    var blockList = (await _blob.DownloadBlockListAsync().ConfigureAwait(false)).ToList();
-                    if (blockList.Any())
-                    {
-                        // Make sure that we get the blocks in order...
-                        var orderedList = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).Select(o => Tuple.Create(blockList.IndexOf(o), o)).ToList();
-                        foreach (var o in orderedList)
-                        {
-                            // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                            var start = orderedList.Where(ol => ol.Item1 < o.Item1).Sum(ol => ol.Item2.Length);
-                            await _blob.DownloadRangeToStreamAsync(ms, start, o.Item2.Length, ct).ConfigureAwait(false);
-                        }
-                    }
-                    else
-                    {
-                        await _blob.DownloadToStreamAsync(ms, ct).ConfigureAwait(false);
-                    }
-
-                    _data = ms.ToArray();
-                }
-            }
-
-            var length = Math.Min(_data.Length - _position, count);
-            if (length > 0)
-            {
-                Buffer.BlockCopy(_data, _position, buffer, offset, length);
-                _position += length;
-            }
-
-            return length;
+            _orderedBlocks = null;
+            _currentBlockData = null;
+            _position = 0;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_data == null)
+            if (_orderedBlocks == null)
             {
-                using (var ms = new MemoryStream())
-                {
-                    var blockList = _blob.DownloadBlockList().ToList();
-                    if (blockList.Any())
-                    {
-                        // Make sure that we get the blocks in order...
-                        var orderedList = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).Select(o => Tuple.Create(blockList.IndexOf(o), o)).ToList();
-                        foreach (var o in orderedList)
-                        {
-                            // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                            var start = orderedList.Where(ol => ol.Item1 < o.Item1).Sum(ol => ol.Item2.Length);
-                            _blob.DownloadRangeToStream(ms, start, o.Item2.Length);
-                        }
-                    }
-                    else
-                    {
-                        _blob.DownloadToStream(ms);
-                    }
+                GetBlocks();
+            }
 
-                    _data = ms.ToArray();
+            if(_currentBlockData == null)
+            {
+                _currentBlockData = GetNextChunkOfData();
+                if (_currentBlockData == null) { return 0; }
+            }
+
+            var length = Math.Min(_currentBlockData.Length - _offset, count);
+            if (length > 0)
+            {
+                Buffer.BlockCopy(_currentBlockData, _offset, buffer, offset, length);
+                _offset += length;
+                _position += length;
+                if(_offset == _currentBlockData.Length)
+                {
+                    _offset = 0;
+                    _currentBlockData = null;
                 }
             }
 
-            var length = Math.Min(_data.Length - _position, count);
-            if (length > 0)
+            return length;
+        }
+
+        private void GetBlocks()
+        {
+            var blockList = _blob.DownloadBlockList().ToList();
+            // Make sure that we get the blocks in order...
+            _orderedBlocks = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).ToList();
+            _currentBlock = 0;
+        }
+
+        private byte[] GetNextChunkOfData()
+        {
+            var total = _orderedBlocks.Count;
+            
+            byte[] data;
+            if(total == 0)
             {
-                Buffer.BlockCopy(_data, _position, buffer, offset, length);
-                _position += length;
+                if(_currentBlock != 0) { return null; }
+
+                // Doesn't have blocks - just do the single download
+                using (var ms = new MemoryStream())
+                {
+                    _blob.DownloadToStream(ms);
+                    data = ms.ToArray();
+                }
+            }
+            else
+            {
+                if (_currentBlock >= total) { return null; }
+
+                // Has blocks, work out the data from the current chunk
+                // Do not assume each block is uniform... Make sure to use length info of previous blocks
+                var start = _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length);
+                var length = _orderedBlocks[_currentBlock].Length;
+                using (var ms = new MemoryStream())
+                {
+                    _blob.DownloadRangeToStream(ms, start, length);
+                    data = ms.ToArray();
+                }
             }
 
-            return length;
+            _currentBlock++;
+            return data;
         }
 
         public override bool CanRead
