@@ -256,7 +256,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 byte[] resData;
                 using (var ms = new MemoryStream())
                 {
-                    result.Stream.CopyTo(ms);
+                    result.Stream.CopyToAsync(ms).Wait();
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));

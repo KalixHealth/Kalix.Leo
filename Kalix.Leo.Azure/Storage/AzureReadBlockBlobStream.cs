@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace Kalix.Leo.Azure.Storage
 {
@@ -54,9 +56,46 @@ namespace Kalix.Leo.Azure.Storage
             return length;
         }
 
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            if (_orderedBlocks == null)
+            {
+                await GetBlocksAsync().ConfigureAwait(false);
+            }
+
+            if (_currentBlockData == null)
+            {
+                _currentBlockData = await GetNextChunkOfDataAsync().ConfigureAwait(false);
+                if (_currentBlockData == null) { return 0; }
+            }
+
+            var length = Math.Min(_currentBlockData.Length - _offset, count);
+            if (length > 0)
+            {
+                Buffer.BlockCopy(_currentBlockData, _offset, buffer, offset, length);
+                _offset += length;
+                _position += length;
+                if (_offset == _currentBlockData.Length)
+                {
+                    _offset = 0;
+                    _currentBlockData = null;
+                }
+            }
+
+            return length;
+        }
+
         private void GetBlocks()
         {
             var blockList = _blob.DownloadBlockList().ToList();
+            // Make sure that we get the blocks in order...
+            _orderedBlocks = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).ToList();
+            _currentBlock = 0;
+        }
+
+        private async Task GetBlocksAsync()
+        {
+            var blockList = (await _blob.DownloadBlockListAsync().ConfigureAwait(false)).ToList();
             // Make sure that we get the blocks in order...
             _orderedBlocks = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).ToList();
             _currentBlock = 0;
@@ -89,6 +128,41 @@ namespace Kalix.Leo.Azure.Storage
                 using (var ms = new MemoryStream())
                 {
                     _blob.DownloadRangeToStream(ms, start, length);
+                    data = ms.ToArray();
+                }
+            }
+
+            _currentBlock++;
+            return data;
+        }
+
+        private async Task<byte[]> GetNextChunkOfDataAsync()
+        {
+            var total = _orderedBlocks.Count;
+
+            byte[] data;
+            if (total == 0)
+            {
+                if (_currentBlock != 0) { return null; }
+
+                // Doesn't have blocks - just do the single download
+                using (var ms = new MemoryStream())
+                {
+                    await _blob.DownloadToStreamAsync(ms).ConfigureAwait(false);
+                    data = ms.ToArray();
+                }
+            }
+            else
+            {
+                if (_currentBlock >= total) { return null; }
+
+                // Has blocks, work out the data from the current chunk
+                // Do not assume each block is uniform... Make sure to use length info of previous blocks
+                var start = _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length);
+                var length = _orderedBlocks[_currentBlock].Length;
+                using (var ms = new MemoryStream())
+                {
+                    await _blob.DownloadRangeToStreamAsync(ms, start, length).ConfigureAwait(false);
                     data = ms.ToArray();
                 }
             }

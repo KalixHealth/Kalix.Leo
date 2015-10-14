@@ -482,7 +482,7 @@ namespace Kalix.Leo.Azure.Storage
 
                 bool hasMetadataUpdate = false;
                 long? length;
-                using (var stream = new AzureWriteBlockBlobStream(blob, condition))
+                using (var stream = new AzureWriteBlockBlobStream(blob, condition) { WillHandleComplete = true })
                 {
                     length = await savingFunc(stream).ConfigureAwait(false);
                     await stream.Complete().ConfigureAwait(false);
