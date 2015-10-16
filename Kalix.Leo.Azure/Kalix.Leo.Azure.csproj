@@ -88,7 +88,6 @@
     <Compile Include="Queue\AzureQueueStorageMessage.cs" />
     <Compile Include="SafePath.cs" />
     <Compile Include="StorageExceptionExtensions.cs" />
-    <Compile Include="Storage\AzureWriteBlockBlobStream.cs" />
     <Compile Include="Storage\AzureReadBlockBlobStream.cs" />
     <Compile Include="Storage\AzureStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

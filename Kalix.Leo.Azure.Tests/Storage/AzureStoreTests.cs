@@ -77,6 +77,16 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
+            public void WritesStoreVersion()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                WriteData(_location, null, data);
+
+                _blob.FetchAttributes();
+                Assert.AreEqual("2.0", _blob.Metadata["leoazureversion"]);
+            }
+
+            [Test]
             public void MultiUploadLargeFileIsSuccessful()
             {
                 var data = AzureTestsHelper.RandomData(7);
@@ -126,6 +136,16 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.AreNotEqual(success1.Metadata.Snapshot, success2.Metadata.Snapshot);
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
                 Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
+            }
+
+            [Test]
+            public void WritesStoreVersion()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                TryOptimisticWrite(_location, null, data);
+
+                _blob.FetchAttributes();
+                Assert.AreEqual("2.0", _blob.Metadata["leoazureversion"]);
             }
 
             [Test]
@@ -185,6 +205,17 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
                 Assert.IsNotNull(result.Snapshot);
                 Assert.AreEqual("somemetadata", result["metadata1"]);
+            }
+
+            [Test]
+            public void DoesNotReturnInternalVersion()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                WriteData(_location, null, data);
+
+                var result = _store.GetMetadata(_location).Result;
+
+                Assert.IsFalse(result.ContainsKey("leoazureversion"));
             }
         }
 
@@ -260,6 +291,17 @@ namespace Kalix.Leo.Azure.Tests.Storage
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));
+            }
+
+            [Test]
+            public void DoesNotReturnInternalVersion()
+            {
+                var data = AzureTestsHelper.RandomData(1);
+                WriteData(_location, null, data);
+
+                var result = _store.LoadData(_location).Result;
+
+                Assert.IsFalse(result.Metadata.ContainsKey("leoazureversion"));
             }
         }
 
