@@ -215,16 +215,9 @@ namespace Kalix.Leo.Azure.Storage
                 return null;
             }
             
-            if (blob.Metadata.ContainsKey(StoreVersionKey))
-            {
-                // If we have a newer type blob, we just use the normal blob stream reader
-                return new DataWithMetadata(await blob.OpenReadAsync(), metadata);
-            }
-            else
-            {
-                // Fall back to this method because we create data way back that wasn't in the right order...
-                return new DataWithMetadata(new AzureReadBlockBlobStream(blob), metadata);
-            }
+            // Older versions need to check the block list before loading...
+            var needsToUseBlockList = !blob.Metadata.ContainsKey(StoreVersionKey);
+            return new DataWithMetadata(new AzureReadBlockBlobStream(blob, needsToUseBlockList), metadata);
         }
 
         public IObservable<Snapshot> FindSnapshots(StoreLocation location)
@@ -480,31 +473,33 @@ namespace Kalix.Leo.Azure.Storage
                 var condition = isOptimistic ? 
                     (metadata == null || string.IsNullOrEmpty(metadata.ETag) ? AccessCondition.GenerateIfNoneMatchCondition("*") : AccessCondition.GenerateIfMatchCondition(metadata.ETag)) 
                     : null;
-                
-                bool hasMetadataUpdate = false;
-                long? length;
-                using (var stream = await blob.OpenWriteAsync(condition, null, null))
+
+                // Copy the metadata across
+                blob.Metadata.Clear();
+                if (metadata != null)
                 {
-                    // Copy the metadata across
-                    blob.Metadata.Clear();
-                    if (metadata != null)
+                    foreach (var m in metadata)
                     {
-                        foreach (var m in metadata)
-                        {
-                            blob.Metadata[m.Key] = m.Value;
-                        }
+                        blob.Metadata[m.Key] = m.Value;
                     }
+                }
 
-                    // Always store the version - We use this to do more efficient things on read
-                    blob.Metadata[StoreVersionKey] = StoreVersionValue;
-
+                // Always store the version - We use this to do more efficient things on read
+                blob.Metadata[StoreVersionKey] = StoreVersionValue;
+                
+                long? length;
+                using (var stream = new AzureWriteBlockBlobStream(blob, condition) { WillHandleComplete = true })
+                {
                     length = await savingFunc(stream).ConfigureAwait(false);
+                    await stream.Complete();
                 }
 
                 if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
                 {
                     blob.Metadata[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
-                    hasMetadataUpdate = true;
+
+                    // Save the length straight away before the snapshot...
+                    await blob.SetMetadataAsync().ConfigureAwait(false);
                 }
 
                 // Create a snapshot straight away on azure
@@ -516,15 +511,9 @@ namespace Kalix.Leo.Azure.Storage
 
                     // Save the snapshot back to original blob...
                     blob.Metadata[InternalSnapshotKey] = snapshot;
-                    hasMetadataUpdate = true;
+                    await blob.SetMetadataAsync().ConfigureAwait(false);
 
                     LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
-                }
-
-                if (hasMetadataUpdate)
-                {
-                    // Update the metadata for last few keys
-                    await blob.SetMetadataAsync().ConfigureAwait(false);
                 }
 
                 result.Metadata = await GetActualMetadata(blob).ConfigureAwait(false);

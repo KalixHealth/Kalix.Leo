@@ -3,15 +3,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
     public class AzureReadBlockBlobStream : Stream
     {
+        private const int AzureBlockSize = 4194304;
         private readonly CloudBlockBlob _blob;
-        
+        private readonly bool _needsToReadBlockList;
+
         private int _currentBlock;
         private List<ListBlockItem> _orderedBlocks;
         private byte[] _currentBlockData;
@@ -19,9 +21,10 @@ namespace Kalix.Leo.Azure.Storage
         private int _offset;
         private long _position;
 
-        public AzureReadBlockBlobStream(CloudBlockBlob blob)
+        public AzureReadBlockBlobStream(CloudBlockBlob blob, bool needsToReadBlockList)
         {
             _blob = blob;
+            _needsToReadBlockList = needsToReadBlockList;
             _orderedBlocks = null;
             _currentBlockData = null;
             _position = 0;
@@ -29,7 +32,7 @@ namespace Kalix.Leo.Azure.Storage
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (_orderedBlocks == null)
+            if (_needsToReadBlockList && _orderedBlocks == null)
             {
                 GetBlocks();
             }
@@ -58,7 +61,7 @@ namespace Kalix.Leo.Azure.Storage
 
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
         {
-            if (_orderedBlocks == null)
+            if (_needsToReadBlockList && _orderedBlocks == null)
             {
                 await GetBlocksAsync().ConfigureAwait(false);
             }
@@ -103,12 +106,13 @@ namespace Kalix.Leo.Azure.Storage
 
         private byte[] GetNextChunkOfData()
         {
-            var total = _orderedBlocks.Count;
+            var total = _needsToReadBlockList ? _orderedBlocks.Count : _blob.Properties.Length;
+            var current = _needsToReadBlockList ? _currentBlock : _position;
             
             byte[] data;
             if(total == 0)
             {
-                if(_currentBlock != 0) { return null; }
+                if(current != 0) { return null; }
 
                 // Doesn't have blocks - just do the single download
                 using (var ms = new MemoryStream())
@@ -119,12 +123,12 @@ namespace Kalix.Leo.Azure.Storage
             }
             else
             {
-                if (_currentBlock >= total) { return null; }
+                if (current >= total) { return null; }
 
                 // Has blocks, work out the data from the current chunk
                 // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                var start = _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length);
-                var length = _orderedBlocks[_currentBlock].Length;
+                var start = _needsToReadBlockList ? _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length) : current;
+                var length = _needsToReadBlockList ? _orderedBlocks[_currentBlock].Length : Math.Min(AzureBlockSize, total - current);
                 using (var ms = new MemoryStream())
                 {
                     _blob.DownloadRangeToStream(ms, start, length);
@@ -138,12 +142,13 @@ namespace Kalix.Leo.Azure.Storage
 
         private async Task<byte[]> GetNextChunkOfDataAsync()
         {
-            var total = _orderedBlocks.Count;
+            var total = _needsToReadBlockList ? _orderedBlocks.Count : _blob.Properties.Length;
+            var current = _needsToReadBlockList ? _currentBlock : _position;
 
             byte[] data;
             if (total == 0)
             {
-                if (_currentBlock != 0) { return null; }
+                if (current != 0) { return null; }
 
                 // Doesn't have blocks - just do the single download
                 using (var ms = new MemoryStream())
@@ -154,12 +159,12 @@ namespace Kalix.Leo.Azure.Storage
             }
             else
             {
-                if (_currentBlock >= total) { return null; }
+                if (current >= total) { return null; }
 
                 // Has blocks, work out the data from the current chunk
                 // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                var start = _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length);
-                var length = _orderedBlocks[_currentBlock].Length;
+                var start = _needsToReadBlockList ? _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length) : current;
+                var length = _needsToReadBlockList ? _orderedBlocks[_currentBlock].Length : Math.Min(AzureBlockSize, total - current);
                 using (var ms = new MemoryStream())
                 {
                     await _blob.DownloadRangeToStreamAsync(ms, start, length).ConfigureAwait(false);

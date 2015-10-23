@@ -91,6 +91,7 @@
     <Compile Include="Storage\AzureReadBlockBlobStream.cs" />
     <Compile Include="Storage\AzureStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Storage\AzureWriteBlobBlockStream.cs" />
     <Compile Include="Table\Internal\FatEntity.cs" />
     <Compile Include="Table\AzureTableClient.cs" />
     <Compile Include="Table\AzureTableContext.cs" />

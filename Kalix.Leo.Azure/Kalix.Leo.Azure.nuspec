@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>6.0.7</version>
+    <version>6.0.8</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,7 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      Use the default Azure blob storage streams for new blocks
+      Moved back to using custom reader/writer streams, with some modifications
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
