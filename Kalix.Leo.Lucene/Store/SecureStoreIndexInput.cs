@@ -1,5 +1,4 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Encryption;
+﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
@@ -29,81 +28,83 @@ namespace Kalix.Leo.Lucene.Store
             _fileMutex.WaitOne();
             try
             {
-                bool fFileNeeded = false;
-                if (!_cache.FileExists(_name))
+                InitialiseFile(store, encryptor, location).WaitAndWrap();
+            }
+            finally
+            {
+                _fileMutex.ReleaseMutex();
+            }
+        }
+
+        private async Task InitialiseFile(ISecureStore store, IEncryptor encryptor, StoreLocation location)
+        {
+            bool fFileNeeded = false;
+            if (!_cache.FileExists(_name))
+            {
+                fFileNeeded = true;
+            }
+            else
+            {
+                long cachedLength = _cache.FileLength(_name);
+
+                var metadata = await store.GetMetadata(location).ConfigureAwait(false);
+                if (metadata == null)
+                {
+                    throw new System.IO.FileNotFoundException(_name);
+                }
+
+                var blobLength = metadata.ContentLength ?? 0;
+                var blobLastModifiedUTC = metadata.LastModified ?? DateTime.UtcNow;
+
+                if (cachedLength != blobLength)
                 {
                     fFileNeeded = true;
                 }
                 else
                 {
-                    long cachedLength = _cache.FileLength(_name);
-                    
-                    var metadata = GetSyncVal(store.GetMetadata(location));
-                    if (metadata == null)
+                    // there seems to be an error of 1 tick which happens every once in a while 
+                    // for now we will say that if they are within 1 tick of each other and same length 
+                    var elapsed = _cache.FileModified(_name);
+
+                    // normalize RAMDirectory and FSDirectory times
+                    if (elapsed > ticks1970)
+                    {
+                        elapsed -= ticks1970;
+                    }
+
+                    var cachedLastModifiedUTC = new DateTime(elapsed, DateTimeKind.Local).ToUniversalTime();
+                    if (cachedLastModifiedUTC != blobLastModifiedUTC)
+                    {
+                        var timeSpan = blobLastModifiedUTC.Subtract(cachedLastModifiedUTC);
+                        if (timeSpan.TotalSeconds > 1)
+                        {
+                            fFileNeeded = true;
+                        }
+                    }
+                }
+            }
+
+            // if the file does not exist
+            // or if it exists and it is older then the lastmodified time in the blobproperties (which always comes from the blob storage)
+            if (fFileNeeded)
+            {
+                using (StreamOutput fileStream = _directory.CreateCachedOutputAsStream(_name))
+                {
+                    var data = await store.LoadData(location, null, encryptor).ConfigureAwait(false);
+                    if (data == null)
                     {
                         throw new System.IO.FileNotFoundException(_name);
                     }
-
-                    var blobLength = metadata.ContentLength ?? 0;
-                    var blobLastModifiedUTC = metadata.LastModified ?? DateTime.UtcNow;
-
-                    if (cachedLength != blobLength)
-                    {
-                        fFileNeeded = true;
-                    }
-                    else
-                    {
-                        // there seems to be an error of 1 tick which happens every once in a while 
-                        // for now we will say that if they are within 1 tick of each other and same length 
-                        var elapsed = _cache.FileModified(_name);
-
-                        // normalize RAMDirectory and FSDirectory times
-                        if (elapsed > ticks1970)
-                        {
-                            elapsed -= ticks1970;
-                        }
-
-                        var cachedLastModifiedUTC = new DateTime(elapsed, DateTimeKind.Local).ToUniversalTime();
-                        if (cachedLastModifiedUTC != blobLastModifiedUTC)
-                        {
-                            var timeSpan = blobLastModifiedUTC.Subtract(cachedLastModifiedUTC);
-                            if (timeSpan.TotalSeconds > 1)
-                            {
-                                fFileNeeded = true;
-                            }
-                        }
-                    }
+                    await data.Stream.CopyToStream(fileStream, CancellationToken.None).ConfigureAwait(false);
                 }
 
-                // if the file does not exist
-                // or if it exists and it is older then the lastmodified time in the blobproperties (which always comes from the blob storage)
-                if (fFileNeeded)
-                {
-                    using(StreamOutput fileStream = _directory.CreateCachedOutputAsStream(_name))
-                    {
-                        var data = GetSyncVal(store.LoadData(location, null, encryptor));
-                        if (data == null)
-                        {
-                            throw new System.IO.FileNotFoundException(_name);
-                        }
-                        using (var s = data.Stream)
-                        {
-                            s.CopyTo(fileStream);
-                        }
-                    }
-
-                    // and open it as an input 
-                    _indexInput = _cache.OpenInput(_name);
-                }
-                else
-                {
-                    // open the file in read only mode
-                    _indexInput = _cache.OpenInput(_name);
-                }
+                // and open it as an input 
+                _indexInput = _cache.OpenInput(_name);
             }
-            finally
+            else
             {
-                _fileMutex.ReleaseMutex();
+                // open the file in read only mode
+                _indexInput = _cache.OpenInput(_name);
             }
         }
 
@@ -176,52 +177,19 @@ namespace Kalix.Leo.Lucene.Store
             return _indexInput.Length();
         }
 
-        public override System.Object Clone()
+        public override object Clone()
         {
             IndexInput clone = null;
             try
             {
                 _fileMutex.WaitOne();
-                var input = new SecureStoreIndexInput(this);
-                clone = (IndexInput)input;
+                clone = new SecureStoreIndexInput(this);
             }
             finally
             {
                 _fileMutex.ReleaseMutex();
             }
             return clone;
-        }
-
-        private T GetSyncVal<T>(Task<T> task)
-        {
-            T val;
-            if (task.IsCompleted)
-            {
-                val = task.Result;
-            }
-            else
-            {
-                val = default(T);
-
-                try
-                {
-                    using (var w = AsyncHelper.Wait)
-                    {
-                        w.Run(task.ContinueWith(t => { val = t.Result; }));
-                    }
-                }
-                catch (AggregateException e)
-                {
-                    Exception ex = e;
-                    // Unwrap aggregate exceptions
-                    while (ex is AggregateException)
-                    {
-                        ex = ex.InnerException;
-                    }
-                    throw ex;
-                }
-            }
-            return val;
         }
     }
 }

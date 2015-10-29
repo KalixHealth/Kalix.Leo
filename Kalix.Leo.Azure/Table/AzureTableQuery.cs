@@ -47,9 +47,9 @@ namespace Kalix.Leo.Azure.Table
             return ConvertFatEntity((FatEntity)result.Result);            
         }
 
-        public async Task<T> FirstOrDefault()
+        public Task<T> FirstOrDefault()
         {
-            return await ExecuteQuery(_filter, 1).FirstOrDefaultAsync();
+            return ExecuteQuery(_filter, 1).FirstOrDefaultAsync().ToTask();
         }
 
         public ITableQuery<T> PartitionKeyEquals(string partitionKey)

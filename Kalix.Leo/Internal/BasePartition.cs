@@ -1,5 +1,4 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Configuration;
+﻿using Kalix.Leo.Configuration;
 using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Lucene;
@@ -23,9 +22,13 @@ namespace Kalix.Leo.Internal
         public BasePartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
         {
             string container = partitionId.ToString(CultureInfo.InvariantCulture);
-            using (var w = AsyncHelper.Wait)
+            try
             {
-                w.Run(engineConfig.BaseStore.CreateContainerIfNotExists(container));
+                engineConfig.BaseStore.CreateContainerIfNotExists(container).Wait();
+            }
+            catch (AggregateException ex)
+            {
+                throw ex.InnerException;
             }
             _store = new SecureStore(engineConfig.BaseStore, engineConfig.BackupQueue, engineConfig.IndexQueue, engineConfig.Compressor);
             _partitionId = partitionId;

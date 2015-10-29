@@ -1,16 +1,18 @@
 ﻿using Lucene.Net.Store;
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Store
 {
     public class StreamOutput : Stream
     {
-        public IndexOutput Output { get; set; }
+        private IndexOutput _output { get; set; }
 
         public StreamOutput(IndexOutput output)
         {
-            Output = output;
+            _output = output;
         }
 
         public override bool CanRead
@@ -30,23 +32,29 @@ namespace Kalix.Leo.Lucene.Store
 
         public override void Flush()
         {
-            Output.Flush();
+            _output.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken ct)
+        {
+            _output.Flush();
+            return Task.FromResult(0);
         }
 
         public override long Length
         {
-            get { return Output.Length; }
+            get { return _output.Length; }
         }
 
         public override long Position
         {
             get
             {
-                return Output.FilePointer;
+                return _output.FilePointer;
             }
             set
             {
-                Output.Seek(value);
+                _output.Seek(value);
             }
         }
 
@@ -60,15 +68,15 @@ namespace Kalix.Leo.Lucene.Store
             switch (origin)
             {
                 case SeekOrigin.Begin:
-                    Output.Seek(offset);
+                    _output.Seek(offset);
                     break;
                 case SeekOrigin.Current:
-                    Output.Seek(Output.FilePointer + offset);
+                    _output.Seek(_output.FilePointer + offset);
                     break;
                 case SeekOrigin.End:
                     throw new System.NotImplementedException();
             }
-            return Output.FilePointer;
+            return _output.FilePointer;
         }
 
         public override void SetLength(long value)
@@ -78,13 +86,19 @@ namespace Kalix.Leo.Lucene.Store
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            Output.WriteBytes(buffer, offset, count);
+            _output.WriteBytes(buffer, offset, count);
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        {
+            _output.WriteBytes(buffer, offset, count);
+            return Task.FromResult(0);
         }
 
         protected override void Dispose(bool disposing)
         {
-            Output.Flush();
-            Output.Dispose();
+            _output.Flush();
+            _output.Dispose();
 
             base.Dispose(disposing);
         }

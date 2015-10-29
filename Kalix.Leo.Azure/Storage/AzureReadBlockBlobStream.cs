@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    public class AzureReadBlockBlobStream : Stream
+    public class AzureReadBlockBlobStream : IReadAsyncStream
     {
         private const int AzureBlockSize = 4194304;
         private readonly CloudBlockBlob _blob;
@@ -16,7 +16,7 @@ namespace Kalix.Leo.Azure.Storage
 
         private int _currentBlock;
         private List<ListBlockItem> _orderedBlocks;
-        private byte[] _currentBlockData;
+        private MemoryStream _currentBlockData;
 
         private int _offset;
         private long _position;
@@ -26,206 +26,80 @@ namespace Kalix.Leo.Azure.Storage
             _blob = blob;
             _needsToReadBlockList = needsToReadBlockList;
             _orderedBlocks = null;
-            _currentBlockData = null;
+            var min = Math.Min(blob.Properties.Length, AzureBlockSize);
+            if(min < 0) { min = 0; }
+            _currentBlockData = new MemoryStream((int)min);
             _position = 0;
         }
 
-        public override int Read(byte[] buffer, int offset, int count)
+        public async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
             if (_needsToReadBlockList && _orderedBlocks == null)
             {
-                GetBlocks();
+                await GetBlocksAsync(ct).ConfigureAwait(false);
             }
 
-            if(_currentBlockData == null)
+            if (_currentBlockData.Length == 0)
             {
-                _currentBlockData = GetNextChunkOfData();
-                if (_currentBlockData == null) { return 0; }
+                await GetNextChunkOfDataAsync(ct).ConfigureAwait(false);
+                if (_currentBlockData.Length == 0) { return 0; }
             }
 
-            var length = Math.Min(_currentBlockData.Length - _offset, count);
+            var length = Math.Min((int)_currentBlockData.Length - _offset, count);
             if (length > 0)
             {
-                Buffer.BlockCopy(_currentBlockData, _offset, buffer, offset, length);
-                _offset += length;
-                _position += length;
-                if(_offset == _currentBlockData.Length)
-                {
-                    _offset = 0;
-                    _currentBlockData = null;
-                }
-            }
-
-            return length;
-        }
-
-        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            if (_needsToReadBlockList && _orderedBlocks == null)
-            {
-                await GetBlocksAsync().ConfigureAwait(false);
-            }
-
-            if (_currentBlockData == null)
-            {
-                _currentBlockData = await GetNextChunkOfDataAsync().ConfigureAwait(false);
-                if (_currentBlockData == null) { return 0; }
-            }
-
-            var length = Math.Min(_currentBlockData.Length - _offset, count);
-            if (length > 0)
-            {
-                Buffer.BlockCopy(_currentBlockData, _offset, buffer, offset, length);
+                var currentBlockData = _currentBlockData.GetBuffer();
+                ct.ThrowIfCancellationRequested();
+                Buffer.BlockCopy(currentBlockData, _offset, buffer, offset, length);
                 _offset += length;
                 _position += length;
                 if (_offset == _currentBlockData.Length)
                 {
                     _offset = 0;
-                    _currentBlockData = null;
+                    _currentBlockData.SetLength(0);
                 }
             }
 
             return length;
         }
 
-        private void GetBlocks()
+        private async Task GetBlocksAsync(CancellationToken ct)
         {
-            var blockList = _blob.DownloadBlockList().ToList();
+            var blockList = (await _blob.DownloadBlockListAsync(ct).ConfigureAwait(false)).ToList();
             // Make sure that we get the blocks in order...
             _orderedBlocks = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).ToList();
             _currentBlock = 0;
         }
 
-        private async Task GetBlocksAsync()
-        {
-            var blockList = (await _blob.DownloadBlockListAsync().ConfigureAwait(false)).ToList();
-            // Make sure that we get the blocks in order...
-            _orderedBlocks = blockList.OrderBy(l => BitConverter.ToInt32(Convert.FromBase64String(l.Name), 0)).ToList();
-            _currentBlock = 0;
-        }
-
-        private byte[] GetNextChunkOfData()
+        private async Task GetNextChunkOfDataAsync(CancellationToken ct)
         {
             var total = _needsToReadBlockList ? _orderedBlocks.Count : _blob.Properties.Length;
             var current = _needsToReadBlockList ? _currentBlock : _position;
             
-            byte[] data;
-            if(total == 0)
-            {
-                if(current != 0) { return null; }
-
-                // Doesn't have blocks - just do the single download
-                using (var ms = new MemoryStream())
-                {
-                    _blob.DownloadToStream(ms);
-                    data = ms.ToArray();
-                }
-            }
-            else
-            {
-                if (current >= total) { return null; }
-
-                // Has blocks, work out the data from the current chunk
-                // Do not assume each block is uniform... Make sure to use length info of previous blocks
-                var start = _needsToReadBlockList ? _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length) : current;
-                var length = _needsToReadBlockList ? _orderedBlocks[_currentBlock].Length : Math.Min(AzureBlockSize, total - current);
-                using (var ms = new MemoryStream())
-                {
-                    _blob.DownloadRangeToStream(ms, start, length);
-                    data = ms.ToArray();
-                }
-            }
-
-            _currentBlock++;
-            return data;
-        }
-
-        private async Task<byte[]> GetNextChunkOfDataAsync()
-        {
-            var total = _needsToReadBlockList ? _orderedBlocks.Count : _blob.Properties.Length;
-            var current = _needsToReadBlockList ? _currentBlock : _position;
-
-            byte[] data;
             if (total == 0)
             {
-                if (current != 0) { return null; }
+                if (current != 0) { return; }
 
                 // Doesn't have blocks - just do the single download
-                using (var ms = new MemoryStream())
-                {
-                    await _blob.DownloadToStreamAsync(ms).ConfigureAwait(false);
-                    data = ms.ToArray();
-                }
+                await _blob.DownloadToStreamAsync(_currentBlockData, ct).ConfigureAwait(false);
             }
             else
             {
-                if (current >= total) { return null; }
+                if (current >= total) { return; }
 
                 // Has blocks, work out the data from the current chunk
                 // Do not assume each block is uniform... Make sure to use length info of previous blocks
                 var start = _needsToReadBlockList ? _orderedBlocks.TakeWhile((ol, i) => i < _currentBlock).Sum(ol => ol.Length) : current;
                 var length = _needsToReadBlockList ? _orderedBlocks[_currentBlock].Length : Math.Min(AzureBlockSize, total - current);
-                using (var ms = new MemoryStream())
-                {
-                    await _blob.DownloadRangeToStreamAsync(ms, start, length).ConfigureAwait(false);
-                    data = ms.ToArray();
-                }
+                await _blob.DownloadRangeToStreamAsync(_currentBlockData, start, length, ct).ConfigureAwait(false);
             }
 
             _currentBlock++;
-            return data;
         }
 
-        public override bool CanRead
+        public void Dispose()
         {
-            get { return true; }
-        }
-
-        public override bool CanSeek
-        {
-            get { return false; }
-        }
-
-        public override bool CanWrite
-        {
-            get { return false; }
-        }
-
-        public override void Flush()
-        {
-            throw new NotImplementedException();
-        }
-
-        public override long Length
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public override long Position
-        {
-            get
-            {
-                return _position;
-            }
-            set
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            throw new NotImplementedException();
+            _currentBlockData.Dispose();
         }
     }
 }

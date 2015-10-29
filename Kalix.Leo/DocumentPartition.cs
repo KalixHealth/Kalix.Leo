@@ -5,6 +5,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -16,9 +17,9 @@ namespace Kalix.Leo
         {
         }
 
-        public Task<Metadata> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null)
+        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, CancellationToken, Task> savingFunc, CancellationToken token, Metadata metadata = null)
         {
-            return _store.SaveData(GetLocation(path), metadata, savingFunc, _encryptor.Value, _options);
+            return _store.SaveData(GetLocation(path), metadata, savingFunc, token, _encryptor.Value, _options);
         }
 
         public Task<Metadata> SaveMetadata(string path, Metadata metadata)

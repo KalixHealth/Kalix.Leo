@@ -1,5 +1,4 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Configuration;
+﻿using Kalix.Leo.Configuration;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
 using System;
@@ -52,9 +51,13 @@ namespace Kalix.Leo
 
             if (!string.IsNullOrEmpty(config.KeyContainer))
             {
-                using (var w = AsyncHelper.Wait)
+                try
                 {
-                    w.Run(config.BaseStore.CreateContainerIfNotExists(config.KeyContainer));
+                    config.BaseStore.CreateContainerIfNotExists(config.KeyContainer).Wait();
+                }
+                catch(AggregateException ex)
+                {
+                    throw ex.InnerException;
                 }
             }
 

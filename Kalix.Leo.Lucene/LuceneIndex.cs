@@ -79,7 +79,9 @@ namespace Kalix.Leo.Lucene
             long gen = 0;
             await documents
                 .Do((d) => gen = writer.AddDocument(d))
-                .LastOrDefaultAsync();
+                .LastOrDefaultAsync()
+                .ToTask()
+                .ConfigureAwait(false);
 
             if(waitForGeneration)
             {
@@ -118,38 +120,35 @@ namespace Kalix.Leo.Lucene
             {
                 var cts = new CancellationTokenSource();
                 var token = cts.Token;
-
-                Task.Run(() =>
+                
+                if (_writer != null)
                 {
-                    if (_writer != null)
+                    using (var searcher = _writer.GetSearcher())
                     {
-                        using (var searcher = _writer.GetSearcher())
-                        {
-                            var docs = doSearchFunc(searcher.Searcher, _analyzer);
-
-                            foreach (var doc in docs.ScoreDocs)
-                            {
-                                obs.OnNext(searcher.Searcher.Doc(doc.Doc));
-                                token.ThrowIfCancellationRequested();
-                            }
-
-                            obs.OnCompleted();
-                        }
-                    }
-                    else
-                    {
-                        var reader = GetReader();
-                        var docs = doSearchFunc(reader, _analyzer);
+                        var docs = doSearchFunc(searcher.Searcher, _analyzer);
 
                         foreach (var doc in docs.ScoreDocs)
                         {
-                            obs.OnNext(reader.Doc(doc.Doc));
-                            token.ThrowIfCancellationRequested();
+                            obs.OnNext(searcher.Searcher.Doc(doc.Doc));
+                            if(token.IsCancellationRequested) { break; }
                         }
 
                         obs.OnCompleted();
                     }
-                }, token);
+                }
+                else
+                {
+                    var reader = GetReader();
+                    var docs = doSearchFunc(reader, _analyzer);
+
+                    foreach (var doc in docs.ScoreDocs)
+                    {
+                        obs.OnNext(reader.Doc(doc.Doc));
+                        if (token.IsCancellationRequested) { break; }
+                    }
+
+                    obs.OnCompleted();
+                }
 
                 return cts;
             });

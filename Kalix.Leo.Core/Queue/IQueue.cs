@@ -21,6 +21,7 @@ namespace Kalix.Leo.Queue
         /// Listen for messages originating from this queue
         /// </summary>
         /// <param name="maxMessages">Max number of messages to pull</param>
+        /// <param name="token">Cancellation token</param>
         /// <returns>
         /// An list of queue messages - might be empty (task may take some time to return due to long polling of messages...)
         /// </returns>

@@ -2,6 +2,7 @@
 using Amazon.S3.Model;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Amazon.Storage
@@ -14,12 +15,15 @@ namespace Kalix.Leo.Amazon.Storage
         private readonly Task<string> _uploadId;
         private readonly List<Task<UploadPartResponse>> _blocks;
 
-        public AmazonMultiUpload(AmazonS3Client client, string bucket, string key, Metadata metadata)
+        private readonly CancellationToken _ct;
+
+        public AmazonMultiUpload(AmazonS3Client client, string bucket, string key, Metadata metadata, CancellationToken ct)
         {
             _client = client;
             _bucket = bucket;
             _key = key;
             _blocks = new List<Task<UploadPartResponse>>();
+            _ct = ct;
 
             // Fire up the multipart upload request...
             var req = new InitiateMultipartUploadRequest { BucketName = _bucket, Key = key };
@@ -31,7 +35,7 @@ namespace Kalix.Leo.Amazon.Storage
                 }
             }
 
-            _uploadId = _client.InitiateMultipartUploadAsync(req).ContinueWith(r => r.Result.UploadId);
+            _uploadId = _client.InitiateMultipartUploadAsync(req, _ct).ContinueWith(r => r.Result.UploadId);
         }
 
         public void PushBlockOfData(byte[] data, int partNumber)
@@ -53,11 +57,11 @@ namespace Kalix.Leo.Amazon.Storage
 
             req.AddPartETags(responses);
 
-            var r = await _client.CompleteMultipartUploadAsync(req).ConfigureAwait(false);
+            var r = await _client.CompleteMultipartUploadAsync(req, _ct).ConfigureAwait(false);
             return r.VersionId;
         }
 
-        public async Task Abort()
+        public void Abort()
         {
             // No need to cancel if the uploadid call is the thing that failed
             if (_uploadId.IsFaulted || !_uploadId.IsCompleted) { return; }
@@ -69,7 +73,7 @@ namespace Kalix.Leo.Amazon.Storage
                 UploadId = _uploadId.Result
             };
 
-            await _client.AbortMultipartUploadAsync(abortMPURequest).ConfigureAwait(false);
+            _client.AbortMultipartUpload(abortMPURequest);
         }
 
         private async Task<UploadPartResponse> PushBlockOfDataInteral(byte[] data, int partNumber)
@@ -88,7 +92,7 @@ namespace Kalix.Leo.Amazon.Storage
                     PartSize = data.LongLength
                 };
 
-                return await _client.UploadPartAsync(uploadReq).ConfigureAwait(false);
+                return await _client.UploadPartAsync(uploadReq, _ct).ConfigureAwait(false);
             }
         }
     }

@@ -1,5 +1,4 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Storage;
+﻿using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 
@@ -28,10 +27,7 @@ namespace Kalix.Leo.Lucene.Store
         {
             if (_lock == null)
             {
-                using (var w = AsyncHelper.Wait)
-                {
-                    w.Run(_store.Lock(_location).ContinueWith(t => { _lock = t.Result; }));
-                }
+                _lock = _store.Lock(_location).ResultAndWrap();
             }
 
             return _lock != null;

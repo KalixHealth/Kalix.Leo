@@ -1,7 +1,4 @@
-﻿using System;
-using System.IO;
-
-namespace Kalix.Leo
+﻿namespace Kalix.Leo
 {
     /// <summary>
     /// Data stream that also holds metadata
@@ -9,16 +6,14 @@ namespace Kalix.Leo
     public sealed class DataWithMetadata
     {
         private readonly Metadata _metadata;
-        private readonly Stream _stream;
-        private bool _isDisposed;
+        private readonly IReadAsyncStream _stream;
 
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="stream">A stream of data</param>
         /// <param name="metadata">Metadata to include</param>
-        /// <param name="onDispose">Any action to take when this object is disposed</param>
-        public DataWithMetadata(Stream stream, Metadata metadata = null)
+        public DataWithMetadata(IReadAsyncStream stream, Metadata metadata = null)
         {
             _metadata = metadata ?? new Metadata();
             _stream = stream;
@@ -32,6 +27,6 @@ namespace Kalix.Leo
         /// <summary>
         /// The stream of full data
         /// </summary>
-        public Stream Stream { get { return _stream; } }
+        public IReadAsyncStream Stream { get { return _stream; } }
     }
 }

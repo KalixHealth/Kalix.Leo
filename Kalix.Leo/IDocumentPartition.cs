@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -14,10 +14,10 @@ namespace Kalix.Leo
         /// Save some data into the partition at the specified path, metadata is completely overriden
         /// </summary>
         /// <param name="path">The location to save the record (in this particular partition)</param>
-        /// <param name="data">The stream of data to save</param>
+        /// <param name="savingFunc">The stream of data to save</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that returns snapshot id when the record is saved</returns>
-        Task<Metadata> Save(string path, Func<Stream, Task> savingFunc, Metadata metadata = null);
+        Task<Metadata> Save(string path, Func<IWriteAsyncStream, CancellationToken, Task> savingFunc, CancellationToken token, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified path, does not override it

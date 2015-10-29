@@ -115,7 +115,7 @@ namespace Kalix.Leo.Listeners
                             else
                             {
                                 // Start a new independant thread
-                                hash[g.Key] = Task.Run(() => ExecuteMessages(items, uncaughtException), ct);
+                                hash[g.Key] = ExecuteMessages(items, uncaughtException);
                             }
                         }
                     }

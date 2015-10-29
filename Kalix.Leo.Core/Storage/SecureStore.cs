@@ -4,9 +4,9 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reactive.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -65,7 +65,9 @@ namespace Kalix.Leo.Storage
                 .SelectMany(f => 
                     Observable.FromAsync(() => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
                 )
-                .LastOrDefaultAsync();
+                .LastOrDefaultAsync()
+                .ToTask()
+                .ConfigureAwait(false);
         }
 
         public async Task BackupAll(string container, string prefix = null)
@@ -79,34 +81,33 @@ namespace Kalix.Leo.Storage
                 .SelectMany(f =>
                     Observable.FromAsync(() => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
                 )
-                .LastOrDefaultAsync();
+                .LastOrDefaultAsync()
+                .ToTask()
+                .ConfigureAwait(false);
         }
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
         {
             var data = await LoadData(location, snapshot, encryptor).ConfigureAwait(false);
             if(data == null) { return null; }
-
-            using (var s = data.Stream)
-            using (var sr = new StreamReader(s, Encoding.UTF8))
+            
+            if(!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
             {
-                if(!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
-                {
-                    LeoTrace.WriteLine(string.Format("Warning: Data type is not in metadata. expected {0}", typeof(T).FullName));
-                }
-                else if (data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
-                {
-                    LeoTrace.WriteLine(string.Format("Warning: Data type does not match metadata. actual '{0}' vs expected '{1}'", data.Metadata[MetadataConstants.TypeMetadataKey], typeof(T).FullName));
-                }
-
-                LeoTrace.WriteLine("Getting data object: " + location);
-
-                var str = await sr.ReadToEndAsync();
-                var obj = JsonConvert.DeserializeObject<T>(str);
-
-                LeoTrace.WriteLine("Returning data object: " + location);
-                return new ObjectWithMetadata<T>(obj, data.Metadata);
+                LeoTrace.WriteLine(string.Format("Warning: Data type is not in metadata. expected {0}", typeof(T).FullName));
             }
+            else if (data.Metadata[MetadataConstants.TypeMetadataKey] != typeof(T).FullName)
+            {
+                LeoTrace.WriteLine(string.Format("Warning: Data type does not match metadata. actual '{0}' vs expected '{1}'", data.Metadata[MetadataConstants.TypeMetadataKey], typeof(T).FullName));
+            }
+
+            LeoTrace.WriteLine("Getting data object: " + location);
+
+            var strData = await data.Stream.ReadBytes().ConfigureAwait(false);
+            var str = Encoding.UTF8.GetString(strData, 0, strData.Length);
+            var obj = JsonConvert.DeserializeObject<T>(str);
+
+            LeoTrace.WriteLine("Returning data object: " + location);
+            return new ObjectWithMetadata<T>(obj, data.Metadata);
         }
 
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
@@ -117,26 +118,39 @@ namespace Kalix.Leo.Storage
             var metadata = data.Metadata;
             var stream = data.Stream;
 
-            // First the decryptor sits on top
-            if (metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey))
+            // Check encryption algorithm
+            var hasEncryption = metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey);
+            if(hasEncryption && metadata[MetadataConstants.EncryptionMetadataKey] != encryptor.Algorithm)
             {
-                if (metadata[MetadataConstants.EncryptionMetadataKey] != encryptor.Algorithm)
-                {
-                    throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
-                }
-
-                stream = encryptor.Decrypt(stream, true);
+                throw new InvalidOperationException("Encryption Algorithms do not match, cannot load data");
             }
 
-            // Might need to decompress too!
-            if (metadata.ContainsKey(MetadataConstants.CompressionMetadataKey))
+            // Check decompression algorithm
+            var hasCompression = metadata.ContainsKey(MetadataConstants.CompressionMetadataKey);
+            if (hasCompression && metadata[MetadataConstants.CompressionMetadataKey] != _compressor.Algorithm)
             {
-                if (metadata[MetadataConstants.CompressionMetadataKey] != _compressor.Algorithm)
-                {
-                    throw new InvalidOperationException("Compression Algorithms do not match, cannot load data");
-                }
+                throw new InvalidOperationException("Compression Algorithms do not match, cannot load data");
+            }
 
-                stream = _compressor.Decompress(stream, true);
+            // Modify read stream if required
+            if (hasEncryption || hasCompression)
+            {
+                stream = stream.AddTransformer(s =>
+                {
+                    // We are creating a write workflow, so we decompress as second last step
+                    if(hasCompression)
+                    {
+                        s = _compressor.Decompress(s, false);
+                    }
+
+                    // We decrypt as first step
+                    if(hasEncryption)
+                    {
+                        s = encryptor.Decrypt(s, false);
+                    }
+
+                    return s;
+                });
             }
 
             return new DataWithMetadata(stream, metadata);
@@ -153,10 +167,10 @@ namespace Kalix.Leo.Storage
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length), encryptor, options);
+            return SaveData(location, obj.Metadata, (s, ct) => s.WriteAsync(data, 0, data.Length, ct), CancellationToken.None, encryptor, options);
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, Func<Stream, Task> savingFunc, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, Func<IWriteAsyncStream, CancellationToken, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
             var metadata = new Metadata(mdata);
@@ -189,38 +203,32 @@ namespace Kalix.Leo.Storage
             /****************************************************
              *  PREPARE THE SAVE STREAM
              * ***************************************************/
-            var m = await _store.SaveData(location, metadata, async (s) =>
+            var m = await _store.SaveData(location, metadata, async (stream, ct) =>
             {
-                Stream encStream = null;
-                Stream compStream = null;
-
-                try
+                LengthCounterStream counter = null;
+                stream = stream.AddTransformer(s =>
                 {
                     // Encrypt just before writing to the stream (if we need)
                     if (encryptor != null)
                     {
-                        encStream = encryptor.Encrypt(s, false);
+                        s = encryptor.Encrypt(s, false);
                     }
 
                     // Compression comes right before encryption
-                    if(options.HasFlag(SecureStoreOptions.Compress))
+                    if (options.HasFlag(SecureStoreOptions.Compress))
                     {
-                        compStream = _compressor.Compress(encStream ?? s, false);
+                        s = _compressor.Compress(s, false);
                     }
 
-                    // Work out which stream we are actually writing to...
-                    using (var writeStream = new LengthCounterStream(compStream ?? encStream ?? s))
-                    {
-                        await savingFunc(writeStream).ConfigureAwait(false);
-                        return writeStream.Length;
-                    }
-                }
-                finally
-                {
-                    if (compStream != null) { compStream.Dispose(); }
-                    if (encStream != null) { encStream.Dispose(); }
-                }
-            }).ConfigureAwait(false);
+                    // Always place the length counter stream
+                    counter = new LengthCounterStream(s);
+                    return counter;
+                });
+
+                await savingFunc(stream, ct).ConfigureAwait(false);
+                await stream.Complete(ct).ConfigureAwait(false);
+                return counter.Length;
+            }, token).ConfigureAwait(false);
 
             /****************************************************
              *  POST SAVE TASKS (BACKUP, INDEX)

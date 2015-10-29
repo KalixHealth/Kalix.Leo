@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
 {
@@ -36,6 +38,12 @@ namespace Kalix.Leo.Storage
 
         public override void Flush()
         {
+            _stream.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken ct)
+        {
+            return _stream.FlushAsync(ct);
         }
 
         public override long Length

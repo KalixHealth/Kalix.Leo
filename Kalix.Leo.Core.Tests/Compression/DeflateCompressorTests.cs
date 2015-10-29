@@ -28,8 +28,17 @@ namespace Kalix.Leo.Core.Tests.Compression
             var str = "This is a string to compress and uncompress";
             var data = Encoding.UTF8.GetBytes(str);
 
-            var compressed = _compressor.Compress(new MemoryStream(data), true);
-            var decompressed = _compressor.Decompress(compressed, true);
+            byte[] compData;
+            using (var cms = new MemoryStream())
+            {
+                using (var compressed = _compressor.Compress(cms, false))
+                {
+                    compressed.Write(data, 0, data.Length);
+                }
+                compData = cms.ToArray();
+            }
+            
+            var decompressed = _compressor.Decompress(new MemoryStream(compData), true);
             
             byte[] decData;
             using(var ms = new MemoryStream())
@@ -48,10 +57,12 @@ namespace Kalix.Leo.Core.Tests.Compression
             var data = RandomData(1);
 
             byte[] compData;
-            using(var cms = new MemoryStream())
-            using (var compressed = _compressor.Compress(new MemoryStream(data), true))
+            using (var cms = new MemoryStream())
             {
-                compressed.CopyTo(cms);
+                using (var compressed = _compressor.Compress(cms, false))
+                {
+                    compressed.Write(data, 0, data.Length);
+                }
                 compData = cms.ToArray();
             }
 

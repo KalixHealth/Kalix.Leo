@@ -1,6 +1,8 @@
 ﻿using Lucene.Net.Store;
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Store
 {
@@ -16,7 +18,6 @@ namespace Kalix.Leo.Lucene.Store
         public override bool CanRead { get { return true; } }
         public override bool CanSeek { get { return true; ; } }
         public override bool CanWrite { get { return false; } }
-        public override void Flush() { }
         public override long Length { get { return Input.Length(); } }
 
         public override long Position
@@ -24,6 +25,9 @@ namespace Kalix.Leo.Lucene.Store
             get { return Input.FilePointer; }
             set { Input.Seek(value); }
         }
+
+        public override void Flush() { }
+        public override Task FlushAsync(CancellationToken ct) { return Task.FromResult(0); }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
@@ -37,6 +41,12 @@ namespace Kalix.Leo.Lucene.Store
             }
             catch (Exception) { }
             return (int)(Input.FilePointer - pos);
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        {
+            var read = Read(buffer, offset, count);
+            return Task.FromResult(read);
         }
 
         public override long Seek(long offset, SeekOrigin origin)

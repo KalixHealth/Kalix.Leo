@@ -11,7 +11,6 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Tests
@@ -117,11 +116,11 @@ namespace Kalix.Leo.Lucene.Tests
 
             _indexer.WriteToIndex(CreateIpsumDocs(2000), true).Wait();
 
-            var number = Task.Run(async () => await _indexer.SearchDocuments(ind =>
+            var number = _indexer.SearchDocuments(ind =>
             {
                 var query = new TermQuery(new Term("words", "ipsum"));
                 return ind.Search(query, 20);
-            }).ToList()).Result;
+            }).ToList().ToTask().Result;
 
             Assert.Greater(number.Count, 0);
         }
@@ -133,11 +132,11 @@ namespace Kalix.Leo.Lucene.Tests
             _indexer.Dispose();
             _indexer = new LuceneIndex(new SecureStore(_store), "testindexer", "basePath", null);
 
-            var number = Task.Run(async () => await _indexer.SearchDocuments(ind =>
+            var number = _indexer.SearchDocuments(ind =>
             {
                 var query = new TermQuery(new Term("words", "ipsum"));
                 return ind.Search(query, 20);
-            }).ToList()).Result;
+            }).ToList().ToTask().Result;
 
             Assert.Greater(number.Count, 0);
         }

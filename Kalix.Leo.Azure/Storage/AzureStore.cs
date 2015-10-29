@@ -41,9 +41,9 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token)
         {
-            var result = await SaveDataInternal(location, metadata, savingFunc, false).ConfigureAwait(false);
+            var result = await SaveDataInternal(location, metadata, savingFunc, token, false).ConfigureAwait(false);
             return result.Metadata;
         }
 
@@ -62,7 +62,7 @@ namespace Kalix.Leo.Azure.Storage
                     return null;
                 }
 
-                throw e.Wrap();
+                throw e.Wrap(blob.Name);
             }
 
             foreach(var m in metadata)
@@ -74,9 +74,9 @@ namespace Kalix.Leo.Azure.Storage
             return await GetActualMetadata(blob).ConfigureAwait(false);
         }
 
-        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc)
+        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token)
         {
-            return SaveDataInternal(location, metadata, savingFunc, true);
+            return SaveDataInternal(location, metadata, savingFunc, token, true);
         }
 
         public async Task<IDisposable> Lock(StoreLocation location)
@@ -177,7 +177,7 @@ namespace Kalix.Leo.Azure.Storage
                     return null;
                 }
 
-                throw e.Wrap();
+                throw e.Wrap(blob.Name);
             }
 
             var metadata = await GetActualMetadata(blob).ConfigureAwait(false);
@@ -205,7 +205,7 @@ namespace Kalix.Leo.Azure.Storage
                     return null;
                 }
 
-                throw e.Wrap();
+                throw e.Wrap(blob.Name);
             }
 
             // If deleted then return null...
@@ -284,7 +284,7 @@ namespace Kalix.Leo.Azure.Storage
                     return;
                 }
 
-                throw e.Wrap();
+                throw e.Wrap(blob.Name);
             }
 
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
@@ -349,7 +349,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 else
                 {
-                    observer.OnError(e.Wrap());
+                    observer.OnError(e.Wrap(container.Name + "_" + (prefix ?? string.Empty) + "*"));
                 }
             }
             catch (Exception e)
@@ -381,7 +381,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 else
                 {
-                    throw e.Wrap();
+                    throw e.Wrap(blob.Name);
                 }
             }
 
@@ -396,7 +396,7 @@ namespace Kalix.Leo.Azure.Storage
                         {
                             await blob.UploadFromStreamAsync(stream).ConfigureAwait(false);
                         }
-                        catch (StorageException e) { }  // Just eat storage exceptions at this point... something was created obviously
+                        catch (StorageException) { }  // Just eat storage exceptions at this point... something was created obviously
                     }
                     leaseId = await blob.AcquireLeaseAsync(TimeSpan.FromMinutes(1), null).ConfigureAwait(false);
                     LeoTrace.WriteLine("Created new blob and lease (2 calls): " + blob.Name);
@@ -415,7 +415,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     else
                     {
-                        throw e.Wrap();
+                        throw e.Wrap(blob.Name);
                     }
                 }
             }
@@ -462,13 +462,13 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
         }
 
-        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc, bool isOptimistic)
+        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
         {
+            var blob = GetBlockBlob(location);
+
             var result = new OptimisticStoreWriteResult() { Result = true };
             try
             {
-                var blob = GetBlockBlob(location);
-
                 // If the ETag value is empty then the store value must not exist yet...
                 var condition = isOptimistic ? 
                     (metadata == null || string.IsNullOrEmpty(metadata.ETag) ? AccessCondition.GenerateIfNoneMatchCondition("*") : AccessCondition.GenerateIfMatchCondition(metadata.ETag)) 
@@ -488,10 +488,10 @@ namespace Kalix.Leo.Azure.Storage
                 blob.Metadata[StoreVersionKey] = StoreVersionValue;
                 
                 long? length;
-                using (var stream = new AzureWriteBlockBlobStream(blob, condition) { WillHandleComplete = true })
+                using (var stream = new AzureWriteBlockBlobStream(blob, condition))
                 {
-                    length = await savingFunc(stream).ConfigureAwait(false);
-                    await stream.Complete();
+                    length = await savingFunc(stream, token).ConfigureAwait(false);
+                    await stream.Complete(token).ConfigureAwait(false);
                 }
 
                 if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
@@ -499,19 +499,19 @@ namespace Kalix.Leo.Azure.Storage
                     blob.Metadata[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
 
                     // Save the length straight away before the snapshot...
-                    await blob.SetMetadataAsync().ConfigureAwait(false);
+                    await blob.SetMetadataAsync(token).ConfigureAwait(false);
                 }
 
                 // Create a snapshot straight away on azure
                 // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
                 if (_enableSnapshots)
                 {
-                    var snapshotBlob = await blob.CreateSnapshotAsync().ConfigureAwait(false);
+                    var snapshotBlob = await blob.CreateSnapshotAsync(token).ConfigureAwait(false);
                     var snapshot = snapshotBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
 
                     // Save the snapshot back to original blob...
                     blob.Metadata[InternalSnapshotKey] = snapshot;
-                    await blob.SetMetadataAsync().ConfigureAwait(false);
+                    await blob.SetMetadataAsync(token).ConfigureAwait(false);
 
                     LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
                 }
@@ -538,7 +538,7 @@ namespace Kalix.Leo.Azure.Storage
                         throw new LockException("The underlying storage is currently locked for save");
                     }
 
-                    throw exc.Wrap();
+                    throw exc.Wrap(blob.Name);
                 }
             }
 
@@ -595,7 +595,9 @@ namespace Kalix.Leo.Azure.Storage
                         })
                         .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                         .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
-                        .LastOrDefaultAsync();
+                        .LastOrDefaultAsync()
+                        .ToTask()
+                        .ConfigureAwait(false);
 
                     metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
                 }

@@ -58,7 +58,7 @@ namespace Kalix.Leo
             var id = (long?)propInfo.GetValue(data);
             if (!id.HasValue)
             {
-                id = await _idGenerator.Value.NextId();
+                id = await _idGenerator.Value.NextId().ConfigureAwait(false);
                 propInfo.SetValue(data, id);
             }
 

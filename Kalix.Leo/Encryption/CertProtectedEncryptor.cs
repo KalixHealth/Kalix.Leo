@@ -1,9 +1,9 @@
-﻿using AsyncBridge;
-using Kalix.ApiCrypto.AES;
+﻿using Kalix.ApiCrypto.AES;
 using Kalix.ApiCrypto.RSA;
 using Kalix.Leo.Storage;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Encryption
@@ -20,12 +20,14 @@ namespace Kalix.Leo.Encryption
             _partition = keyLocation.Container;
             _encryptor = new Lazy<AESEncryptor>(() =>
             {
-                AESEncryptor aes = null;
-                using (var w = AsyncHelper.Wait)
+                try
                 {
-                    w.Run(CreateEncryptor(store, keyLocation, rsaCert), a => aes = a);
+                    return CreateEncryptor(store, keyLocation, rsaCert).Result;
                 }
-                return aes;
+                catch (AggregateException ex)
+                {
+                    throw ex.InnerException;
+                }
             });
         }
 
@@ -52,19 +54,15 @@ namespace Kalix.Leo.Encryption
             {
                 // Have to create a new key
                 blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
-                await store.SaveData(keyLocation, null, async s =>
+                await store.SaveData(keyLocation, null, async (s, ct) =>
                 {
-                    await s.WriteAsync(blob, 0, blob.Length).ConfigureAwait(false);
+                    await s.WriteAsync(blob, 0, blob.Length, ct).ConfigureAwait(false);
                     return blob.Length;
-                }).ConfigureAwait(false);
+                }, CancellationToken.None).ConfigureAwait(false);
             }
             else
             {
-                using (var ms = new MemoryStream())
-                {
-                    await data.Stream.CopyToAsync(ms).ConfigureAwait(false);
-                    blob = ms.ToArray();
-                }
+                blob = await data.Stream.ReadBytes().ConfigureAwait(false);
             }
 
             return AESBlob.CreateEncryptor(blob, rsaCert);

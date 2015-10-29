@@ -94,10 +94,10 @@ namespace Lokad.Cloud.Storage.Azure
         }
 
         /// <summary>Split the stream as a fat entity.</summary>
-        public void SetData(byte[] data)
+        public void SetData(byte[] data, int dataLength)
         {
             if (null == data) throw new ArgumentNullException("data");
-            if (data.Length >= MaxByteCapacity) throw new ArgumentOutOfRangeException("data");
+            if (dataLength >= MaxByteCapacity) throw new ArgumentOutOfRangeException("data");
 
             var setters = new Action<byte[]>[]
                 {
@@ -120,10 +120,10 @@ namespace Lokad.Cloud.Storage.Azure
 
             for (int i = 0; i < 15; i++)
             {
-                if (i * 64 * 1024 < data.Length)
+                if (i * 64 * 1024 < dataLength)
                 {
                     var start = i * 64 * 1024;
-                    var length = Math.Min(64 * 1024, data.Length - start);
+                    var length = Math.Min(64 * 1024, dataLength - start);
                     var buffer = new byte[length];
 
                     Buffer.BlockCopy(data, start, buffer, 0, buffer.Length);

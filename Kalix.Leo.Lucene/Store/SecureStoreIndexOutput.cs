@@ -1,4 +1,4 @@
-﻿using AsyncBridge;
+﻿using Kalix.Leo.Streams;
 using Lucene.Net.Store;
 using System;
 using System.Threading;
@@ -69,16 +69,14 @@ namespace Kalix.Leo.Lucene.Store
 
                     var cachedLastModifiedUTC = new DateTime(elapsed, DateTimeKind.Local).ToUniversalTime();
 
-                    var data = new DataWithMetadata(blobStream, new Metadata
+                    var wrapper = new ReadStreamWrapper(blobStream);
+                    var data = new DataWithMetadata(wrapper, new Metadata
                     {
                         ContentLength = originalLength,
                         LastModified = cachedLastModifiedUTC
                     });
 
-                    using (var w = AsyncHelper.Wait)
-                    {
-                        w.Run(_saveTask(data));
-                    }
+                    _saveTask(data).WaitAndWrap();
 
                     LeoTrace.WriteLine(string.Format("PUT {1} bytes to {0} in cloud", _name, blobStream.Length));
                 }

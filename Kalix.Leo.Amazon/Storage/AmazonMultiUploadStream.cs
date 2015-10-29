@@ -2,11 +2,12 @@
 using Amazon.S3.Model;
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Amazon.Storage
 {
-    public class AmazonMultiUploadStream : Stream
+    public class AmazonMultiUploadStream : IWriteAsyncStream
     {
         private const int ReadWriteBufferSize = 6291456; // 6Mb
 
@@ -21,6 +22,7 @@ namespace Kalix.Leo.Amazon.Storage
         private long _length = 0;
 
         private AmazonMultiUpload _uploader;
+        private bool _isComplete;
 
         public AmazonMultiUploadStream(AmazonS3Client client, string bucket, string key, Metadata metadata)
         {
@@ -30,74 +32,14 @@ namespace Kalix.Leo.Amazon.Storage
             _metadata = metadata;
         }
 
-        public async Task Abort()
+        public string VersionId { get; private set; }
+
+        public Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
-            if(_uploader != null)
-            {
-                await _uploader.Abort().ConfigureAwait(false);
-            }
-        }
+            if (_isComplete) { throw new InvalidOperationException("Cannot write anymore to a completed stream"); }
 
-        public async Task<string> Complete()
-        {
-            string result;
-            if(_uploader != null)
-            {
-                result = await _uploader.Complete().ConfigureAwait(false);
-            }
-            else
-            {
-                // Just a single upload request...
-                using (var ms = new MemoryStream(_buffer, 0, _currentOffset))
-                {
-                    var request = new PutObjectRequest
-                    {
-                        AutoCloseStream = false,
-                        AutoResetStreamPosition = false,
-                        BucketName = _bucket,
-                        Key = _key,
-                        InputStream = ms
-                    };
-
-                    // Copy the metadata across
-                    if (_metadata != null)
-                    {
-                        foreach (var m in _metadata)
-                        {
-                            request.Metadata.Add(m.Key, m.Value);
-                        }
-                    }
-
-                    var response = await _client.PutObjectAsync(request).ConfigureAwait(false);
-                    result = response.VersionId;
-                }
-            }
-            return result;
-        }
-
-        public override bool CanRead
-        {
-            get { return false; }
-        }
-
-        public override bool CanSeek
-        {
-            get { return false; }
-        }
-
-        public override bool CanWrite
-        {
-            get { return true; }
-        }
-
-        public override void Flush()
-        {
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
             _length += count;
-            while(count > 0)
+            while (count > 0)
             {
                 var toCopy = Math.Min(ReadWriteBufferSize - _currentOffset, count);
                 Buffer.BlockCopy(buffer, offset, _buffer, _currentOffset, toCopy);
@@ -106,11 +48,11 @@ namespace Kalix.Leo.Amazon.Storage
                 count -= toCopy;
                 _currentOffset += toCopy;
 
-                if(_currentOffset == ReadWriteBufferSize)
+                if (_currentOffset == ReadWriteBufferSize)
                 {
-                    if(_uploader == null)
+                    if (_uploader == null)
                     {
-                        _uploader = new AmazonMultiUpload(_client, _bucket, _key, _metadata);
+                        _uploader = new AmazonMultiUpload(_client, _bucket, _key, _metadata, ct);
                     }
 
                     _uploader.PushBlockOfData(_buffer, _partNumber);
@@ -120,38 +62,63 @@ namespace Kalix.Leo.Amazon.Storage
                     _currentOffset = 0;
                 }
             }
+            return Task.FromResult(0);
         }
 
-        public override long Length
+        public async Task Complete(CancellationToken ct)
         {
-            get { return _length; }
-        }
-
-        public override long Position
-        {
-            get
+            if (!_isComplete)
             {
-                throw new NotImplementedException();
+                string versionId;
+                if (_uploader != null)
+                {
+                    versionId = await _uploader.Complete().ConfigureAwait(false);
+                }
+                else
+                {
+                    // Just a single upload request...
+                    using (var ms = new MemoryStream(_buffer, 0, _currentOffset))
+                    {
+                        var request = new PutObjectRequest
+                        {
+                            AutoCloseStream = false,
+                            AutoResetStreamPosition = false,
+                            BucketName = _bucket,
+                            Key = _key,
+                            InputStream = ms
+                        };
+
+                        // Copy the metadata across
+                        if (_metadata != null)
+                        {
+                            foreach (var m in _metadata)
+                            {
+                                request.Metadata.Add(m.Key, m.Value);
+                            }
+                        }
+
+                        var resp = await _client.PutObjectAsync(request, ct).ConfigureAwait(false);
+                        versionId = resp.VersionId;
+                    }
+                }
+                VersionId = versionId;
+                _isComplete = true;
+                _uploader = null;
             }
-            set
+        }
+
+        public Task FlushAsync(CancellationToken ct)
+        {
+            return Task.FromResult(0);
+        }
+
+        public void Dispose()
+        {
+            if (_uploader != null)
             {
-                throw new NotImplementedException();
+                _uploader.Abort();
+                _uploader = null;
             }
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotImplementedException();
         }
     }
 }

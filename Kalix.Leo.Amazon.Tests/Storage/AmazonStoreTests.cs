@@ -4,10 +4,10 @@ using Kalix.Leo.Amazon.Storage;
 using Kalix.Leo.Storage;
 using NUnit.Framework;
 using System.Collections.Generic;
-using System.Configuration;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Threading;
 
 namespace Kalix.Leo.Amazon.Tests.Storage
 {
@@ -30,11 +30,11 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
         protected void WriteData(StoreLocation location, Metadata m, byte[] data)
         {
-            _store.SaveData(location, m, async s =>
+            _store.SaveData(location, m, async (s, ct) =>
             {
-                await s.WriteAsync(data, 0, data.Length);
+                await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }).Wait();
+            }, CancellationToken.None).Wait();
         }
 
         [TestFixture]
@@ -149,7 +149,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 byte[] downloadedData;
                 using(var ms = new MemoryStream())
                 {
-                    result.Stream.CopyTo(ms);
+                    result.Stream.CopyToStream(ms, CancellationToken.None).Wait();
                     downloadedData = ms.ToArray();
                 }
 

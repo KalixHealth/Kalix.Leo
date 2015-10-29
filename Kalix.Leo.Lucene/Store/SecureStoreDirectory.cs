@@ -1,10 +1,10 @@
-﻿using AsyncBridge;
-using Kalix.Leo.Encryption;
+﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
 using System.Reactive.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Path = System.IO.Path;
 
@@ -33,10 +33,7 @@ namespace Kalix.Leo.Lucene.Store
                 _options = _options | SecureStoreOptions.Compress;
             }
 
-            using (var w = AsyncHelper.Wait)
-            {
-                w.Run(store.CreateContainerIfNotExists(container));
-            }
+            store.CreateContainerIfNotExists(container).WaitAndWrap();
         }
 
         public void ClearCache()
@@ -50,12 +47,7 @@ namespace Kalix.Leo.Lucene.Store
         /// <summary>Returns an array of strings, one for each file in the directory. </summary>
         public override string[] ListAll()
         {
-            string[] result = null;
-            using (var w = AsyncHelper.Wait)
-            {
-                w.Run(ListAllAsync(), t => { result = t; });
-            }
-            return result;
+            return ListAllAsync().ResultAndWrap();
         }
 
         private async Task<string[]> ListAllAsync()
@@ -65,20 +57,22 @@ namespace Kalix.Leo.Lucene.Store
             return await _store
                 .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + '/'))
                 .Select(s => s.Location.BasePath.Substring(basePathLength))
-                .ToArray();
+                .ToArray()
+                .ToTask()
+                .ConfigureAwait(false);
         }
 
         /// <summary>Returns true if a file with the given name exists. </summary>
         public override bool FileExists(string name)
         {
-            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            var metadata = _store.GetMetadata(GetLocation(name)).ResultAndWrap();
             return metadata != null;
         }
 
         /// <summary>Returns the time the named file was last modified. </summary>
         public override long FileModified(string name)
         {
-            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            var metadata = _store.GetMetadata(GetLocation(name)).ResultAndWrap();
             return metadata == null || !metadata.LastModified.HasValue ? 0 : metadata.LastModified.Value.ToFileTimeUtc();
         }
 
@@ -94,10 +88,7 @@ namespace Kalix.Leo.Lucene.Store
         public override void DeleteFile(string name)
         {
             var location = GetLocation(name);
-            using (var w = AsyncHelper.Wait)
-            {
-                w.Run(_store.Delete(location, _options));
-            }
+            _store.Delete(location, _options).WaitAndWrap();
             LeoTrace.WriteLine(String.Format("DELETE {0}", location.BasePath));
 
             if (_cache.FileExists(name))
@@ -109,7 +100,7 @@ namespace Kalix.Leo.Lucene.Store
         /// <summary>Returns the length of a file in the directory. </summary>
         public override long FileLength(string name)
         {
-            var metadata = GetSyncVal(_store.GetMetadata(GetLocation(name)));
+            var metadata = _store.GetMetadata(GetLocation(name)).ResultAndWrap();
             return metadata == null || !metadata.ContentLength.HasValue ? 0 : metadata.ContentLength.Value;
         }
 
@@ -126,7 +117,7 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.ContentLength = data.Metadata.ContentLength;
                 metadata.LastModified = data.Metadata.LastModified;
 
-                await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s), _encryptor, _options).ConfigureAwait(false);
+                await _store.SaveData(loc, metadata, data.Stream.CopyToAsync, CancellationToken.None, _encryptor, _options).ConfigureAwait(false);
             });
         }
 
@@ -187,24 +178,6 @@ namespace Kalix.Leo.Lucene.Store
         private StoreLocation GetLocation(string name)
         {
             return new StoreLocation(_container, Path.Combine(_basePath, name));
-        }
-
-        private T GetSyncVal<T>(Task<T> task)
-        {
-            T val;
-            if (task.IsCompleted)
-            {
-                val = task.Result;
-            }
-            else
-            {
-                val = default(T);
-                using (var w = AsyncHelper.Wait)
-                {
-                    w.Run(task.ContinueWith(t => { val = t.Result; }));
-                }
-            }
-            return val;
         }
     }
 }

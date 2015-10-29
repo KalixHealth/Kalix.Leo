@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Storage
@@ -17,7 +17,7 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to store the file</param>
         /// <param name="savingFunc">Function that runs where there is a stream to write to, it should return the real content length of data saved</param>
         /// <returns>Snapshot id if it exists</returns>
-        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<Stream, Task<long?>> savingFunc);
+        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token);
 
         /// <summary>
         /// Update the metadata at the specified location, does not override it

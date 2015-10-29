@@ -9,17 +9,16 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    public class AzureWriteBlockBlobStream : Stream
+    public class AzureWriteBlockBlobStream : IWriteAsyncStream
     {
         private const int AzureBlockSize = 4194304;
 
         private readonly CloudBlockBlob _blob;
         private readonly AccessCondition _condition;
 
-        private byte[] _buffer = null;
-        private int _offset = 0;
-        private int _partNumber = 1;
-        private long _length = 0;
+        private MemoryStream _buff;
+        private int _partNumber;
+        private long _length;
 
         private bool _hasCompleted;
 
@@ -27,126 +26,85 @@ namespace Kalix.Leo.Azure.Storage
         {
             _blob = blob;
             _condition = condition;
+
+            long min = Math.Min(blob.Properties.Length, AzureBlockSize);
+            if (min < 0) { min = 0; }
+            _buff = new MemoryStream((int)min);
+            _partNumber = 1;
         }
 
-        // If set to true, will not run complete on dispose (must be called manually)
-        public bool WillHandleComplete { get; set; }
-
-        public override void Write(byte[] buffer, int offset, int count)
+        public async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
             if (_hasCompleted)
             {
                 throw new InvalidOperationException("The azure write stream has already been completed");
             }
 
-            if (_buffer == null)
-            {
-                _buffer = new byte[AzureBlockSize];
-            }
-
             _length += count;
             while (count > 0)
             {
-                var read = Math.Min(_buffer.Length - _offset, count);
-                Buffer.BlockCopy(buffer, offset, _buffer, _offset, read);
-
-                _offset += read;
+                var read = (int)Math.Min(AzureBlockSize - _buff.Length, count);
+                _buff.Write(buffer, offset, read);
+                
                 count -= read;
                 offset += read;
-
-                if (_offset == _buffer.Length)
+                
+                if (_buff.Length == AzureBlockSize)
                 {
+                    var data = _buff.GetBuffer();
                     var key = GetKey(_partNumber);
-                    PutBlob(key, _buffer, _buffer.Length);
+                    await PutBlobAsync(key, data, (int)_buff.Length, ct).ConfigureAwait(false);
 
-                    _buffer = new byte[AzureBlockSize];
-                    _offset = 0;
+                    _buff.SetLength(0);
                     _partNumber++;
                 }
             }
         }
 
-        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            if (_hasCompleted)
-            {
-                throw new InvalidOperationException("The azure write stream has already been completed");
-            }
-
-            if (_buffer == null)
-            {
-                _buffer = new byte[AzureBlockSize];
-            }
-
-            _length += count;
-            while (count > 0)
-            {
-                var read = Math.Min(_buffer.Length - _offset, count);
-                Buffer.BlockCopy(buffer, offset, _buffer, _offset, read);
-
-                _offset += read;
-                count -= read;
-                offset += read;
-
-                if (_offset == _buffer.Length)
-                {
-                    var key = GetKey(_partNumber);
-                    await PutBlobAsync(key, _buffer, _buffer.Length).ConfigureAwait(false);
-
-                    _buffer = new byte[AzureBlockSize];
-                    _offset = 0;
-                    _partNumber++;
-                }
-            }
-        }
-
-        public async Task Complete()
+        public async Task Complete(CancellationToken ct)
         {
             if (!_hasCompleted)
             {
                 _hasCompleted = true;
 
+                var data = _buff.GetBuffer();
+                var length = (int)_buff.Length;
                 if (_partNumber == 1)
                 {
                     // We haven't even uploaded one block yet... just upload it straight...
-                    using (var ms = new MemoryStream(_buffer, 0, _offset))
-                    {
-                        await _blob.UploadFromStreamAsync(ms, _condition, null, null).ConfigureAwait(false);
-                        LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
-                    }
+                    await _blob.UploadFromByteArrayAsync(data, 0, length, _condition, null, null, ct).ConfigureAwait(false);
+                    LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
                 }
                 else
                 {
-                    if (_offset > 0)
+                    if (length > 0)
                     {
                         var key = GetKey(_partNumber);
-                        await PutBlobAsync(key, _buffer, _offset).ConfigureAwait(false);
-                        _offset = 0;
+                        await PutBlobAsync(key, data, length, ct).ConfigureAwait(false);
                         _partNumber++;
                     }
-
-                    _buffer = null;
+                    
                     var blocks = new List<string>();
                     for (var i = 1; i < _partNumber; i++)
                     {
                         blocks.Add(GetKey(i));
                     }
 
-                    await _blob.PutBlockListAsync(blocks).ConfigureAwait(false);
+                    await _blob.PutBlockListAsync(blocks, ct).ConfigureAwait(false);
                     LeoTrace.WriteLine("Finished Put Blocks using " + _partNumber + " total blocks: " + _blob.Name);
                 }
+                _buff.SetLength(0);
             }
         }
 
-        protected override void Dispose(bool disposing)
+        public Task FlushAsync(CancellationToken ct)
         {
-            if (!_hasCompleted && !WillHandleComplete)
-            {
-                // Run on another thread to avoid deadlock
-                Task.Run(() => Complete()).Wait();
-            }
+            return Task.FromResult(0);
+        }
 
-            base.Dispose(disposing);
+        public void Dispose()
+        {
+            _buff.Dispose();
         }
 
         private string GetKey(int part)
@@ -154,78 +112,12 @@ namespace Kalix.Leo.Azure.Storage
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(part.ToString("d7")));
         }
 
-        private async Task PutBlobAsync(string key, byte[] data, int length)
+        private async Task PutBlobAsync(string key, byte[] data, int length, CancellationToken ct)
         {
             using (var ms = new MemoryStream(data, 0, length))
             {
-                await _blob.PutBlockAsync(key, ms, null, _condition, null, null).ConfigureAwait(false);
-                LeoTrace.WriteLine("Put Block '" + key + "': " + _blob.Name);
+                await _blob.PutBlockAsync(key, ms, null, _condition, null, null, ct).ConfigureAwait(false);
             }
-        }
-
-        private void PutBlob(string key, byte[] data, int length)
-        {
-            using (var ms = new MemoryStream(data, 0, length))
-            {
-                _blob.PutBlock(key, ms, null, _condition, null, null);
-                LeoTrace.WriteLine("Put Block '" + key + "': " + _blob.Name);
-            }
-        }
-
-        public override bool CanRead
-        {
-            get { return false; }
-        }
-
-        public override bool CanSeek
-        {
-            get { return false; }
-        }
-
-        public override bool CanWrite
-        {
-            get { return true; }
-        }
-
-        public override void Flush()
-        {
-        }
-
-        public override Task FlushAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(0);
-        }
-
-        public override long Length
-        {
-            get { return _length; }
-        }
-
-        public override long Position
-        {
-            get
-            {
-                throw new NotImplementedException();
-            }
-            set
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            throw new NotImplementedException();
         }
     }
 }

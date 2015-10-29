@@ -30,6 +30,7 @@ namespace Kalix.Leo.Lucene
         /// Write a number of documents to the index at once
         /// </summary>
         /// <param name="documents">The documents to load into the index</param>
+        /// <param name="waitForGeneration">Should the writer wait for a generation</param>
         /// <returns>A task that is complete when all the documents have been indexed</returns>
         Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false);
 

@@ -117,7 +117,7 @@ namespace Kalix.Leo.Azure.Table
                         throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
                     }
 
-                    throw ex.Wrap();
+                    throw ex.Wrap("Table: " + _table.Name);
                 }
 
                 _hasSaved = true;
@@ -163,7 +163,7 @@ namespace Kalix.Leo.Azure.Table
                 RowKey = entity.RowKey
             };
 
-            fat.SetData(data);
+            fat.SetData(data, data.Length);
             return fat;
         }
     }

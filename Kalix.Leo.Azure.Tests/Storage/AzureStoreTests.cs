@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reactive.Linq;
+using System.Threading;
 
 namespace Kalix.Leo.Azure.Tests.Storage
 {
@@ -28,20 +29,20 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
         protected string WriteData(StoreLocation location, Metadata m, byte[] data)
         {
-            return _store.SaveData(location, m, async s =>
+            return _store.SaveData(location, m, async (s, ct) =>
             {
-                await s.WriteAsync(data, 0, data.Length);
+                await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }).Result.Snapshot;
+            }, CancellationToken.None).Result.Snapshot;
         }
 
         protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
         {
-            return _store.TryOptimisticWrite(location, m, async s =>
+            return _store.TryOptimisticWrite(location, m, async (s, ct) =>
             {
-                await s.WriteAsync(data, 0, data.Length);
+                await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }).Result;
+            }, CancellationToken.None).Result;
         }
 
         [TestFixture]
@@ -271,7 +272,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 byte[] resData;
                 using(var ms = new MemoryStream())
                 {
-                    result.Stream.CopyTo(ms);
+                    result.Stream.CopyToStream(ms, CancellationToken.None).Wait();
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));
@@ -287,7 +288,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 byte[] resData;
                 using (var ms = new MemoryStream())
                 {
-                    result.Stream.CopyToAsync(ms).Wait();
+                    result.Stream.CopyToStream(ms, CancellationToken.None).Wait();
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));

@@ -6,7 +6,6 @@ namespace Kalix.Leo.Compression
 {
     public class DeflateCompressor : ICompressor
     {
-        // http://code.logos.com/blog/2012/06/always-wrap-gzipstream-with-bufferedstream.html
         public string Algorithm
         {
             get { return "deflate"; }

@@ -6,7 +6,7 @@ namespace Kalix.Leo.Azure
     public static class StorageExceptionExtensions
     {
         // http://alexandrebrisebois.wordpress.com/2013/07/03/handling-windows-azure-storage-exceptions/
-        public static AzureException Wrap(this StorageException ex)
+        public static AzureException Wrap(this StorageException ex, string path)
         {
             var requestInformation = ex.RequestInformation;
             var information = requestInformation.ExtendedErrorInformation;
@@ -14,14 +14,10 @@ namespace Kalix.Leo.Azure
             // if you have aditional information, you can use it for your logs
             if (information == null)
             {
-                return new AzureException("An unknown azure exception occurred: " + ex.Message, ex);
+                return new AzureException(string.Format("An unknown azure exception occurred for path '{0}': {1}", path, ex.Message), ex);
             }
-
-            var errorCode = information.ErrorCode;
-
-            var message = string.Format("({0}) {1}",
-                errorCode,
-                information.ErrorMessage);
+            
+            var message = string.Format("({0}) {1} - '{2}'", information.ErrorCode, information.ErrorMessage, path);
 
             var details = information
                 .AdditionalDetails

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -87,11 +86,11 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            await _store.SaveData(_location, null, async s => 
+            await _store.SaveData(_location, null, async (s, ct) => 
             {
-                await s.WriteAsync(limitBytes, 0, limitBytes.Length).ConfigureAwait(false);
+                await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                 return limitBytes.Length;
-            }).ConfigureAwait(false);
+            }, CancellationToken.None).ConfigureAwait(false);
 
             // This will force a refresh on the Next
             _upperIdLimit = 0;
@@ -109,12 +108,8 @@ namespace Kalix.Leo.Storage
                 var dataStream = await _store.LoadData(_location).ConfigureAwait(false);
                 if (dataStream != null)
                 {
-                    using(var ms = new MemoryStream())
-                    {
-                        await dataStream.Stream.CopyToAsync(ms);
-                        var all = ms.ToArray();
-                        data = Encoding.UTF8.GetString(all, 0, all.Length);
-                    }
+                    var all = await dataStream.Stream.ReadBytes().ConfigureAwait(false);
+                    data = Encoding.UTF8.GetString(all, 0, all.Length);
                 }
 
                 long currentId;
@@ -138,11 +133,11 @@ namespace Kalix.Leo.Storage
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
                 var m = dataStream == null ? null : new Metadata() { ETag = dataStream.Metadata.ETag };
-                var result = await _store.TryOptimisticWrite(_location, m, async s =>
+                var result = await _store.TryOptimisticWrite(_location, m, async (s, ct) =>
                 {
-                    await s.WriteAsync(limitBytes, 0, limitBytes.Length).ConfigureAwait(false);
+                    await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                     return limitBytes.Length;
-                }).ConfigureAwait(false);
+                }, CancellationToken.None).ConfigureAwait(false);
                 if (result.Result)
                 {
                     // First update currentId
