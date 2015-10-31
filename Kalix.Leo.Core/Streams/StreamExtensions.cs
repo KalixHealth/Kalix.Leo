@@ -5,7 +5,10 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
-    public static class StreamPipelines
+    /// <summary>
+    /// Extension methods for async streams
+    /// </summary>
+    public static class StreamExtensions
     {
         // 8k buffer size...
         private const int BufferSize = 8192;
@@ -67,11 +70,23 @@ namespace Kalix.Leo
             }
         }
 
+        /// <summary>
+        /// Create a read stream that will transform any data (using streams) before returning your actual read data
+        /// </summary>
+        /// <param name="stream">Underlying read stream to pull data from before transforming</param>
+        /// <param name="writeStack">Using the passed write stream, wrap to create your data transformations</param>
+        /// <returns>A read stream</returns>
         public static IReadAsyncStream AddTransformer(this IReadAsyncStream stream, Func<Stream, Stream> writeStack)
         {
             return new ReadWriteAsyncStream(stream, writeStack);
         }
 
+        /// <summary>
+        /// Create a write stream that will transform any data (using streams) before passing it down to the underlying stream
+        /// </summary>
+        /// <param name="stream">Underlying write stream to pass transformed data</param>
+        /// <param name="writeStack">Using the passed write stream, wrap to create your data transformations</param>
+        /// <returns>A write stream</returns>
         public static IWriteAsyncStream AddTransformer(this IWriteAsyncStream stream, Func<Stream, Stream> writeStack)
         {
             return new WriteWriteAsyncStream(stream, writeStack);

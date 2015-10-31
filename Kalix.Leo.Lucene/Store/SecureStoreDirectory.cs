@@ -117,7 +117,8 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.ContentLength = data.Metadata.ContentLength;
                 metadata.LastModified = data.Metadata.LastModified;
 
-                await _store.SaveData(loc, metadata, data.Stream.CopyToAsync, CancellationToken.None, _encryptor, _options).ConfigureAwait(false);
+                var ct = CancellationToken.None;
+                await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s, ct), ct, _encryptor, _options).ConfigureAwait(false);
             });
         }
 

@@ -17,7 +17,7 @@ namespace Kalix.Leo
         {
         }
 
-        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, CancellationToken, Task> savingFunc, CancellationToken token, Metadata metadata = null)
+        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, Metadata metadata = null)
         {
             return _store.SaveData(GetLocation(path), metadata, savingFunc, token, _encryptor.Value, _options);
         }

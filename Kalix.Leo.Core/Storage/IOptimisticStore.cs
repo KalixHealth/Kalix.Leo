@@ -16,8 +16,9 @@ namespace Kalix.Leo.Storage
         /// <param name="metadata">Metadata to save, must include an eTag</param>
         /// <param name="savingFunc">A write stream so you can do what you want to save</param>
         /// <param name="location">Location to store the file</param>
+        /// <param name="token">Cancellation token</param>
         /// <returns>Whether the write was successful or not</returns>
-        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token);
+        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
 
         /// <summary>
         /// Locks the storage at the specified location

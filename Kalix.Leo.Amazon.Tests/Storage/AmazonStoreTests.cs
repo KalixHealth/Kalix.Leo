@@ -30,11 +30,12 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
         protected void WriteData(StoreLocation location, Metadata m, byte[] data)
         {
-            _store.SaveData(location, m, async (s, ct) =>
+            var ct = CancellationToken.None;
+            _store.SaveData(location, m, async (s) =>
             {
                 await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }, CancellationToken.None).Wait();
+            }, ct).Wait();
         }
 
         [TestFixture]

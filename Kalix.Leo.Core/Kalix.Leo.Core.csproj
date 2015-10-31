@@ -64,9 +64,10 @@
     <Compile Include="ObservableExtension.cs" />
     <Compile Include="Storage\LengthCounterStream.cs" />
     <Compile Include="Storage\LockException.cs" />
+    <Compile Include="Streams\AsyncMemoryStream.cs" />
     <Compile Include="Streams\IAsyncStreamInterfaces.cs" />
     <Compile Include="Streams\ReadStreamWrapper.cs" />
-    <Compile Include="Streams\StreamPipelines.cs" />
+    <Compile Include="Streams\StreamExtensions.cs" />
     <Compile Include="Table\ITableClient.cs" />
     <Compile Include="Table\ITableContext.cs" />
     <Compile Include="Table\ITableEntity.cs" />

@@ -167,10 +167,11 @@ namespace Kalix.Leo.Storage
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
-            return SaveData(location, obj.Metadata, (s, ct) => s.WriteAsync(data, 0, data.Length, ct), CancellationToken.None, encryptor, options);
+            var ct = CancellationToken.None;
+            return SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, Func<IWriteAsyncStream, CancellationToken, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
             var metadata = new Metadata(mdata);
@@ -203,7 +204,7 @@ namespace Kalix.Leo.Storage
             /****************************************************
              *  PREPARE THE SAVE STREAM
              * ***************************************************/
-            var m = await _store.SaveData(location, metadata, async (stream, ct) =>
+            var m = await _store.SaveData(location, metadata, async (stream) =>
             {
                 LengthCounterStream counter = null;
                 stream = stream.AddTransformer(s =>
@@ -225,8 +226,8 @@ namespace Kalix.Leo.Storage
                     return counter;
                 });
 
-                await savingFunc(stream, ct).ConfigureAwait(false);
-                await stream.Complete(ct).ConfigureAwait(false);
+                await savingFunc(stream).ConfigureAwait(false);
+                await stream.Complete(token).ConfigureAwait(false);
                 return counter.Length;
             }, token).ConfigureAwait(false);
 

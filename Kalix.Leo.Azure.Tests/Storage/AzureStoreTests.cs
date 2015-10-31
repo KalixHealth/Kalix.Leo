@@ -29,20 +29,22 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
         protected string WriteData(StoreLocation location, Metadata m, byte[] data)
         {
-            return _store.SaveData(location, m, async (s, ct) =>
+            var ct = CancellationToken.None;
+            return _store.SaveData(location, m, async (s) =>
             {
                 await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }, CancellationToken.None).Result.Snapshot;
+            }, ct).Result.Snapshot;
         }
 
         protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
         {
-            return _store.TryOptimisticWrite(location, m, async (s, ct) =>
+            var ct = CancellationToken.None;
+            return _store.TryOptimisticWrite(location, m, async (s) =>
             {
                 await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
-            }, CancellationToken.None).Result;
+            }, ct).Result;
         }
 
         [TestFixture]

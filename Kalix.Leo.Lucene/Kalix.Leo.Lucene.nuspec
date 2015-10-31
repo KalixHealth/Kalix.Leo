@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>7.0.0</version>
+    <version>7.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       Lucene implementation that intercepts the data flowing to the underlying storage
     </description>
     <releaseNotes>
-      Fixed all pending ConfigureAwait missing calls and streams implement proper async
+      Implemented 7.1.0 core method signatures
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="7.0.0" />
+      <dependency id="Kalix.Leo.Core" version="7.1.0" />
       <dependency id="Lucene.Net.Contrib.Management" version="1.0.3" />
     </dependencies>
   </metadata>

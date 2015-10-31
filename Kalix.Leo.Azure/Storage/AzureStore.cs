@@ -41,7 +41,7 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
             var result = await SaveDataInternal(location, metadata, savingFunc, token, false).ConfigureAwait(false);
             return result.Metadata;
@@ -74,7 +74,7 @@ namespace Kalix.Leo.Azure.Storage
             return await GetActualMetadata(blob).ConfigureAwait(false);
         }
 
-        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token)
+        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
             return SaveDataInternal(location, metadata, savingFunc, token, true);
         }
@@ -462,7 +462,7 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
         }
 
-        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
+        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
         {
             var blob = GetBlockBlob(location);
 
@@ -490,7 +490,7 @@ namespace Kalix.Leo.Azure.Storage
                 long? length;
                 using (var stream = new AzureWriteBlockBlobStream(blob, condition))
                 {
-                    length = await savingFunc(stream, token).ConfigureAwait(false);
+                    length = await savingFunc(stream).ConfigureAwait(false);
                     await stream.Complete(token).ConfigureAwait(false);
                 }
 

@@ -32,14 +32,14 @@ namespace Kalix.Leo.Amazon.Storage
             _bucket = bucket;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, CancellationToken, Task<long?>> savingFunc, CancellationToken token)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
             var key = GetObjectKey(location);
             string snapshot = null;
             long? length = null;
             using(var stream = new AmazonMultiUploadStream(_client, _bucket, key, metadata))
             {
-                length = await savingFunc(stream, token).ConfigureAwait(false);
+                length = await savingFunc(stream).ConfigureAwait(false);
                 await stream.Complete(token).ConfigureAwait(false);
                 snapshot = stream.VersionId;
             }

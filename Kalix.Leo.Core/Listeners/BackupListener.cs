@@ -72,11 +72,12 @@ namespace Kalix.Leo.Listeners
                 else
                 {
                     // Just save it right back into the backup!
-                    await _backupStore.SaveData(location, data.Metadata, async (s, ct) => 
+                    var ct = CancellationToken.None;
+                    await _backupStore.SaveData(location, data.Metadata, async (s) => 
                     {
                         await data.Stream.CopyToAsync(s, ct).ConfigureAwait(false);
                         return data.Metadata.ContentLength;
-                    }, CancellationToken.None).ConfigureAwait(false);
+                    }, ct).ConfigureAwait(false);
                     data.Stream.Dispose();
                 }
 

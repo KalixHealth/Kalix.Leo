@@ -86,11 +86,12 @@ namespace Kalix.Leo.Storage
             }
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
-            await _store.SaveData(_location, null, async (s, ct) => 
+            var ct = CancellationToken.None;
+            await _store.SaveData(_location, null, async (s) => 
             {
                 await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                 return limitBytes.Length;
-            }, CancellationToken.None).ConfigureAwait(false);
+            }, ct).ConfigureAwait(false);
 
             // This will force a refresh on the Next
             _upperIdLimit = 0;
@@ -133,11 +134,13 @@ namespace Kalix.Leo.Storage
 
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
                 var m = dataStream == null ? null : new Metadata() { ETag = dataStream.Metadata.ETag };
-                var result = await _store.TryOptimisticWrite(_location, m, async (s, ct) =>
+                var ct = CancellationToken.None;
+                var result = await _store.TryOptimisticWrite(_location, m, async (s) =>
                 {
                     await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                     return limitBytes.Length;
-                }, CancellationToken.None).ConfigureAwait(false);
+                }, ct).ConfigureAwait(false);
+
                 if (result.Result)
                 {
                     // First update currentId
