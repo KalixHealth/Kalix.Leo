@@ -236,6 +236,10 @@ namespace Kalix.Leo
                 _writeAction();
             }
 
+            public override void Flush()
+            {
+            }
+
             public override bool CanRead
             {
                 get
@@ -279,11 +283,6 @@ namespace Kalix.Leo
                 {
                     throw new NotImplementedException();
                 }
-            }
-
-            public override void Flush()
-            {
-                throw new NotImplementedException();
             }
 
             public override int Read(byte[] buffer, int offset, int count)

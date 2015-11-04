@@ -3,7 +3,7 @@ using Kalix.Leo.Storage;
 using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
-using System.Reactive.Linq;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Path = System.IO.Path;
@@ -58,7 +58,6 @@ namespace Kalix.Leo.Lucene.Store
                 .FindFiles(_container, string.IsNullOrEmpty(_basePath) ? null : (_basePath + '/'))
                 .Select(s => s.Location.BasePath.Substring(basePathLength))
                 .ToArray()
-                .ToTask()
                 .ConfigureAwait(false);
         }
 

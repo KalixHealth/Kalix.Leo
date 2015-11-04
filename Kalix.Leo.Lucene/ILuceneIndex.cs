@@ -3,6 +3,7 @@ using Lucene.Net.Contrib.Management;
 using Lucene.Net.Documents;
 using Lucene.Net.Search;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene
@@ -17,14 +18,14 @@ namespace Kalix.Leo.Lucene
         /// </summary>
         /// <param name="doSearchFunc">Use a searcher to find a list of topdocs</param>
         /// <returns>A list of documents derived from the topdocs</returns>
-        IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc);
+        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc);
 
         /// <summary>
         /// Search for documents using lucene, you have to supply the actual search with the provided searcher
         /// </summary>
         /// <param name="doSearchFunc">Use a searcher and the underlying analyzer to find a list of topdocs</param>
         /// <returns>A list of documents derived from the topdocs</returns>
-        IObservable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc);
+        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc);
         
         /// <summary>
         /// Write a number of documents to the index at once
@@ -32,7 +33,7 @@ namespace Kalix.Leo.Lucene
         /// <param name="documents">The documents to load into the index</param>
         /// <param name="waitForGeneration">Should the writer wait for a generation</param>
         /// <returns>A task that is complete when all the documents have been indexed</returns>
-        Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false);
+        Task WriteToIndex(IEnumerable<Document> documents, bool waitForGeneration = false);
 
         /// <summary>
         /// Write documents with complete access to the lucene index

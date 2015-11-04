@@ -1,6 +1,6 @@
 ﻿using Kalix.Leo.Indexing;
 using Kalix.Leo.Storage;
-using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -12,15 +12,15 @@ namespace Kalix.Leo
         Task Delete(string id, ObjectWithMetadata<TMain> current);
         Task Delete(long id, ObjectWithMetadata<TMain> current);
 
-        IObservable<TSearch> SearchAll(IRecordSearch search);
-        IObservable<TSearch> SearchAll<T1>(IRecordSearch<T1> search);
-        IObservable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search);
+        IAsyncEnumerable<TSearch> SearchAll(IRecordSearch search);
+        IAsyncEnumerable<TSearch> SearchAll<T1>(IRecordSearch<T1> search);
+        IAsyncEnumerable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search);
 
-        IObservable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val);
-        IObservable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val);
+        IAsyncEnumerable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val);
+        IAsyncEnumerable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val);
 
-        IObservable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end);
+        IAsyncEnumerable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end);
 
-        IObservable<TSearch> SearchBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
+        IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
     }
 }

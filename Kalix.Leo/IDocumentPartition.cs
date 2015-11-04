@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -49,14 +50,14 @@ namespace Kalix.Leo
         /// </summary>
         /// <param name="path">The location to find snapshots</param>
         /// <returns>A list of snapshots</returns>
-        IObservable<Snapshot> FindSnapshots(string path);
+        IAsyncEnumerable<Snapshot> FindSnapshots(string path);
 
         /// <summary>
         /// Find all files in this partition that start with a prefix
         /// </summary>
         /// <param name="prefix">The prefix to search for, if none provided will find all files in this partition</param>
         /// <returns>A list of paths and metadata</returns>
-        IObservable<PathWithMetadata> Find(string prefix = null);
+        IAsyncEnumerable<PathWithMetadata> Find(string prefix = null);
 
         /// <summary>
         /// Delete a record at the specified location (will not delete snapshots though)

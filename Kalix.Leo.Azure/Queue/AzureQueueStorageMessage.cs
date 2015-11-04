@@ -1,7 +1,8 @@
 ﻿using Kalix.Leo.Queue;
 using Microsoft.WindowsAzure.Storage.Queue;
 using System;
-using System.Reactive.Linq;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Queue
@@ -22,11 +23,11 @@ namespace Kalix.Leo.Azure.Queue
             _strMessage = new Lazy<string>(() => _message.AsString);
 
             var waitFor = ((message.NextVisibleTime.HasValue ? DateTime.UtcNow.AddMinutes(1) : message.NextVisibleTime.Value.UtcDateTime) - DateTime.UtcNow).Subtract(TimeSpan.FromSeconds(10));
-            var timer = Observable.Timer(maxMessageTime);
-            _lockWatcher = Observable.Interval(waitFor)
-                .TakeUntil(timer)
-                .SelectMany(i => Observable.FromAsync(ct => _queue.UpdateMessageAsync(_message, TimeSpan.FromMinutes(1), MessageUpdateFields.Visibility, ct)))
-                .Subscribe(u => { }, (e) => _isDisposed = true, () => _isDisposed = true);
+
+            _lockWatcher = AsyncEnumerableEx.CreateTimer(waitFor)
+                .Select(i => _queue.UpdateMessageAsync(_message, TimeSpan.FromMinutes(1), MessageUpdateFields.Visibility))
+                .Unwrap()
+                .TakeUntilDisposed(maxMessageTime, t => _isDisposed = true);
         }
 
         public string Message

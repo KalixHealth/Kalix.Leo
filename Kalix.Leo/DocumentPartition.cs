@@ -2,9 +2,10 @@
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Reactive.Linq;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,12 +38,12 @@ namespace Kalix.Leo
             return _store.GetMetadata(GetLocation(path), snapshot);
         }
 
-        public IObservable<Snapshot> FindSnapshots(string path)
+        public IAsyncEnumerable<Snapshot> FindSnapshots(string path)
         {
             return _store.FindSnapshots(GetLocation(path));
         }
 
-        public IObservable<PathWithMetadata> Find(string prefix = null)
+        public IAsyncEnumerable<PathWithMetadata> Find(string prefix = null)
         {
             var baseLength = string.IsNullOrEmpty(_config.BasePath) ? 0 : _config.BasePath.Length + 1;
             string basePath = prefix == null ? _config.BasePath + "/" : Path.Combine(_config.BasePath, prefix);

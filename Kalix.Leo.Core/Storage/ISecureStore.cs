@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -22,15 +23,15 @@ namespace Kalix.Leo.Storage
 
         Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All);
 
-        IObservable<Snapshot> FindSnapshots(StoreLocation location);
-        IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null);
+        IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location);
+        IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null);
 
         Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null);
         Task BackupAll(string container, string prefix = null);
 
         Task<IDisposable> Lock(StoreLocation location);
         Task RunOnce(StoreLocation location, Func<Task> action);
-        IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
+        IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
 
         IUniqueIdGenerator GetIdGenerator(StoreLocation location);
 

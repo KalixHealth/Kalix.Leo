@@ -6,7 +6,6 @@ using NUnit.Framework;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Threading;
 
 namespace Kalix.Leo.Amazon.Tests.Storage

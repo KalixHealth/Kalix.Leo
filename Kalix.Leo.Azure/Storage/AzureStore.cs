@@ -2,12 +2,11 @@
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -114,13 +113,13 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        public IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        public IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
         {
-            return Observable.Create<bool>(async (obs, ct) =>
+            return AsyncEnumerableEx.Create<bool>(async (y) =>
             {
                 var blob = GetBlockBlob(location);
 
-                while (!ct.IsCancellationRequested)
+                while (!y.CancellationToken.IsCancellationRequested)
                 {
                     // Don't allow you to throw to get out of the loop...
                     try
@@ -131,24 +130,25 @@ namespace Kalix.Leo.Azure.Storage
                         {
                             using (var arl = lease.Item1)
                             {
-                                await blob.FetchAttributesAsync().ConfigureAwait(false);
+                                await blob.FetchAttributesAsync(y.CancellationToken).ConfigureAwait(false);
                                 if (blob.Metadata.ContainsKey("lastPerformed"))
                                 {
                                     DateTimeOffset.TryParseExact(blob.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
                                 }
                                 if (DateTimeOffset.UtcNow >= lastPerformed + interval)
                                 {
-                                    obs.OnNext(true);
+                                    await y.YieldReturn(true).ConfigureAwait(false);
                                     lastPerformed = DateTimeOffset.UtcNow;
                                     blob.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
-                                    await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null).ConfigureAwait(false);
+                                    await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null, y.CancellationToken).ConfigureAwait(false);
                                 }
                             }
                         }
                         var timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
                         var minimum = TimeSpan.FromSeconds(5); // so we're not polling the leased blob too fast
-                        await Task.Delay(timeLeft > minimum ? timeLeft : minimum).ConfigureAwait(false);
+                        await Task.Delay(timeLeft > minimum ? timeLeft : minimum, y.CancellationToken).ConfigureAwait(false);
                     }
+                    catch (TaskCanceledException) { throw; }
                     catch (Exception e)
                     {
                         if (unhandledExceptions != null)
@@ -220,36 +220,27 @@ namespace Kalix.Leo.Azure.Storage
             return new DataWithMetadata(new AzureReadBlockBlobStream(blob, needsToUseBlockList), metadata);
         }
 
-        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
+        public IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location)
         {
-            if (!_enableSnapshots) { return Observable.Empty<Snapshot>(); }
+            if (!_enableSnapshots) { return AsyncEnumerable.Empty<Snapshot>(); }
 
             var blob = GetBlockBlob(location);
-            var results = Observable.Create<ICloudBlob>((observer, ct) =>
-            {
-                return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
-            });
-
-            return results
+            return ListBlobs(blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata)
                 .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
-                .SelectMany(async b => new Snapshot
+                .Select(async b => new Snapshot
                 {
                     Id = b.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture),
                     Metadata = await GetActualMetadata(b).ConfigureAwait(false)
-                });
+                })
+                .Unwrap();
         }
 
-        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
+        public IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
-            var results = Observable.Create<ICloudBlob>((observer, ct) =>
-            {
-                var c = _blobStorage.GetContainerReference(SafeContainerName(container));
-                return ListBlobs(observer, c, prefix, BlobListingDetails.Metadata, ct);
-            });
-
-            return results
+            var c = _blobStorage.GetContainerReference(SafeContainerName(container));
+            return ListBlobs(c, prefix, BlobListingDetails.Metadata)
                 .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
-                .SelectMany(async b =>
+                .Select(async b =>
                 {
                     long? id = null;
                     string path = b.Name;
@@ -265,7 +256,8 @@ namespace Kalix.Leo.Azure.Storage
                     
                     var loc = new StoreLocation(container, path, id);
                     return new LocationWithMetadata(loc, await GetActualMetadata(b).ConfigureAwait(false));
-                });
+                })
+                .Unwrap();
         }
 
         public async Task SoftDelete(StoreLocation location)
@@ -317,45 +309,36 @@ namespace Kalix.Leo.Azure.Storage
             return c.DeleteIfExistsAsync();
         }
 
-        private async Task ListBlobs(IObserver<ICloudBlob> observer, CloudBlobContainer container, string prefix, BlobListingDetails options, CancellationToken ct)
+        private IAsyncEnumerable<ICloudBlob> ListBlobs(CloudBlobContainer container, string prefix, BlobListingDetails options)
         {
-            BlobContinuationToken token = new BlobContinuationToken();
-
-            try
+            return AsyncEnumerableEx.Create<ICloudBlob>(async (y) =>
             {
-                do
-                {
-                    var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, ct).ConfigureAwait(false);
-                    LeoTrace.WriteLine("Listed blob segment for prefix: " + prefix);
+                BlobContinuationToken token = new BlobContinuationToken();
 
-                    foreach (var blob in segment.Results.OfType<ICloudBlob>())
+                try
+                {
+                    do
                     {
-                        observer.OnNext(blob);
+                        var segment = await container.ListBlobsSegmentedAsync(prefix, true, options, null, token, null, null, y.CancellationToken).ConfigureAwait(false);
+                        LeoTrace.WriteLine("Listed blob segment for prefix: " + prefix);
+
+                        foreach (var blob in segment.Results.OfType<ICloudBlob>())
+                        {
+                            await y.YieldReturn(blob).ConfigureAwait(false);
+                        }
+
+                        token = segment.ContinuationToken;
                     }
-
-                    token = segment.ContinuationToken;
+                    while (token != null && !y.CancellationToken.IsCancellationRequested);
                 }
-                while (token != null && !ct.IsCancellationRequested);
-
-                ct.ThrowIfCancellationRequested(); // We should throw this to be consistent...
-                observer.OnCompleted();
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
+                catch (StorageException e)
                 {
-                    // If we get an error we do not have any blobs!
-                    observer.OnCompleted();
+                    if (e.RequestInformation.HttpStatusCode != 404)
+                    {
+                        throw e.Wrap(container.Name + "_" + (prefix ?? string.Empty) + "*");
+                    }
                 }
-                else
-                {
-                    observer.OnError(e.Wrap(container.Name + "_" + (prefix ?? string.Empty) + "*"));
-                }
-            }
-            catch (Exception e)
-            {
-                observer.OnError(e);
-            }
+            });
         }
 
         private async Task<Tuple<IDisposable, string>> LockInternal(ICloudBlob blob)
@@ -421,45 +404,29 @@ namespace Kalix.Leo.Azure.Storage
             }
 
             var condition = AccessCondition.GenerateLeaseCondition(leaseId);
-            var release = Disposable.Create(() =>
-            {
-                try
-                {
-                    blob.ReleaseLease(condition);
-                }
-                catch (Exception e)
-                {
-                    LeoTrace.WriteLine("Release failed: " + e.Message);
-                }
-            });
 
             // Every 30 secs keep the lock renewed
-            IDisposable keepAlive = null;
-            keepAlive = Observable
-                .Interval(TimeSpan.FromSeconds(30))
-                .Subscribe(
-                    _ =>
+            var keepAlive = AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(30))
+                .Select(t =>
+                {
+                    LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
+                    return blob.RenewLeaseAsync(condition);
+                })
+                .Unwrap()
+                .TakeUntilDisposed(null, t =>
+                {
+                    try
                     {
-                        try
-                        {
-                            blob.RenewLease(condition);
-                            LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
-                        }
-                        catch (Exception e)
-                        {
-                            LeoTrace.WriteLine("Failed to renew lease: " + e.Message);
-
-                            if (keepAlive != null)
-                            {
-                                keepAlive.Dispose();
-                            }
-                        }
-                    },
-                    () => { release.Dispose(); }
-                );
+                        blob.ReleaseLease(condition);
+                    }
+                    catch (Exception e)
+                    {
+                        LeoTrace.WriteLine("Release failed: " + e.Message);
+                    }
+                });
 
 
-            return Tuple.Create((IDisposable)(new CompositeDisposable(keepAlive, release)), leaseId);
+            return Tuple.Create((IDisposable)keepAlive, leaseId);
         }
 
         private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
@@ -589,14 +556,10 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     // Try and find last snapshot
                     // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
-                    var snapBlob = await Observable.Create<ICloudBlob>((observer, ct) =>
-                        {
-                            return ListBlobs(observer, blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata, ct);
-                        })
+                    var snapBlob = await ListBlobs(blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata)
                         .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                         .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
-                        .LastOrDefaultAsync()
-                        .ToTask()
+                        .LastOrDefault()
                         .ConfigureAwait(false);
 
                     metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);

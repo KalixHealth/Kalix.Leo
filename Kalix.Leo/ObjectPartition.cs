@@ -2,10 +2,11 @@
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
-using System.Reactive.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 
@@ -86,12 +87,12 @@ namespace Kalix.Leo
             return _store.GetMetadata(GetLocation(id), snapshot);
         }
 
-        public IObservable<Snapshot> FindSnapshots(long id)
+        public IAsyncEnumerable<Snapshot> FindSnapshots(long id)
         {
             return _store.FindSnapshots(GetLocation(id));
         }
 
-        public IObservable<IdWithMetadata> FindAll()
+        public IAsyncEnumerable<IdWithMetadata> FindAll()
         {
             return _store.FindFiles(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/")
                 .Where(l => l.Location.Id.HasValue)

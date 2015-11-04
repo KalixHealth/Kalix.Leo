@@ -9,8 +9,7 @@ using Lucene.Net.Documents;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
-using System.Reactive.Linq;
-using System.Threading;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using IO = System.IO;
 using L = Lucene.Net.Index;
@@ -68,7 +67,7 @@ namespace Kalix.Leo.Lucene
             _RAMSizeMb = RAMSizeMb;
         }
 
-        public async Task WriteToIndex(IObservable<Document> documents, bool waitForGeneration = false)
+        public Task WriteToIndex(IEnumerable<Document> documents, bool waitForGeneration = false)
         {
             if (_isDisposed)
             {
@@ -77,16 +76,16 @@ namespace Kalix.Leo.Lucene
 
             var writer = GetWriter();
             long gen = 0;
-            await documents
-                .Do((d) => gen = writer.AddDocument(d))
-                .LastOrDefaultAsync()
-                .ToTask()
-                .ConfigureAwait(false);
+            foreach(var d in documents)
+            {
+                gen = writer.AddDocument(d);
+            }
 
             if(waitForGeneration)
             {
                 writer.WaitForGeneration(gen);
             }
+            return Task.FromResult(0);
         }
 
         public async Task WriteToIndex(Func<NrtManager, Task> writeUsingIndex)
@@ -99,7 +98,7 @@ namespace Kalix.Leo.Lucene
             await writeUsingIndex(GetWriter()).ConfigureAwait(false);
         }
 
-        public IObservable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
+        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
         {
             if (_isDisposed)
             {
@@ -109,49 +108,35 @@ namespace Kalix.Leo.Lucene
             return SearchDocuments((s, a) => doSearchFunc(s));
         }
 
-        public IObservable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc)
+        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc)
         {
             if (_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
-
-            return Observable.Create<Document>(obs =>
+            
+            if (_writer != null)
             {
-                var cts = new CancellationTokenSource();
-                var token = cts.Token;
-                
-                if (_writer != null)
+                using (var searcher = _writer.GetSearcher())
                 {
-                    using (var searcher = _writer.GetSearcher())
-                    {
-                        var docs = doSearchFunc(searcher.Searcher, _analyzer);
-
-                        foreach (var doc in docs.ScoreDocs)
-                        {
-                            obs.OnNext(searcher.Searcher.Doc(doc.Doc));
-                            if(token.IsCancellationRequested) { break; }
-                        }
-
-                        obs.OnCompleted();
-                    }
-                }
-                else
-                {
-                    var reader = GetReader();
-                    var docs = doSearchFunc(reader, _analyzer);
+                    var docs = doSearchFunc(searcher.Searcher, _analyzer);
 
                     foreach (var doc in docs.ScoreDocs)
                     {
-                        obs.OnNext(reader.Doc(doc.Doc));
-                        if (token.IsCancellationRequested) { break; }
+                        yield return searcher.Searcher.Doc(doc.Doc);
                     }
-
-                    obs.OnCompleted();
                 }
+            }
+            else
+            {
+                var reader = GetReader();
+                var docs = doSearchFunc(reader, _analyzer);
 
-                return cts;
-            });
+                foreach (var doc in docs.ScoreDocs)
+                {
+                    yield return reader.Doc(doc.Doc);
+                }
+            }
         }
 
         public Task DeleteAll()

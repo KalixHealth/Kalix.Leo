@@ -4,7 +4,7 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Reactive.Linq;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,12 +43,12 @@ namespace Kalix.Leo.Storage
             get { return _backupQueue != null; }
         }
 
-        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
+        public IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location)
         {
             return _store.FindSnapshots(location);
         }
 
-        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
+        public IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             return _store.FindFiles(container, prefix);
         }
@@ -62,11 +62,9 @@ namespace Kalix.Leo.Storage
 
             await FindFiles(container, prefix)
                 .Where(filter)
-                .SelectMany(f => 
-                    Observable.FromAsync(() => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
-                )
-                .LastOrDefaultAsync()
-                .ToTask()
+                .Select(f => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
+                .Unwrap()
+                .LastOrDefault()
                 .ConfigureAwait(false);
         }
 
@@ -78,11 +76,9 @@ namespace Kalix.Leo.Storage
             }
 
             await FindFiles(container, prefix)
-                .SelectMany(f =>
-                    Observable.FromAsync(() => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
-                )
-                .LastOrDefaultAsync()
-                .ToTask()
+                .Select(f => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
+                .Unwrap()
+                .LastOrDefault()
                 .ConfigureAwait(false);
         }
 
@@ -356,7 +352,7 @@ namespace Kalix.Leo.Storage
             return _store.RunOnce(location, action);
         }
 
-        public IObservable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
+        public IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
         {
             return _store.RunEvery(location, interval, unhandledExceptions);
         }

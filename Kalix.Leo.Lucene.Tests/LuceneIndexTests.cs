@@ -7,10 +7,9 @@ using Lucene.Net.Store;
 using Microsoft.WindowsAzure.Storage;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Lucene.Tests
@@ -60,13 +59,14 @@ namespace Kalix.Leo.Lucene.Tests
             string error = null;
             int numDocs = 0;
 
-            using (var reading = Observable.Interval(TimeSpan.FromSeconds(0.5))
-                .SelectMany(t => _indexer.SearchDocuments(i =>
+            using (var reading = AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(0.5))
+                .Select(t => _indexer.SearchDocuments(i =>
                 {
                     var query = new TermQuery(new Term("words", "ipsum"));
                     return i.Search(query, 20);
                 }))
-                .Subscribe(d => { numDocs++; }, e => { error = e.GetBaseException().Message; }, () => { }))
+                .Select(d => numDocs += d.Count())
+                .TakeUntilDisposed(null, t => { if (t.IsFaulted) { error = t.Exception.GetBaseException().Message; } }))
             {
                 _indexer.WriteToIndex(docs, true).Wait();
             }
@@ -88,17 +88,19 @@ namespace Kalix.Leo.Lucene.Tests
         {
             _indexer.WriteToIndex(CreateIpsumDocs(30000)).Wait();
 
-            var parser = new TermQuery(new Term("words", "ipsum"));
-            var stream1 = _indexer.SearchDocuments(s => s.Search(parser, 20));
+            var t1 = Task.Run(() =>
+            {
+                var parser = new TermQuery(new Term("words", "ipsum"));
+                var stream1 = _indexer.SearchDocuments(s => s.Search(parser, 10000));
+            });
 
-            var parser2 = new TermQuery(new Term("words", "lorem"));
-            var stream2 = _indexer.SearchDocuments(s => s.Search(parser2, 20));
+            var t2 = Task.Run(() =>
+            {
+                var parser2 = new TermQuery(new Term("words", "lorem"));
+                var stream2 = _indexer.SearchDocuments(s => s.Search(parser2, 10000));
+            });
 
-            stream1
-                .Merge(stream2)
-                .Take(30000)
-                .LastOrDefaultAsync()
-                .Wait();
+            Task.WaitAll(t1, t2);
         }
 
         [Test]
@@ -106,7 +108,7 @@ namespace Kalix.Leo.Lucene.Tests
         {
             var stream1 = _indexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue));
 
-            Assert.AreEqual(0, stream1.Count().ToEnumerable().First());
+            Assert.AreEqual(0, stream1.Count());
         }
 
         [Test]
@@ -120,7 +122,7 @@ namespace Kalix.Leo.Lucene.Tests
             {
                 var query = new TermQuery(new Term("words", "ipsum"));
                 return ind.Search(query, 20);
-            }).ToList().ToTask().Result;
+            }).ToList();
 
             Assert.Greater(number.Count, 0);
         }
@@ -136,7 +138,7 @@ namespace Kalix.Leo.Lucene.Tests
             {
                 var query = new TermQuery(new Term("words", "ipsum"));
                 return ind.Search(query, 20);
-            }).ToList().ToTask().Result;
+            }).ToList();
 
             Assert.Greater(number.Count, 0);
         }
@@ -153,14 +155,13 @@ namespace Kalix.Leo.Lucene.Tests
             _indexer.Dispose();
             _indexer = new LuceneIndex(new SecureStore(_store), "testindexer", "basePath", null);
 
-            var number = _indexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue)).ToEnumerable().Count();
+            var number = _indexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue)).Count();
             Assert.AreEqual(6, number);
         }
 
-        private IObservable<Document> CreateIpsumDocs(int number)
+        private IEnumerable<Document> CreateIpsumDocs(int number)
         {
-            return Observable.Range(0, number)
-                .ObserveOn(Scheduler.Default)
+            return Enumerable.Range(0, number)
                 .Select(i =>
                 {
                     if(i % 10000 == 0)

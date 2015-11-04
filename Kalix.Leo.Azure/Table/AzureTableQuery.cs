@@ -3,9 +3,9 @@ using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CT = Microsoft.WindowsAzure.Storage.Table;
@@ -49,7 +49,7 @@ namespace Kalix.Leo.Azure.Table
 
         public Task<T> FirstOrDefault()
         {
-            return ExecuteQuery(_filter, 1).FirstOrDefaultAsync().ToTask();
+            return ExecuteQuery(_filter, 1).FirstOrDefault();
         }
 
         public ITableQuery<T> PartitionKeyEquals(string partitionKey)
@@ -108,7 +108,7 @@ namespace Kalix.Leo.Azure.Table
             return NewQuery(newFilter);
         }
 
-        public IObservable<T> AsObservable()
+        public IAsyncEnumerable<T> AsEnumerable()
         {
             return ExecuteQuery(_filter, _take);
         }
@@ -122,37 +122,29 @@ namespace Kalix.Leo.Azure.Table
             return new AzureTableQuery<T>(_table, _decryptor, newFilter, _take);
         }
 
-        private IObservable<T> ExecuteQuery(string filter, int? take)
+        private IAsyncEnumerable<T> ExecuteQuery(string filter, int? take)
         {
-            return Observable.Create<T>(async (obs, ct) =>
+            return AsyncEnumerableEx.Create<T>(async y =>
             {
-                try
+                var query = new CT.TableQuery<FatEntity>();
+                if (filter != null)
                 {
-                    var query = new CT.TableQuery<FatEntity>();
-                    if (filter != null)
-                    {
-                        query = query.Where(filter);
-                    }
-                    if (take.HasValue)
-                    {
-                        query = query.Take(take);
-                    }
-
-                    CT.TableQuerySegment<FatEntity> segment = null;
-                    while ((segment == null || segment.ContinuationToken != null) && !ct.IsCancellationRequested)
-                    {
-                        segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, ct).ConfigureAwait(false);
-                        foreach (var entity in segment)
-                        {
-                            obs.OnNext(ConvertFatEntity(entity));
-                        }
-                    }
-
-                    obs.OnCompleted();
+                    query = query.Where(filter);
                 }
-                catch(Exception e)
+                if (take.HasValue)
                 {
-                    obs.OnError(e);
+                    query = query.Take(take);
+                }
+
+                CT.TableQuerySegment<FatEntity> segment = null;
+                while ((segment == null || segment.ContinuationToken != null) && !y.CancellationToken.IsCancellationRequested)
+                {
+                    segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, y.CancellationToken).ConfigureAwait(false);
+                    foreach (var entity in segment)
+                    {
+                        await y.YieldReturn(ConvertFatEntity(entity)).ConfigureAwait(false);
+                        y.ThrowIfCancellationRequested();
+                    }
                 }
             });
         }

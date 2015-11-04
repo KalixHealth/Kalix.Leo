@@ -6,7 +6,6 @@ using NUnit.Framework;
 using System;
 using System.IO;
 using System.Linq;
-using System.Reactive.Linq;
 using System.Threading;
 
 namespace Kalix.Leo.Azure.Tests.Storage

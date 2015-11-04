@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -105,21 +104,22 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
-        public IObservable<Snapshot> FindSnapshots(StoreLocation location)
+        public IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location)
         {
             var key = GetObjectKey(location);
-            return Observable
-                .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
-                .Where(v => v.Key == key && !v.IsDeleteMarker) // Make sure we are not getting anything unexpected
+
+            return ListObjects(key)
+                .Where(v => v.Key == key && !v.IsDeleteMarker)
                 .Select(GetSnapshotFromVersion)
-                .Merge();
+                .Unwrap();
         }
 
-        public IObservable<LocationWithMetadata> FindFiles(string container, string prefix = null)
+        public IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             var containerPrefix = container + "\\";
-            return Observable
-                .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, containerPrefix + (prefix ?? string.Empty).Replace("/", "\\"), ct))
+            prefix = containerPrefix + (prefix ?? string.Empty).Replace("/", "\\");
+
+            return ListObjects(prefix)
                 .Where(v => v.IsLatest)
                 .Select(async v =>
                 {
@@ -139,7 +139,7 @@ namespace Kalix.Leo.Amazon.Storage
                     var snapshot = await GetSnapshotFromVersion(v).ConfigureAwait(false);
                     return new LocationWithMetadata(loc, snapshot.Metadata);
                 })
-                .Merge();
+                .Unwrap();
         }
 
         public Task SoftDelete(StoreLocation location)
@@ -160,26 +160,27 @@ namespace Kalix.Leo.Amazon.Storage
             var key = GetObjectKey(location);
 
             // We have to iterate though every object and delete it...
-            var snapshots = Observable
-                .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, key, ct))
+            var snapshots = ListObjects(key)
                 .Where(v => v.Key == key) // Make sure we are not getting anything unexpected
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
-            await snapshots.Buffer(1000).Select(d =>
-            {
-                var delRequest = new DeleteObjectsRequest
+            // Max 1000 objects to delete at once
+            await snapshots
+                .Buffer(1000)
+                .Select(d =>
                 {
-                    BucketName = _bucket,
-                    Objects = d.ToList(),
-                    Quiet = true
-                };
+                    var delRequest = new DeleteObjectsRequest
+                    {
+                        BucketName = _bucket,
+                        Objects = d.ToList(),
+                        Quiet = true
+                    };
 
-                return _client.DeleteObjectsAsync(delRequest);
-            })
-                .Merge()
-                .LastOrDefaultAsync()
-                .ToTask()
-                .ConfigureAwait(false); // Make sure we do not throw an exception if no snapshots to delete
+                    return _client.DeleteObjectsAsync(delRequest);
+                })
+                .Unwrap()
+                .LastOrDefault()
+                .ConfigureAwait(false);
         }
 
         public Task CreateContainerIfNotExists(string container)
@@ -192,24 +193,24 @@ namespace Kalix.Leo.Amazon.Storage
         public async Task PermanentDeleteContainer(string container)
         {
             // We have to iterate though every object in a container and then delete it...
-            var snapshots = Observable
-                .Create<S3ObjectVersion>((observer, ct) => ListObjects(observer, container + "/", ct))
+            var snapshots = ListObjects(container + "/")
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
-            await snapshots.Buffer(1000).Select(d =>
-            {
-                var delRequest = new DeleteObjectsRequest
+            await snapshots
+                .Buffer(1000)
+                .Select(d =>
                 {
-                    BucketName = _bucket,
-                    Objects = d.ToList(),
-                    Quiet = true
-                };
+                    var delRequest = new DeleteObjectsRequest
+                    {
+                        BucketName = _bucket,
+                        Objects = d.ToList(),
+                        Quiet = true
+                    };
 
-                return _client.DeleteObjectsAsync(delRequest);
-            })
-                .Merge()
-                .LastOrDefaultAsync()
-                .ToTask()
+                    return _client.DeleteObjectsAsync(delRequest);
+                })
+                .Unwrap()
+                .LastOrDefault()
                 .ConfigureAwait(false); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
@@ -265,15 +266,15 @@ namespace Kalix.Leo.Amazon.Storage
             };
         }
 
-        private async Task ListObjects(IObserver<S3ObjectVersion> observer, string prefix, CancellationToken ct)
+        private IAsyncEnumerable<S3ObjectVersion> ListObjects(string prefix)
         {
-            try
+            return AsyncEnumerableEx.Create<S3ObjectVersion>(async y =>
             {
                 bool isComplete = false;
                 string keyMarker = null;
                 string versionIdMarker = null;
 
-                while (!isComplete && !ct.IsCancellationRequested)
+                while (!isComplete && !y.CancellationToken.IsCancellationRequested)
                 {
                     var request = new ListVersionsRequest
                     {
@@ -283,24 +284,17 @@ namespace Kalix.Leo.Amazon.Storage
                         VersionIdMarker = versionIdMarker
                     };
 
-                    var resp = await _client.ListVersionsAsync(request, ct).ConfigureAwait(false);
+                    var resp = await _client.ListVersionsAsync(request, y.CancellationToken).ConfigureAwait(false);
                     foreach (var v in resp.Versions)
                     {
-                        observer.OnNext(v);
+                        await y.YieldReturn(v).ConfigureAwait(false);
                     }
 
                     isComplete = !resp.IsTruncated;
                     keyMarker = resp.NextKeyMarker;
                     versionIdMarker = resp.NextVersionIdMarker;
                 }
-
-                ct.ThrowIfCancellationRequested(); // Just in case...
-                observer.OnCompleted();
-            }
-            catch (Exception e)
-            {
-                observer.OnError(e);
-            }
+            });
         }
     }
 }

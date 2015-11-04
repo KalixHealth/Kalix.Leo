@@ -1,7 +1,7 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Storage;
-using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 
@@ -40,37 +40,37 @@ namespace Kalix.Leo.Internal
             return Delete(id.ToString(CultureInfo.InvariantCulture), current);
         }
 
-        public IObservable<TSearch> SearchAll(IRecordSearch search)
+        public IAsyncEnumerable<TSearch> SearchAll(IRecordSearch search)
         {
             return _composition.SearchAll(_partitionId, _encryptor, search);
         }
 
-        public IObservable<TSearch> SearchAll<T1>(IRecordSearch<T1> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1>(IRecordSearch<T1> search)
         {
             return _composition.SearchAll(_partitionId, _encryptor, search);
         }
 
-        public IObservable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1, T2>(IRecordSearch<T1, T2> search)
         {
             return _composition.SearchAll(_partitionId, _encryptor, search);
         }
 
-        public IObservable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1>(IRecordSearch<T1> search, T1 val)
         {
             return _composition.SearchFor(_partitionId, _encryptor, search, val);
         }
 
-        public IObservable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val)
         {
             return _composition.SearchFor(_partitionId, _encryptor, search, val);
         }
 
-        public IObservable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end)
         {
             return _composition.SearchBetween(_partitionId, _encryptor, search, start, end);
         }
 
-        public IObservable<TSearch> SearchBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
         {
             return _composition.SearchBetween(_partitionId, _encryptor, search, val, start, end);
         }

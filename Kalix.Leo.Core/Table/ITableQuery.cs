@@ -1,5 +1,4 @@
-﻿using Kalix.Leo.Encryption;
-using System;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Table
@@ -18,6 +17,6 @@ namespace Kalix.Leo.Table
         ITableQuery<T> RowKeyGreaterThanOrEqual(string rowKey);
         ITableQuery<T> RowKeyStartsWith(string rowKey);
 
-        IObservable<T> AsObservable();
+        IAsyncEnumerable<T> AsEnumerable();
     }
 }

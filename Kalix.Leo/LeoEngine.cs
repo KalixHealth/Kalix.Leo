@@ -2,9 +2,9 @@
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reactive.Disposables;
 using System.Reflection;
 using System.Runtime.Caching;
 
@@ -23,12 +23,12 @@ namespace Kalix.Leo
         private readonly string _baseName;
 
         private bool _listenersStarted;
-        private CompositeDisposable _disposables;
+        private List<IDisposable> _disposables;
 
         public LeoEngine(LeoEngineConfiguration config)
         {
             _config = config;
-            _disposables = new CompositeDisposable();
+            _disposables = new List<IDisposable>();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
             _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
             _cache = MemoryCache.Default;
@@ -158,7 +158,10 @@ namespace Kalix.Leo
 
         public void Dispose()
         {
-            _disposables.Dispose();
+            foreach (var d in _disposables)
+            {
+                d.Dispose();
+            }
         }
 
         private static MethodInfo _genericGetPartitionInfo = typeof(LeoEngine).GetMethod("GetObjectPartition");

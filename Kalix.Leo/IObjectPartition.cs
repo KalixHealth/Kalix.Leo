@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Storage;
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 
@@ -60,13 +61,13 @@ namespace Kalix.Leo
         /// </summary>
         /// <param name="id">The id to search for snapshots in</param>
         /// <returns>A list of snapshot ids and metadata</returns>
-        IObservable<Snapshot> FindSnapshots(long id);
+        IAsyncEnumerable<Snapshot> FindSnapshots(long id);
 
         /// <summary>
         /// Find all the records in a specified partition
         /// </summary>
         /// <returns>The ids and metadata for each record in this partition</returns>
-        IObservable<IdWithMetadata> FindAll();
+        IAsyncEnumerable<IdWithMetadata> FindAll();
 
         /// <summary>
         /// Delete a record with the specified id (will not delete snapshots though)

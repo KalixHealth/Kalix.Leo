@@ -115,22 +115,22 @@ namespace Kalix.Leo.Indexing
             return context.Save();
         }
 
-        public IObservable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search)
+        public IAsyncEnumerable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        public IObservable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        public IObservable<TSearch> SearchAll<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        private IObservable<TSearch> Search(long partitionKey, IEncryptor encryptor, string prefix, object search)
+        private IAsyncEnumerable<TSearch> Search(long partitionKey, IEncryptor encryptor, string prefix, object search)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -140,10 +140,10 @@ namespace Kalix.Leo.Indexing
             return _client.Query<TSearch>(_tableName, encryptor)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(prefix + Underscore)
-                .AsObservable();
+                .AsEnumerable();
         }
 
-        public IObservable<TSearch> SearchFor<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -153,10 +153,10 @@ namespace Kalix.Leo.Indexing
             return _client.Query<TSearch>(_tableName, encryptor)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
-                .AsObservable();
+                .AsEnumerable();
         }
 
-        public IObservable<TSearch> SearchFor<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 val)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -166,10 +166,10 @@ namespace Kalix.Leo.Indexing
             return _client.Query<TSearch>(_tableName, encryptor)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
-                .AsObservable();
+                .AsEnumerable();
         }
 
-        public IObservable<TSearch> SearchBetween<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 start, T1 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 start, T1 end)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -189,10 +189,10 @@ namespace Kalix.Leo.Indexing
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualStart + Underscore)
                 .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualEnd + Underscore)
-                .AsObservable();
+                .AsEnumerable();
         }
 
-        public IObservable<TSearch> SearchBetween<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -213,7 +213,7 @@ namespace Kalix.Leo.Indexing
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualVal + Underscore + actualStart + Underscore)
                 .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualVal + Underscore + actualEnd + Underscore)
-                .AsObservable();
+                .AsEnumerable();
         }
 
         private string KeyParser(object key)
