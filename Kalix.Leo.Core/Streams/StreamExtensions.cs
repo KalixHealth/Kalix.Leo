@@ -96,6 +96,7 @@ namespace Kalix.Leo
         {
             private readonly IWriteAsyncStream _stream;
             private readonly MemoryStream _ms;
+            private readonly WriteWatcherStream _watcher;
             private readonly Stream _stack;
 
             private bool _isComplete;
@@ -104,7 +105,8 @@ namespace Kalix.Leo
             {
                 _stream = stream;
                 _ms = new MemoryStream();
-                _stack = writeStack(_ms);
+                _watcher = new WriteWatcherStream(_ms, () => { });  // We do this mostly so that the ms is not disposed
+                _stack = writeStack(_watcher);
             }
 
             public async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
@@ -113,7 +115,7 @@ namespace Kalix.Leo
 
                 ct.ThrowIfCancellationRequested();
                 _stack.Write(buffer, offset, count);
-                if(_ms.Position > 0)
+                if(_ms.Length > 0)
                 {
                     var data = _ms.GetBuffer(); // This does not copy the array! more efficient!
                     ct.ThrowIfCancellationRequested();
@@ -127,7 +129,7 @@ namespace Kalix.Leo
                 if (!_isComplete)
                 {
                     _stack.Dispose();
-                    if (_ms.Position > 0)
+                    if (_ms.Length > 0)
                     {
                         var data = _ms.GetBuffer();
                         await _stream.WriteAsync(data, 0, (int)_ms.Length, ct).ConfigureAwait(false);
