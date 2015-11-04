@@ -21,6 +21,21 @@ namespace Kalix.Leo.Storage
             _stream.Write(buffer, offset, count);
         }
 
+        public override void Flush()
+        {
+            _stream.Flush();
+        }
+
+        public override Task FlushAsync(CancellationToken ct)
+        {
+            return _stream.FlushAsync(ct);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            _stream.Dispose();
+        }
+
         public override bool CanRead
         {
             get { return false; }
@@ -34,16 +49,6 @@ namespace Kalix.Leo.Storage
         public override bool CanWrite
         {
             get { return true; }
-        }
-
-        public override void Flush()
-        {
-            _stream.Flush();
-        }
-
-        public override Task FlushAsync(CancellationToken ct)
-        {
-            return _stream.FlushAsync(ct);
         }
 
         public override long Length
