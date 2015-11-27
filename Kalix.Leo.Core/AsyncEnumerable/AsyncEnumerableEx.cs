@@ -147,7 +147,10 @@ namespace System.Collections.Generic
                 if (task != null)
                 {
                     Task t = task;
-                    yielder.Break();
+                    if (yielder != null)
+                    {
+                        yielder.Break();
+                    }
                     yielder = null;
                     func = null;
                     try
