@@ -234,8 +234,12 @@ namespace Kalix.Leo
 
             public override void Write(byte[] buffer, int offset, int count)
             {
-                _stream.Write(buffer, offset, count);
-                _writeAction();
+                // This does happen in the crypto stream! Sometimes just a 0 count write????
+                if (count > 0)
+                {
+                    _stream.Write(buffer, offset, count);
+                    _writeAction();
+                }
             }
 
             public override void Flush()
