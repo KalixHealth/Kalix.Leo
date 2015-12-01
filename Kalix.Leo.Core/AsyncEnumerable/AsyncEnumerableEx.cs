@@ -198,13 +198,19 @@ namespace System.Collections.Generic
         internal void Continue()
         {
             setTcs = new TaskCompletionSource<T>();
-            getTcs.SetResult(0);
+            if (getTcs != null)
+            {
+                getTcs.SetResult(0);
+            }
         }
 
         internal void Break()
         {
             AsyncYielderDisposedException ex = new AsyncYielderDisposedException();
-            getTcs.TrySetException(ex);
+            if (getTcs != null)
+            {
+                getTcs.TrySetException(ex);
+            }
             setTcs.TrySetException(ex);
         }
     }
