@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>7.2.5</version>
+    <version>7.2.8</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,6 +12,7 @@
       Core library that abstracts your storage layer, adds encryption/compression
     </description>
     <releaseNotes>
+7.2.8 - Better error handling on async enumerator including support for task cancelled
 7.2.5 - Added null checks on AsyncYielder
 7.2.4 - Small crypto streams can push 0 byte writes, which breaks the copy flow
 7.2.3 - Fixed null exception in async enumerable dispose

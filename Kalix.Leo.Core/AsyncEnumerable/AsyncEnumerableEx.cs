@@ -113,11 +113,11 @@ namespace System.Collections.Generic
 
                 Task finished = await Task.WhenAny(task, yielder.YieldTask).ConfigureAwait(false);
 
-                if (finished != task)
+                var y = yielder;
+                if (finished != task && y != null)
                 {
                     // the function returned a result.
-
-                    Current = yielder.YieldTask.Result;
+                    Current = y.YieldTask.Result;
                     return true;
                 }
 
@@ -128,7 +128,7 @@ namespace System.Collections.Generic
                 yielder = null;
                 task = null;
 
-                if (t.IsFaulted)
+                if (t != null && t.IsFaulted)
                 {
                     throw t.Exception;
                 }
@@ -144,22 +144,24 @@ namespace System.Collections.Generic
 
             void DisposeImpl()
             {
-                if (task != null)
+                var y = yielder;
+                if (y != null)
                 {
-                    Task t = task;
-                    if (yielder != null)
-                    {
-                        yielder.Break();
-                    }
+                    y.Break();
                     yielder = null;
-                    func = null;
+                }
+                
+                var t = task;
+                if (t != null)
+                {
                     try
                     {
                         t.Wait();
                     }
                     catch (AggregateException ex)
                     {
-                        if (!(ex.GetBaseException() is AsyncYielderDisposedException))
+                        var b = ex.GetBaseException();
+                        if (!(b is AsyncYielderDisposedException || b is TaskCanceledException))
                         {
                             throw;
                         }
@@ -168,6 +170,7 @@ namespace System.Collections.Generic
                     {
                         t.Dispose();
                         task = null;
+                        func = null;
                     }
                 }
             }
@@ -184,34 +187,48 @@ namespace System.Collections.Generic
 
         public Task YieldReturn(T value)
         {
-            getTcs = new TaskCompletionSource<int>();
-            Task t = getTcs.Task;
-            setTcs.SetResult(value);
+            var gTcs = getTcs = new TaskCompletionSource<int>();
+            Task t = gTcs.Task;
+            var sTcs = setTcs;
+            if (sTcs != null)
+            {
+                sTcs.SetResult(value);
+            }
             return t;
         }
 
         public void ThrowIfCancellationRequested()
         {
-            CancellationToken.ThrowIfCancellationRequested();
+            var ct = CancellationToken;
+            if (ct != null)
+            {
+                ct.ThrowIfCancellationRequested();
+            }
         }
 
         internal void Continue()
         {
             setTcs = new TaskCompletionSource<T>();
-            if (getTcs != null)
+            var gTcs = getTcs;
+            if (gTcs != null)
             {
-                getTcs.SetResult(0);
+                gTcs.SetResult(0);
             }
         }
 
         internal void Break()
         {
             AsyncYielderDisposedException ex = new AsyncYielderDisposedException();
-            if (getTcs != null)
+            var gTcs = getTcs;
+            if (gTcs != null)
             {
-                getTcs.TrySetException(ex);
+                gTcs.TrySetException(ex);
             }
-            setTcs.TrySetException(ex);
+            var sTcs = setTcs;
+            if (sTcs != null)
+            {
+                sTcs.TrySetException(ex);
+            }
         }
     }
 
