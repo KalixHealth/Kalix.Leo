@@ -91,6 +91,7 @@ namespace Kalix.Leo
         }
 
         public IObjectPartition<T> GetObjectPartition<T>(long partitionId)
+            where T : ObjectWithAuditInfo
         {
             var config = _config.Objects.FirstOrDefault(o => o.Type == typeof(T));
             if(config == null)

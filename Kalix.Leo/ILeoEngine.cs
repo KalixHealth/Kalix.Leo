@@ -31,7 +31,7 @@ namespace Kalix.Leo
         /// <typeparam name="T">The type that identifies the item configuration to use</typeparam>
         /// <param name="partitionId">The id to seperate all records saved to this partition</param>
         /// <returns>Object partition that can be used to save/load/search etc</returns>
-        IObjectPartition<T> GetObjectPartition<T>(long partitionId);
+        IObjectPartition<T> GetObjectPartition<T>(long partitionId) where T : ObjectWithAuditInfo;
 
         /// <summary>
         /// Start listeners for the index and backup queues

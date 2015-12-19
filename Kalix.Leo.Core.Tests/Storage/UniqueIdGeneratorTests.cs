@@ -23,7 +23,7 @@ namespace Kalix.Leo.Core.Tests.Storage
         public void FirstCallFetchesNewItems()
         {
             _store.LoadData(_loc).Returns(Task.FromResult<DataWithMetadata>(null));
-            _store.TryOptimisticWrite(_loc, null, null, CancellationToken.None).ReturnsForAnyArgs(Task.FromResult(new OptimisticStoreWriteResult { Result = true }));
+            _store.TryOptimisticWrite(_loc, null, null, null, CancellationToken.None).ReturnsForAnyArgs(Task.FromResult(new OptimisticStoreWriteResult { Result = true }));
 
             var generator = GetGenerator(10);
             var id = generator.NextId().Result;
@@ -36,7 +36,7 @@ namespace Kalix.Leo.Core.Tests.Storage
         public void GrabsTenItemsWithCallingOutMoreThanOnce()
         {
             _store.LoadData(_loc).Returns(Task.FromResult<DataWithMetadata>(null));
-            _store.TryOptimisticWrite(_loc, null, null, CancellationToken.None).ReturnsForAnyArgs(Task.FromResult(new OptimisticStoreWriteResult { Result = true }));
+            _store.TryOptimisticWrite(_loc, null, null, null, CancellationToken.None).ReturnsForAnyArgs(Task.FromResult(new OptimisticStoreWriteResult { Result = true }));
 
             var generator = GetGenerator(10);
             long id = 0;

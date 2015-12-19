@@ -34,5 +34,10 @@
         /// Stores the content type of the record
         /// </summary>
         public static readonly string ContentTypeMetadataKey = "leocontenttype2";
+
+        /// <summary>
+        /// Stores the audit information
+        /// </summary>
+        public static readonly string AuditMetadataKey = "leoaudit";
     }
 }

@@ -40,9 +40,9 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
-            var result = await SaveDataInternal(location, metadata, savingFunc, token, false).ConfigureAwait(false);
+            var result = await SaveDataInternal(location, metadata, audit, savingFunc, token, false).ConfigureAwait(false);
             return result.Metadata;
         }
 
@@ -66,16 +66,20 @@ namespace Kalix.Leo.Azure.Storage
 
             foreach(var m in metadata)
             {
-                blob.Metadata[m.Key] = m.Value;
+                // Do not override audit information!
+                if (m.Key != MetadataConstants.AuditMetadataKey)
+                {
+                    blob.Metadata[m.Key] = m.Value;
+                }
             }
 
             await blob.SetMetadataAsync().ConfigureAwait(false);
             return await GetActualMetadata(blob).ConfigureAwait(false);
         }
 
-        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
+        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
-            return SaveDataInternal(location, metadata, savingFunc, token, true);
+            return SaveDataInternal(location, metadata, audit, savingFunc, token, true);
         }
 
         public async Task<IDisposable> Lock(StoreLocation location)
@@ -165,27 +169,9 @@ namespace Kalix.Leo.Azure.Storage
         public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
         {
             var blob = GetBlockBlob(location, snapshot);
-            try
-            {
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
-                LeoTrace.WriteLine("Got Metadata: " + blob.Name);
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return null;
-                }
+            var metadata = await GetBlobMetadata(blob).ConfigureAwait(false);
 
-                throw e.Wrap(blob.Name);
-            }
-
-            var metadata = await GetActualMetadata(blob).ConfigureAwait(false);
-            if (metadata.ContainsKey(_deletedKey))
-            {
-                metadata = null;
-            }
-            return metadata;
+            return metadata == null || metadata.ContainsKey(_deletedKey) ? null : metadata;
         }
 
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null)
@@ -193,24 +179,10 @@ namespace Kalix.Leo.Azure.Storage
             var blob = GetBlockBlob(location, snapshot);
 
             // Get metadata first - this record might be deleted so quicker to test this than to download whole record...
-            try
-            {
-                LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return null;
-                }
-
-                throw e.Wrap(blob.Name);
-            }
+            var metadata = await GetBlobMetadata(blob).ConfigureAwait(false);
 
             // If deleted then return null...
-            var metadata = await GetActualMetadata(blob).ConfigureAwait(false);
-            if (metadata.ContainsKey(_deletedKey))
+            if (metadata == null || metadata.ContainsKey(_deletedKey))
             {
                 return null;
             }
@@ -260,25 +232,21 @@ namespace Kalix.Leo.Azure.Storage
                 .Unwrap();
         }
 
-        public async Task SoftDelete(StoreLocation location)
+        public async Task SoftDelete(StoreLocation location, UpdateAuditInfo audit)
         {
             // In Azure we cannot delete the blob as this will loose the snapshots
             // Instead we will just add some metadata
             var blob = GetBlockBlob(location);
-            try
-            {
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return;
-                }
 
-                throw e.Wrap(blob.Name);
-            }
+            var metadata = await GetBlobMetadata(blob).ConfigureAwait(false);
 
+            // If already deleted don't worry about it!
+            if(metadata == null || metadata.ContainsKey(_deletedKey)) { return; }
+
+            var fullInfo = TransformAuditInformation(metadata, audit);
+            metadata.Audit = fullInfo;
+
+            blob.Metadata[MetadataConstants.AuditMetadataKey] = metadata[MetadataConstants.AuditMetadataKey];
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
             await blob.SetMetadataAsync().ConfigureAwait(false);
             LeoTrace.WriteLine("Soft deleted (2 calls): " + blob.Name);
@@ -307,6 +275,40 @@ namespace Kalix.Leo.Azure.Storage
 
             var c = _blobStorage.GetContainerReference(container);
             return c.DeleteIfExistsAsync();
+        }
+
+        private async Task<Metadata> GetBlobMetadata(CloudBlockBlob blob)
+        {
+            try
+            {
+                LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
+                await blob.FetchAttributesAsync().ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                if (e.RequestInformation.HttpStatusCode == 404)
+                {
+                    return null;
+                }
+
+                throw e.Wrap(blob.Name);
+            }
+
+            return await GetActualMetadata(blob).ConfigureAwait(false);
+        }
+
+        private AuditInfo TransformAuditInformation(Metadata current, UpdateAuditInfo newAudit)
+        {
+            var info = current == null ? new AuditInfo() : current.Audit;
+            info.UpdatedBy = newAudit == null ? "0" : newAudit.UpdatedBy;
+            info.UpdatedByName = newAudit == null ? string.Empty : newAudit.UpdatedByName;
+            info.UpdatedOn = DateTime.UtcNow;
+
+            info.CreatedBy = info.CreatedBy ?? info.UpdatedBy;
+            info.CreatedByName = info.CreatedByName ?? info.UpdatedByName;
+            info.CreatedOn = info.CreatedOn ?? info.UpdatedOn;
+
+            return info;
         }
 
         private IAsyncEnumerable<ICloudBlob> ListBlobs(CloudBlobContainer container, string prefix, BlobListingDetails options)
@@ -429,26 +431,29 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create((IDisposable)keepAlive, leaseId);
         }
 
-        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
+        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
         {
             var blob = GetBlockBlob(location);
+
+            // We always want to save the new audit information when saving!
+            var currentMetadata = await GetBlobMetadata(blob).ConfigureAwait(false);
+            var auditInfo = TransformAuditInformation(currentMetadata, audit);
+            metadata = metadata ?? new Metadata();
+            metadata.Audit = auditInfo;
 
             var result = new OptimisticStoreWriteResult() { Result = true };
             try
             {
                 // If the ETag value is empty then the store value must not exist yet...
                 var condition = isOptimistic ? 
-                    (metadata == null || string.IsNullOrEmpty(metadata.ETag) ? AccessCondition.GenerateIfNoneMatchCondition("*") : AccessCondition.GenerateIfMatchCondition(metadata.ETag)) 
+                    (string.IsNullOrEmpty(metadata.ETag) ? AccessCondition.GenerateIfNoneMatchCondition("*") : AccessCondition.GenerateIfMatchCondition(metadata.ETag)) 
                     : null;
 
                 // Copy the metadata across
                 blob.Metadata.Clear();
-                if (metadata != null)
+                foreach (var m in metadata)
                 {
-                    foreach (var m in metadata)
-                    {
-                        blob.Metadata[m.Key] = m.Value;
-                    }
+                    blob.Metadata[m.Key] = m.Value;
                 }
 
                 // Always store the version - We use this to do more efficient things on read

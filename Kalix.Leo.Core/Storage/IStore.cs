@@ -15,14 +15,16 @@ namespace Kalix.Leo.Storage
         /// Save Data to a specified location, metadata is completely overriden
         /// </summary>
         /// <param name="metadata">Metadata to save</param>
+        /// <param name="audit">Audit information to save, note that the created by/created on fields will be ignored</param>
         /// <param name="location">Location to store the file</param>
         /// <param name="savingFunc">Function that runs where there is a stream to write to, it should return the real content length of data saved</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>Snapshot id if it exists</returns>
-        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
+        Task<Metadata> SaveData(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
 
         /// <summary>
         /// Update the metadata at the specified location, does not override it
+        /// Note: this will not change the audit information
         /// </summary>
         /// <param name="location">Location to update the metadata</param>
         /// <param name="metadata">Metadata to save</param>
@@ -64,7 +66,8 @@ namespace Kalix.Leo.Storage
         /// Marks the file as deleted, but snapshots are still available
         /// </summary>
         /// <param name="location">Location of the file</param>
-        Task SoftDelete(StoreLocation location);
+        /// <param name="audit">Audit information to save, note that the created by/created on fields will be ignored</param>
+        Task SoftDelete(StoreLocation location, UpdateAuditInfo audit);
 
         /// <summary>
         /// Deletes the file and all snapshots, not recoverable

@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 namespace Kalix.Leo
 {
     public class ObjectPartition<T> : BasePartition, IObjectPartition<T>
+        where T : ObjectWithAuditInfo
     {
         private readonly Lazy<UniqueIdGenerator> _idGenerator;
 
@@ -26,10 +27,10 @@ namespace Kalix.Leo
             });
         }
 
-        public async Task<ObjectPartitionWriteResult<T>> Save(T data, long id, Metadata metadata = null)
+        public async Task<ObjectPartitionWriteResult<T>> Save(T data, long id, UpdateAuditInfo audit, Metadata metadata = null)
         {
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id), obj, _encryptor.Value, _options).ConfigureAwait(false);
+            var result = await _store.SaveObject(GetLocation(id), obj, audit, _encryptor.Value, _options).ConfigureAwait(false);
             return new ObjectPartitionWriteResult<T>
             {
                 Id = id,
@@ -42,7 +43,7 @@ namespace Kalix.Leo
             return _store.SaveMetadata(GetLocation(id), metadata, _options);
         }
 
-        public async Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null)
+        public async Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
             var member = idField.Body as MemberExpression;
             if(member == null)
@@ -69,7 +70,7 @@ namespace Kalix.Leo
             }
 
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id.Value), obj, _encryptor.Value, _options).ConfigureAwait(false);
+            var result = await _store.SaveObject(GetLocation(id.Value), obj, audit, _encryptor.Value, _options).ConfigureAwait(false);
             return new ObjectPartitionWriteResult<T>
             {
                 Id = id.Value,
@@ -99,15 +100,15 @@ namespace Kalix.Leo
                 .Select(l => new IdWithMetadata(l.Location.Id.Value, l.Metadata));
         }
 
-        public Task Delete(long id)
+        public Task Delete(long id, UpdateAuditInfo audit)
         {
-            return _store.Delete(GetLocation(id), _options);
+            return _store.Delete(GetLocation(id), audit, _options);
         }
 
         public Task DeletePermanent(long id)
         {
             // Remove the keep deletes option...
-            return _store.Delete(GetLocation(id), _options & ~SecureStoreOptions.KeepDeletes);
+            return _store.Delete(GetLocation(id), null, _options & ~SecureStoreOptions.KeepDeletes);
         }
 
         public Task ReIndexAll()

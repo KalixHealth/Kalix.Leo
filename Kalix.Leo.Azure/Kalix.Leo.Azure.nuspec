@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>7.2.0</version>
+    <version>8.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,13 +12,13 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      Use Ix instead of Rx
+      Added Audit information
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="7.2.0" />
-      <dependency id="WindowsAzure.Storage" version="6.0.0" />
+      <dependency id="Kalix.Leo.Core" version="8.0.0" />
+      <dependency id="WindowsAzure.Storage" version="6.2.0" />
     </dependencies>
   </metadata>
 </package>

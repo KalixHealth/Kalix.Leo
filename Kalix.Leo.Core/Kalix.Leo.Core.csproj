@@ -49,6 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AsyncEnumerable\AsyncEnumerableExtensions.cs" />
+    <Compile Include="AuditInfo.cs" />
     <Compile Include="Indexing\CompositionException.cs" />
     <Compile Include="Indexing\Config\IRecordSearchConfig.cs" />
     <Compile Include="Indexing\Config\RecordSearchConfig.cs" />
@@ -57,6 +58,7 @@
     <Compile Include="Indexing\IRecordSearchComposition.cs" />
     <Compile Include="Indexing\IRecordUniqueIndex.cs" />
     <Compile Include="LeoTrace.cs" />
+    <Compile Include="ObjectWithAuditInfo.cs" />
     <Compile Include="Storage\LengthCounterStream.cs" />
     <Compile Include="Storage\LockException.cs" />
     <Compile Include="AsyncEnumerable\AsyncEnumerableEx.cs" />
@@ -99,6 +101,7 @@
     <Compile Include="Storage\StoreLocation.cs" />
     <Compile Include="Table\ITableQuery.cs" />
     <Compile Include="Table\StorageEntityAlreadyExistsException.cs" />
+    <Compile Include="UpdateAuditInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

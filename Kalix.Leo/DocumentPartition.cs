@@ -18,9 +18,9 @@ namespace Kalix.Leo
         {
         }
 
-        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, Metadata metadata = null)
+        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
         {
-            return _store.SaveData(GetLocation(path), metadata, savingFunc, token, _encryptor.Value, _options);
+            return _store.SaveData(GetLocation(path), metadata, audit, savingFunc, token, _encryptor.Value, _options);
         }
 
         public Task<Metadata> SaveMetadata(string path, Metadata metadata)
@@ -52,15 +52,15 @@ namespace Kalix.Leo
                 .Select(l => new PathWithMetadata(l.Location.BasePath.Substring(baseLength), l.Metadata));
         }
 
-        public Task Delete(string path)
+        public Task Delete(string path, UpdateAuditInfo audit)
         {
-            return _store.Delete(GetLocation(path), _options);
+            return _store.Delete(GetLocation(path), audit, _options);
         }
 
         public Task DeletePermanent(string path)
         {
             // Remove the keep deletes option...
-            return _store.Delete(GetLocation(path), _options & ~SecureStoreOptions.KeepDeletes);
+            return _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes);
         }
 
         public Task ReIndexAll()

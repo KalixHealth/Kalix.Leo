@@ -39,7 +39,6 @@ namespace Kalix.Leo.Lucene.Tests
         }
 
         [Test]
-        [ExpectedException(typeof(LockObtainFailedException))]
         public void CannotWriteTwoLuceneIndexesOnSameStore()
         {
             _indexer.DeleteAll().Wait();
@@ -47,7 +46,10 @@ namespace Kalix.Leo.Lucene.Tests
             var store = new SecureStore(_store);
             using (var indexer2 = new LuceneIndex(store, "testindexer", "basePath", null))
             {
-                indexer2.DeleteAll().Wait();
+                Assert.Throws<LockObtainFailedException>(() =>
+                {
+                    indexer2.DeleteAll().Wait();
+                });
             }
         }
 

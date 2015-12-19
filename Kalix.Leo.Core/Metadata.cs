@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -9,6 +11,12 @@ namespace Kalix.Leo
     /// </summary>
     public class Metadata : Dictionary<string, string>
     {
+        private readonly static JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        {
+            DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+            ContractResolver = new CamelCasePropertyNamesContractResolver()
+        };
+
         /// <summary>
         /// Simple constructor
         /// </summary>
@@ -138,5 +146,33 @@ namespace Kalix.Leo
         /// Holds the date/time that a record was modified from the underlying storage provider
         /// </summary>
         public DateTime? StoredLastModified { get; set; }
+
+        /// <summary>
+        /// Holds the audit information, generally this is automatically populated
+        /// </summary>
+        public AuditInfo Audit
+        {
+            get
+            {
+                if (ContainsKey(MetadataConstants.AuditMetadataKey))
+                {
+                    var str = this[MetadataConstants.AuditMetadataKey];
+                    return string.IsNullOrWhiteSpace(str) ? new AuditInfo() : JsonConvert.DeserializeObject<AuditInfo>(str, JsonSettings);
+                }
+                return new AuditInfo();
+            }
+            set
+            {
+                if (value != null)
+                {
+                    var str = JsonConvert.SerializeObject(value, JsonSettings); 
+                    this[MetadataConstants.AuditMetadataKey] = str;
+                }
+                else if (ContainsKey(MetadataConstants.AuditMetadataKey))
+                {
+                    Remove(MetadataConstants.AuditMetadataKey);
+                }
+            }
+        }
     }
 }

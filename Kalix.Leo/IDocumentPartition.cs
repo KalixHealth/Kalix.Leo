@@ -16,10 +16,11 @@ namespace Kalix.Leo
         /// </summary>
         /// <param name="path">The location to save the record (in this particular partition)</param>
         /// <param name="savingFunc">The stream of data to save</param>
+        /// <param name="audit">Audit information about this save</param>
         /// <param name="token">Cancellation token</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that returns snapshot id when the record is saved</returns>
-        Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, Metadata metadata = null);
+        Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified path, does not override it
@@ -63,8 +64,9 @@ namespace Kalix.Leo
         /// Delete a record at the specified location (will not delete snapshots though)
         /// </summary>
         /// <param name="path">The location of the file to delete</param>
+        /// <param name="audit">Audit information about who is saving</param>
         /// <returns>Task that completes when the delete is successful</returns>
-        Task Delete(string path);
+        Task Delete(string path, UpdateAuditInfo audit);
 
         /// <summary>
         /// Delete a record at the specified location, and any snapshots as well

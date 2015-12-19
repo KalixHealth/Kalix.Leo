@@ -18,7 +18,7 @@ namespace Kalix.Leo.Amazon.Tests
         static AmazonTestsHelper()
         {
             var region = RegionEndpoint.GetBySystemName("ap-southeast-2");
-            _client = new AmazonS3Client("AWSAccessKey", "AWSSecretKey", region);
+            _client = new AmazonS3Client(region);
         }
 
         public static AmazonS3Client SetupBlob(string container, string path)

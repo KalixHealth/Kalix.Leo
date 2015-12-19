@@ -67,13 +67,13 @@ namespace Kalix.Leo.Listeners
                 if (data == null)
                 {
                     // Need to make sure to soft delete in our backup...
-                    await _backupStore.SoftDelete(location).ConfigureAwait(false);
+                    await _backupStore.SoftDelete(location, data.Metadata.Audit.ToUpdateAuditInfo()).ConfigureAwait(false);
                 }
                 else
                 {
                     // Just save it right back into the backup!
                     var ct = CancellationToken.None;
-                    await _backupStore.SaveData(location, data.Metadata, async (s) => 
+                    await _backupStore.SaveData(location, data.Metadata, data.Metadata.Audit.ToUpdateAuditInfo(), async (s) => 
                     {
                         await data.Stream.CopyToAsync(s, ct).ConfigureAwait(false);
                         return data.Metadata.ContentLength;

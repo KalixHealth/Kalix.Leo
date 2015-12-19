@@ -14,11 +14,12 @@ namespace Kalix.Leo.Storage
         /// Save data to a specified location, but put a lock on it while writing. Does not support multipart...
         /// </summary>
         /// <param name="metadata">Metadata to save, must include an eTag</param>
+        /// <param name="audit">Audit information to save, note that the created by/created on fields will be ignored</param>
         /// <param name="savingFunc">A write stream so you can do what you want to save</param>
         /// <param name="location">Location to store the file</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>Whether the write was successful or not</returns>
-        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
+        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
 
         /// <summary>
         /// Locks the storage at the specified location
@@ -45,9 +46,19 @@ namespace Kalix.Leo.Storage
         Task RunOnce(StoreLocation location, Func<Task> action);
     }
 
+    /// <summary>
+    /// Save result object
+    /// </summary>
     public class OptimisticStoreWriteResult
     {
+        /// <summary>
+        /// Whether the save was successful or not
+        /// </summary>
         public bool Result { get; set; }
+
+        /// <summary>
+        /// Associated metadata
+        /// </summary>
         public Metadata Metadata { get; set; }
     }
 }

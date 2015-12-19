@@ -55,7 +55,7 @@ namespace Kalix.Leo.Encryption
                 // Have to create a new key
                 blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
                 var ct = CancellationToken.None;
-                await store.SaveData(keyLocation, null, async (s) =>
+                await store.SaveData(keyLocation, null, null, async (s) =>
                 {
                     await s.WriteAsync(blob, 0, blob.Length, ct).ConfigureAwait(false);
                     return blob.Length;

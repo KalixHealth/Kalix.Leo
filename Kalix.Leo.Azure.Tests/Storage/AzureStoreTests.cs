@@ -29,7 +29,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         protected string WriteData(StoreLocation location, Metadata m, byte[] data)
         {
             var ct = CancellationToken.None;
-            return _store.SaveData(location, m, async (s) =>
+            return _store.SaveData(location, m, null, async (s) =>
             {
                 await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
@@ -39,7 +39,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
         {
             var ct = CancellationToken.None;
-            return _store.TryOptimisticWrite(location, m, async (s) =>
+            return _store.TryOptimisticWrite(location, m, null, async (s) =>
             {
                 await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
                 return data.Length;
@@ -378,7 +378,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void BlobThatDoesNotExistShouldNotThrowError()
             {
-                _store.SoftDelete(_location).Wait();
+                _store.SoftDelete(_location, null).Wait();
             }
 
             [Test]
@@ -387,7 +387,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 WriteData(_location, null, data);
 
-                _store.SoftDelete(_location).Wait();
+                _store.SoftDelete(_location, null).Wait();
 
                 var result = _store.LoadData(_location).Result;
                 Assert.IsNull(result);
@@ -400,7 +400,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 WriteData(_location, null, data);
                 var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
 
-                _store.SoftDelete(_location).Wait();
+                _store.SoftDelete(_location, null).Wait();
 
                 var result = _store.LoadData(_location, shapshot).Result;
                 Assert.IsNotNull(result);
@@ -466,21 +466,23 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
-            [ExpectedException(typeof(LockException))]
             public void IfFileLockedReturnsFalse()
             {
-                using (var l = _store.Lock(_location).Result)
+                Assert.Throws<LockException>(() =>
                 {
-                    var data = AzureTestsHelper.RandomData(1);
-                    try
+                    using (var l = _store.Lock(_location).Result)
                     {
-                        WriteData(_location, null, data);
+                        var data = AzureTestsHelper.RandomData(1);
+                        try
+                        {
+                            WriteData(_location, null, data);
+                        }
+                        catch (AggregateException e)
+                        {
+                            throw e.InnerException;
+                        }
                     }
-                    catch (AggregateException e)
-                    {
-                        throw e.InnerException;
-                    }
-                }
+                });
             }
         }
     }

@@ -87,7 +87,7 @@ namespace Kalix.Leo.Lucene.Store
         public override void DeleteFile(string name)
         {
             var location = GetLocation(name);
-            _store.Delete(location, _options).WaitAndWrap();
+            _store.Delete(location, null, _options).WaitAndWrap();
             LeoTrace.WriteLine(String.Format("DELETE {0}", location.BasePath));
 
             if (_cache.FileExists(name))
@@ -117,7 +117,7 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.LastModified = data.Metadata.LastModified;
 
                 var ct = CancellationToken.None;
-                await _store.SaveData(loc, metadata, (s) => data.Stream.CopyToAsync(s, ct), ct, _encryptor, _options).ConfigureAwait(false);
+                await _store.SaveData(loc, metadata, null, (s) => data.Stream.CopyToAsync(s, ct), ct, _encryptor, _options).ConfigureAwait(false);
             });
         }
 

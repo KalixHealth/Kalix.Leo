@@ -93,7 +93,7 @@ namespace Kalix.Leo.Amazon.Storage
                         {
                             foreach (var m in _metadata)
                             {
-                                request.Metadata.Add(m.Key, m.Value);
+                                request.Metadata.Add("x-amz-meta-" + m.Key, m.Value);
                             }
                         }
 

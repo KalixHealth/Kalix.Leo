@@ -4,6 +4,7 @@ using Kalix.Leo.Storage;
 using Kalix.Leo.Streams;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -31,26 +32,95 @@ namespace Kalix.Leo.Amazon.Storage
             _bucket = bucket;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
         {
+            var current = await GetMetadata(location).ConfigureAwait(false);
+
+            var info = current == null ? new AuditInfo() : current.Audit;
+            info.UpdatedBy = audit == null ? "0" : audit.UpdatedBy;
+            info.UpdatedByName = audit == null ? string.Empty : audit.UpdatedByName;
+            info.UpdatedOn = DateTime.UtcNow;
+
+            info.CreatedBy = info.CreatedBy ?? info.UpdatedBy;
+            info.CreatedByName = info.CreatedByName ?? info.UpdatedByName;
+            info.CreatedOn = info.CreatedOn ?? info.UpdatedOn;
+
+            metadata = metadata ?? new Metadata();
+            metadata.Audit = info;
+
             var key = GetObjectKey(location);
-            string snapshot = null;
             long? length = null;
             using(var stream = new AmazonMultiUploadStream(_client, _bucket, key, metadata))
             {
                 length = await savingFunc(stream).ConfigureAwait(false);
                 await stream.Complete(token).ConfigureAwait(false);
-                snapshot = stream.VersionId;
+                metadata.Snapshot = stream.VersionId;
             }
 
-            // TODO: Save down real length if required...
+            if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
+            {
+                metadata[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
 
-            return await GetMetadata(location, snapshot).ConfigureAwait(false);
+                // Save the length straight away before the snapshot...
+                metadata = await SaveMetadata(location, metadata).ConfigureAwait(false);
+            }
+
+            return metadata;
         }
 
-        public Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata)
+        public async Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata)
         {
-            throw new NotImplementedException();
+            // Copy so that we are not modifying original!
+            metadata = new Metadata(metadata);
+
+            // Do not change the audit information!
+            var current = await GetMetadata(location).ConfigureAwait(false);
+            metadata.Audit = current.Audit;
+
+            var key = GetObjectKey(location);
+            var request = new CopyObjectRequest
+            {
+                SourceBucket = _bucket,
+                SourceKey = key,
+                DestinationBucket = _bucket,
+                DestinationKey = key,
+                MetadataDirective = S3MetadataDirective.REPLACE
+            };
+
+            foreach(var m in metadata)
+            {
+                request.Metadata.Add("x-amz-meta-" + m.Key, m.Value);
+            }
+
+            // Copy the object (only way to update metadata)
+            string versionToRemove;
+            try
+            {
+                var copyResponse = await _client.CopyObjectAsync(request).ConfigureAwait(false);
+                versionToRemove = copyResponse.SourceVersionId;
+            }
+            catch (AmazonS3Exception e)
+            {
+                if (e.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+
+                throw;
+            }
+            
+            // We will be grabbing the metadata
+            var metadataTask = GetMetadata(location);
+            var tasks = new List<Task> { metadataTask };
+
+            // Remove the double up so that we don't get heaps of extra snapshots...
+            if (versionToRemove != null)
+            {
+                tasks.Add(_client.DeleteObjectAsync(_bucket, key, versionToRemove));
+            }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+            return metadataTask.Result;
         }
 
         public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
@@ -142,7 +212,7 @@ namespace Kalix.Leo.Amazon.Storage
                 .Unwrap();
         }
 
-        public Task SoftDelete(StoreLocation location)
+        public Task SoftDelete(StoreLocation location, UpdateAuditInfo audit)
         {
             // If we support snapshots then we can just delete the record in amazon...
             var key = GetObjectKey(location);
@@ -214,7 +284,7 @@ namespace Kalix.Leo.Amazon.Storage
                 .ConfigureAwait(false); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
-        public static Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
+        private Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
         {
             var metadata = new Metadata(m.Keys.ToDictionary(s => s.Replace("x-amz-meta-", string.Empty), s => m[s]));
 
@@ -270,29 +340,31 @@ namespace Kalix.Leo.Amazon.Storage
         {
             return AsyncEnumerableEx.Create<S3ObjectVersion>(async y =>
             {
-                bool isComplete = false;
-                string keyMarker = null;
-                string versionIdMarker = null;
-
-                while (!isComplete && !y.CancellationToken.IsCancellationRequested)
+                var request = new ListVersionsRequest
                 {
-                    var request = new ListVersionsRequest
-                    {
-                        BucketName = _bucket,
-                        Prefix = prefix,
-                        KeyMarker = keyMarker,
-                        VersionIdMarker = versionIdMarker
-                    };
+                    BucketName = _bucket,
+                    Prefix = prefix,
+                    KeyMarker = null,
+                    VersionIdMarker = null
+                };
 
+                while (request != null && !y.CancellationToken.IsCancellationRequested)
+                {
                     var resp = await _client.ListVersionsAsync(request, y.CancellationToken).ConfigureAwait(false);
                     foreach (var v in resp.Versions)
                     {
                         await y.YieldReturn(v).ConfigureAwait(false);
                     }
 
-                    isComplete = !resp.IsTruncated;
-                    keyMarker = resp.NextKeyMarker;
-                    versionIdMarker = resp.NextVersionIdMarker;
+                    if (resp.IsTruncated)
+                    {
+                        request.KeyMarker = resp.NextKeyMarker;
+                        request.VersionIdMarker = resp.NextVersionIdMarker;
+                    }
+                    else
+                    {
+                        request = null;
+                    }
                 }
             });
         }

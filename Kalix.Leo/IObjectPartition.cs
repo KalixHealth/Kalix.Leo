@@ -12,15 +12,17 @@ namespace Kalix.Leo
     /// </summary>
     /// <typeparam name="T">The type of the object, must be configured in the leo engine configuration</typeparam>
     public interface IObjectPartition<T> : IBasePartition
+        where T : ObjectWithAuditInfo
     {
         /// <summary>
         /// Save a record at the specified id value, metadata is completely overriden
         /// </summary>
         /// <param name="data">The object to save</param>
         /// <param name="id">The id to save the record as</param>
+        /// <param name="audit">Audit information to save against this record</param>
         /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
         /// <returns>Task that completes when the record is saved</returns>
-        Task<ObjectPartitionWriteResult<T>> Save(T data, long id, Metadata metadata = null);
+        Task<ObjectPartitionWriteResult<T>> Save(T data, long id, UpdateAuditInfo audit, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified id value, does not override it
@@ -35,10 +37,11 @@ namespace Kalix.Leo
         /// </summary>
         /// <param name="data">The data to save</param>
         /// <param name="idField">The expression to access the id field on the object</param>
+        /// <param name="audit">Audit information to save against this record</param>
         /// <param name="preSaveProcessing">An optional step to do some processing after the id has been created but before the record is saved</param>
         /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
         /// <returns>Task that completes when the record is saved, returns the id</returns>
-        Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, Action<long> preSaveProcessing = null, Metadata metadata = null);
+        Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Action<long> preSaveProcessing = null, Metadata metadata = null);
 
         /// <summary>
         /// Load a record by id
@@ -73,8 +76,9 @@ namespace Kalix.Leo
         /// Delete a record with the specified id (will not delete snapshots though)
         /// </summary>
         /// <param name="id">The id of the record to delete</param>
+        /// <param name="audit">Audit information of the person deleting</param>
         /// <returns>Task that completes when the delete is successful</returns>
-        Task Delete(long id);
+        Task Delete(long id, UpdateAuditInfo audit);
 
         /// <summary>
         /// Delete a record with the specified id, and any snapshots as well
@@ -104,9 +108,21 @@ namespace Kalix.Leo
         Task SetInternalIdGenerator(long newId);
     }
 
+    /// <summary>
+    /// Save result so that you can get the Id and metadata
+    /// </summary>
+    /// <typeparam name="T">The type of the object</typeparam>
     public class ObjectPartitionWriteResult<T>
+        where T : ObjectWithAuditInfo
     {
+        /// <summary>
+        /// Id of the newly saved object
+        /// </summary>
         public long Id { get; set; }
+
+        /// <summary>
+        /// Data and metadata gained
+        /// </summary>
         public ObjectWithMetadata<T> Data { get; set; }
     }
 }

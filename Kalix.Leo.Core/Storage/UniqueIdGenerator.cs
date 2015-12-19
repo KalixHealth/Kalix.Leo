@@ -87,7 +87,7 @@ namespace Kalix.Leo.Storage
 
             var limitBytes = Encoding.UTF8.GetBytes(newId.ToString(CultureInfo.InvariantCulture));
             var ct = CancellationToken.None;
-            await _store.SaveData(_location, null, async (s) => 
+            await _store.SaveData(_location, null, null, async (s) => 
             {
                 await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                 return limitBytes.Length;
@@ -135,7 +135,7 @@ namespace Kalix.Leo.Storage
                 var limitBytes = Encoding.UTF8.GetBytes(upperLimit.ToString(CultureInfo.InvariantCulture));
                 var m = dataStream == null ? null : new Metadata() { ETag = dataStream.Metadata.ETag };
                 var ct = CancellationToken.None;
-                var result = await _store.TryOptimisticWrite(_location, m, async (s) =>
+                var result = await _store.TryOptimisticWrite(_location, m, null, async (s) =>
                 {
                     await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
                     return limitBytes.Length;

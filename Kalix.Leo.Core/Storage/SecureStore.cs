@@ -83,6 +83,7 @@ namespace Kalix.Leo.Storage
         }
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
+            where T : ObjectWithAuditInfo
         {
             var data = await LoadData(location, snapshot, encryptor).ConfigureAwait(false);
             if(data == null) { return null; }
@@ -101,6 +102,7 @@ namespace Kalix.Leo.Storage
             var strData = await data.Stream.ReadBytes().ConfigureAwait(false);
             var str = Encoding.UTF8.GetString(strData, 0, strData.Length);
             var obj = JsonConvert.DeserializeObject<T>(str);
+            obj.Audit = data.Metadata.Audit;
 
             LeoTrace.WriteLine("Returning data object: " + location);
             return new ObjectWithMetadata<T>(obj, data.Metadata);
@@ -157,17 +159,18 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task<Metadata> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public Task<Metadata> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, UpdateAuditInfo audit, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+            where T : ObjectWithAuditInfo
         {
             // Serialise to json as more cross platform
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
             var ct = CancellationToken.None;
-            return SaveData(location, obj.Metadata, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
+            return SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
             var metadata = new Metadata(mdata);
@@ -200,7 +203,7 @@ namespace Kalix.Leo.Storage
             /****************************************************
              *  PREPARE THE SAVE STREAM
              * ***************************************************/
-            var m = await _store.SaveData(location, metadata, async (stream) =>
+            var m = await _store.SaveData(location, metadata, audit, async (stream) =>
             {
                 LengthCounterStream counter = null;
                 stream = stream.AddTransformer(s =>
@@ -299,14 +302,14 @@ namespace Kalix.Leo.Storage
             return m;
         }
 
-        public async Task Delete(StoreLocation location, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task Delete(StoreLocation location, UpdateAuditInfo audit, SecureStoreOptions options = SecureStoreOptions.All)
         {
             var metadata = await _store.GetMetadata(location).ConfigureAwait(false);
             if (metadata == null) { return; }
 
             if (options.HasFlag(SecureStoreOptions.KeepDeletes))
             {
-                await _store.SoftDelete(location).ConfigureAwait(false);
+                await _store.SoftDelete(location, audit).ConfigureAwait(false);
             }
             else
             {
