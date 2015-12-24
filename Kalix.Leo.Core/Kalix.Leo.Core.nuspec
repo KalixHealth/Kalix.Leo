@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.0.0</version>
+    <version>8.0.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,7 +12,8 @@
       Core library that abstracts your storage layer, adds encryption/compression
     </description>
     <releaseNotes>
-      Added Audit information
+8.0.0 Added Audit information
+8.0.1 Change serializer behaviour so only hidden when saving to storage
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

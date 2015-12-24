@@ -163,7 +163,9 @@ namespace Kalix.Leo.Storage
             where T : ObjectWithAuditInfo
         {
             // Serialise to json as more cross platform
+            obj.Data.HideAuditInfo = true;
             var data = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(obj.Data));
+            obj.Data.HideAuditInfo = false;
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
             var ct = CancellationToken.None;

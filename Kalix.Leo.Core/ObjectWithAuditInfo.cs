@@ -11,7 +11,21 @@ namespace Kalix.Leo
         /// Audit property contains the Audit information you need
         /// Note: this will be set from metadata automatically and so does not get serialized
         /// </summary>
-        [JsonIgnore]
         public AuditInfo Audit { get; set; }
+
+        /// <summary>
+        /// Control function whether to serialize the Audit object
+        /// </summary>
+        /// <returns></returns>
+        public bool ShouldSerializeAudit()
+        {
+            return !HideAuditInfo;
+        }
+
+        /// <summary>
+        /// Control whether to store the Audit JSON or not
+        /// </summary>
+        [JsonIgnore]
+        public bool HideAuditInfo { get; set; }
     }
 }
