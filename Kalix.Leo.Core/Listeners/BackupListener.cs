@@ -67,7 +67,8 @@ namespace Kalix.Leo.Listeners
                 if (data == null)
                 {
                     // Need to make sure to soft delete in our backup...
-                    await _backupStore.SoftDelete(location, data.Metadata.Audit.ToUpdateAuditInfo()).ConfigureAwait(false);
+                    // We don't have metadata about who did it though...
+                    await _backupStore.SoftDelete(location, new UpdateAuditInfo()).ConfigureAwait(false);
                 }
                 else
                 {
