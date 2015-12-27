@@ -305,6 +305,11 @@ namespace Kalix.Leo.Indexing.Config
             _finalMapAction = finalMapAction;
         }
 
+        public bool IsStrict
+        {
+            get { return false; }
+        }
+
         public IRecordSearchMappingEnd<TMain, TSearch> AddFinalPass(Action<TSearch, TSearch> newAndOldAction)
         {
             _newAndOldActions.Add(newAndOldAction);
@@ -442,6 +447,11 @@ namespace Kalix.Leo.Indexing.Config
             _prefix = prefix;
             _keyMappings = keyMappings;
             _createPredicate = createPredicate;
+        }
+
+        public bool IsStrict
+        {
+            get { return true; }
         }
 
         public IEnumerable<Action<ITableEntity, ITableEntity>> AdditionalActions

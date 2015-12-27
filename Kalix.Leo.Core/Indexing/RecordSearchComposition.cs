@@ -71,7 +71,14 @@ namespace Kalix.Leo.Indexing
 
                     // Be specific about which update we want...
                     rowKeys.Add(newItem.RowKey);
-                    context.InsertOrReplace(newItem);
+                    if (mapping.IsStrict)
+                    {
+                        context.Insert(newItem);
+                    }
+                    else
+                    {
+                        context.InsertOrReplace(newItem);
+                    }
                 }
             }
 

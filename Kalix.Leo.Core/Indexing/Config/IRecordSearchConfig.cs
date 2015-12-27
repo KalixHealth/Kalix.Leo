@@ -82,5 +82,7 @@ namespace Kalix.Leo.Indexing.Config
     {
         IEnumerable<Action<ITableEntity, ITableEntity>> AdditionalActions { get; }
         IEnumerable<ITableEntity> Create(long partitionKey, string id, ObjectWithMetadata<TMain> model, Func<object, string> keyParser);
+
+        bool IsStrict { get; }
     }
 }
