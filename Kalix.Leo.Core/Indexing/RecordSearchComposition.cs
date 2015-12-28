@@ -71,8 +71,9 @@ namespace Kalix.Leo.Indexing
 
                     // Be specific about which update we want...
                     rowKeys.Add(newItem.RowKey);
-                    if (mapping.IsStrict)
+                    if (mapping.IsStrict && matchingOld == null)
                     {
+                        // If there is no old item for this set, then expect this to be actually a new item
                         context.Insert(newItem);
                     }
                     else

@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.0.3</version>
+    <version>8.0.4</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -16,6 +16,7 @@
 8.0.1 Change serializer behaviour so only hidden when saving to storage
 8.0.2 Small bug-fix in backup listener when deleting files, no audit information available in this case
 8.0.3 Bug when indexing instead of searching, wasn't throwing when item already exists
+8.0.4 Need to consider update phase when indexing (vs a straight create)
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
