@@ -147,9 +147,10 @@ namespace Kalix.Leo.Listeners
                 var details = messages.Select(m => JsonConvert.DeserializeObject<StoreDataDetails>(m.Message)).ToList();
 
                 bool hasData = false;
+                string type = null;
                 if(details[0].Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
                 {
-                    var type = details[0].Metadata[MetadataConstants.TypeMetadataKey];
+                    type = details[0].Metadata[MetadataConstants.TypeMetadataKey];
                     if(_typeIndexers.ContainsKey(type))
                     {
                         var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
@@ -171,7 +172,7 @@ namespace Kalix.Leo.Listeners
 
                 if(!hasData)
                 {
-                    throw new InvalidOperationException("Could not find indexer for record: container=" + details[0].Container + ", path=" + details[0].BasePath + ":\r\n" + details.Count);
+                    throw new InvalidOperationException("Could not find indexer for record: container=" + details[0].Container + ", path=" + details[0].BasePath + ", type=" + (type ?? "None") + ":" + details.Count);
                 }
 
                 await Task.WhenAll(messages.Select(m => m.Complete())).ConfigureAwait(false);
