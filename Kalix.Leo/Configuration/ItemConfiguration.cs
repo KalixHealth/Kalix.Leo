@@ -14,6 +14,12 @@ namespace Kalix.Leo.Configuration
         public Type Type { get; set; }
 
         /// <summary>
+        /// Should be add a configuration that if the indexer type does not match, that we can instead look by the base path
+        /// This allows for types to be moved and be temporarily not in an error state
+        /// </summary>
+        public bool IndexerAllowFallbackToBasePath { get; set; }
+
+        /// <summary>
         /// The basepath to help namespace this partition, used when records are saved to storage
         /// </summary>
         public string BasePath { get; set; }

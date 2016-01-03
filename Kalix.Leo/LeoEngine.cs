@@ -76,6 +76,10 @@ namespace Kalix.Leo
                 foreach (var obj in config.Objects.Where(o => o.Type != null && o.Indexer != null))
                 {
                     _indexListener.RegisterTypeIndexer(obj.Type, obj.Indexer);
+                    if(obj.IndexerAllowFallbackToBasePath)
+                    {
+                        _indexListener.RegisterPathIndexer(obj.BasePath, obj.Indexer);
+                    }
                 }
 
                 foreach (var obj in config.Objects.Where(o => o.Type == null && o.Indexer != null))

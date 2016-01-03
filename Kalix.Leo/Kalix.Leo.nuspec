@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>8.0.0</version>
+    <version>8.0.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,12 +12,12 @@
       Library to abstract indexing, querying, encryption and compression on a NoSQL store
     </description>
     <releaseNotes>
-      Added Audit information
+8.0.1 Can specify to use the base type as a fallback during indexing 
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="8.0.0" />
+      <dependency id="Kalix.Leo.Core" version="8.0.5" />
       <dependency id="Kalix.Leo.Lucene" version="8.0.0" />
       <dependency id="Kalix.ApiCrypto" version="2.0.2" />
     </dependencies>
