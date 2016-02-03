@@ -313,6 +313,9 @@ namespace Kalix.Leo.Azure.Storage
 
         private IAsyncEnumerable<ICloudBlob> ListBlobs(CloudBlobContainer container, string prefix, BlobListingDetails options)
         {
+            // Clean up the prefix if required
+            prefix = prefix == null ? null : SafePath.MakeSafeFilePath(prefix);
+
             return AsyncEnumerableEx.Create<ICloudBlob>(async (y) =>
             {
                 BlobContinuationToken token = new BlobContinuationToken();
