@@ -138,7 +138,7 @@ namespace Kalix.Leo.Storage
                     // This is a read flow, so decryption comes first
                     if (hasEncryption)
                     {
-                        s = encryptor.Decrypt(s, false);
+                        s = encryptor.Decrypt(s, true);
                     }
 
                     // Then comes the decompression
