@@ -135,16 +135,16 @@ namespace Kalix.Leo.Storage
             {
                 stream = stream.AddTransformer(s =>
                 {
-                    // We are creating a write workflow, so we decompress as second last step
-                    if(hasCompression)
-                    {
-                        s = _compressor.Decompress(s, false);
-                    }
-
-                    // We decrypt as first step
-                    if(hasEncryption)
+                    // This is a read flow, so decryption comes first
+                    if (hasEncryption)
                     {
                         s = encryptor.Decrypt(s, false);
+                    }
+
+                    // Then comes the decompression
+                    if (hasCompression)
+                    {
+                        s = _compressor.DecompressReadStream(s);
                     }
 
                     return s;
@@ -219,7 +219,7 @@ namespace Kalix.Leo.Storage
                     // Compression comes right before encryption
                     if (options.HasFlag(SecureStoreOptions.Compress))
                     {
-                        s = _compressor.Compress(s, false);
+                        s = _compressor.CompressWriteStream(s);
                     }
 
                     // Always place the length counter stream

@@ -15,17 +15,15 @@ namespace Kalix.Leo.Compression
         /// <summary>
         /// Compress a stream of data
         /// </summary>
-        /// <param name="data">Stream of data to compress</param>
-        /// <param name="readMode">Whether we are working with a read or write stream</param>
-        /// <returns>Stream of data that will be compressed</returns>
-        Stream Compress(Stream data, bool readMode);
+        /// <param name="data">Write Stream to send compressed data</param>
+        /// <returns>Write Stream that will compress data</returns>
+        Stream CompressWriteStream(Stream data);
 
         /// <summary>
         /// Decompress a stream of compressed data
         /// </summary>
-        /// <param name="compressedData">Stream of compressed data to decompress</param>
-        /// <param name="readMode">Whether we are working with a read or write stream</param>
-        /// <returns>Stream of data</returns>
-        Stream Decompress(Stream compressedData, bool readMode);
+        /// <param name="compressedData">Stream of data that needs to be decompressed</param>
+        /// <returns>Stream of data that is decompressed</returns>
+        Stream DecompressReadStream(Stream compressedData);
     }
 }

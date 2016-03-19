@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.0.5</version>
+    <version>8.1.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -18,13 +18,14 @@
 8.0.3 Bug when indexing instead of searching, wasn't throwing when item already exists
 8.0.4 Need to consider update phase when indexing (vs a straight create)
 8.0.5 Show the type if we cannot match an indexer (if there is one)
+8.0.6 Make sure exceptions that occur when copying stream continue to bubble up
+8.1.0 Changes to stream extensions on read streams, now uses read stream stack
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
       <dependency id="Ix-Async" version="1.2.5" />
-      <dependency id="Newtonsoft.Json" version="7.0.1" />
-      <dependency id="Zlib.Portable" version="1.11.0" />
+      <dependency id="Newtonsoft.Json" version="8.0.3" />
     </dependencies>
   </metadata>
 </package>

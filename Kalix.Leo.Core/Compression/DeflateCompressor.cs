@@ -1,6 +1,6 @@
-﻿using Ionic.Zlib;
-using System;
+﻿using System;
 using System.IO;
+using System.IO.Compression;
 
 namespace Kalix.Leo.Compression
 {
@@ -11,14 +11,9 @@ namespace Kalix.Leo.Compression
             get { return "deflate"; }
         }
 
-        public Stream Compress(Stream data, bool readMode)
+        public Stream CompressWriteStream(Stream data)
         {
-            if(readMode && !data.CanRead)
-            {
-                throw new ArgumentException("Stream is not readable to compress", "data");
-            }
-
-            if (!readMode && !data.CanWrite)
+            if (!data.CanWrite)
             {
                 throw new ArgumentException("Stream is not writable to compress", "data");
             }
@@ -26,16 +21,11 @@ namespace Kalix.Leo.Compression
             return new DeflateStream(data, CompressionMode.Compress);
         }
 
-        public Stream Decompress(Stream compressedData, bool readMode)
+        public Stream DecompressReadStream(Stream compressedData)
         {
-            if (readMode && !compressedData.CanRead)
+            if (!compressedData.CanRead)
             {
                 throw new ArgumentException("Stream is not readable to decompress", "compressedData");
-            }
-
-            if (!readMode && !compressedData.CanWrite)
-            {
-                throw new ArgumentException("Stream is not writable to decompress", "compressedData");
             }
 
             return new DeflateStream(compressedData, CompressionMode.Decompress);
