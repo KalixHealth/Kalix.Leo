@@ -74,20 +74,42 @@ namespace Kalix.Leo
         /// </summary>
         public static async Task CopyToAsync(this IReadAsyncStream readStream, IWriteAsyncStream writeStream, CancellationToken ct)
         {
-            using (readStream)
+            // We have the double exception catching to avoid the using() from hiding the inner exception
+            Exception inner = null;
+
+            try
             {
-                var buffer = new byte[BufferSize];
-                int read;
-                do
+                using (readStream)
                 {
-                    ct.ThrowIfCancellationRequested();
-                    read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
-                    if (read > 0)
+                    try
                     {
-                        ct.ThrowIfCancellationRequested();
-                        await writeStream.WriteAsync(buffer, 0, read, ct).ConfigureAwait(false);
+                        var buffer = new byte[BufferSize];
+                        int read;
+                        do
+                        {
+                            ct.ThrowIfCancellationRequested();
+                            read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
+                            if (read > 0)
+                            {
+                                ct.ThrowIfCancellationRequested();
+                                await writeStream.WriteAsync(buffer, 0, read, ct).ConfigureAwait(false);
+                            }
+                        } while (read > 0);
                     }
-                } while (read > 0);
+                    catch (Exception e)
+                    {
+                        inner = e;
+                        throw;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                if (inner != null)
+                {
+                    throw inner;
+                }
+                else throw;
             }
         }
 
