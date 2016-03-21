@@ -422,7 +422,7 @@ namespace Kalix.Leo
 
             public override void Flush()
             {
-                throw new NotImplementedException();
+                // Don't throw an exception here since crypto stream seems to call it even on a read stream...
             }
 
             public override long Seek(long offset, SeekOrigin origin)
