@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.1.3</version>
+    <version>8.1.4</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -20,7 +20,8 @@
 8.0.5 Show the type if we cannot match an indexer (if there is one)
 8.0.6 Make sure exceptions that occur when copying stream continue to bubble up
 8.1.2 Changes to stream extensions on read streams, now uses read stream stack
-8.1.3 Allow flush on even on read stream
+8.1.3 Allow flush on read stream
+8.1.4 Allow watcher stream to call Position on underlying stream
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

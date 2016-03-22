@@ -489,7 +489,7 @@ namespace Kalix.Leo
             {
                 get
                 {
-                    throw new NotImplementedException();
+                    return _stream.Length;
                 }
             }
 
@@ -497,9 +497,8 @@ namespace Kalix.Leo
             {
                 get
                 {
-                    throw new NotImplementedException();
+                    return _stream.Position;
                 }
-
                 set
                 {
                     throw new NotImplementedException();
