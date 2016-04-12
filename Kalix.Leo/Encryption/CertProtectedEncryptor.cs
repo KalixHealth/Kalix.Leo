@@ -15,7 +15,7 @@ namespace Kalix.Leo.Encryption
         private readonly Lazy<AESEncryptor> _encryptor;
         private readonly string _partition;
 
-        public CertProtectedEncryptor(IStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
+        public CertProtectedEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
         {
             _partition = keyLocation.Container;
             _encryptor = new Lazy<AESEncryptor>(() =>
@@ -46,25 +46,34 @@ namespace Kalix.Leo.Encryption
             return _encryptor.Value.Decrypt(encyptedData, readMode);
         }
 
-        private static async Task<AESEncryptor> CreateEncryptor(IStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
+        private static async Task<AESEncryptor> CreateEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
         {
-            var data = await store.LoadData(keyLocation).ConfigureAwait(false);
+            bool isFound;
             byte[] blob;
-            if (data == null)
+            do
             {
-                // Have to create a new key
-                blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
-                var ct = CancellationToken.None;
-                await store.SaveData(keyLocation, null, null, async (s) =>
+                var data = await store.LoadData(keyLocation).ConfigureAwait(false);
+                if (data == null)
                 {
-                    await s.WriteAsync(blob, 0, blob.Length, ct).ConfigureAwait(false);
-                    return blob.Length;
-                }, ct).ConfigureAwait(false);
-            }
-            else
-            {
-                blob = await data.Stream.ReadBytes().ConfigureAwait(false);
-            }
+                    // Have to create a new key
+                    blob = AESBlob.CreateBlob(DefaultKeySize, rsaCert);
+                    var ct = CancellationToken.None;
+
+                    // We use an optimistic write so that it will only create the file IF THE FILE DOES NOT EXIST
+                    // This will catch rare cases where two server calls may try to create two keys
+                    var result = await store.TryOptimisticWrite(keyLocation, null, null, async (s) =>
+                    {
+                        await s.WriteAsync(blob, 0, blob.Length, ct).ConfigureAwait(false);
+                        return blob.Length;
+                    }, ct).ConfigureAwait(false);
+                    isFound = result.Result;
+                }
+                else
+                {
+                    blob = await data.Stream.ReadBytes().ConfigureAwait(false);
+                    isFound = true;
+                }
+            } while (!isFound);
 
             return AESBlob.CreateEncryptor(blob, rsaCert);
         }

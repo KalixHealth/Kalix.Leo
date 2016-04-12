@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>8.1.0</version>
+    <version>8.1.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -14,6 +14,7 @@
     <releaseNotes>
 8.0.1 Can specify to use the base type as a fallback during indexing 
 8.1.0 Update dependencies to latest versions
+8.1.1 Use an optimistic write when trying to create a new key, to prevent two different keys from being produced
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
