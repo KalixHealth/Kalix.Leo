@@ -58,6 +58,51 @@ namespace Kalix.Leo.Azure.Table
             return NewQuery(newFilter);
         }
 
+        public ITableQuery<T> PartitionKeyLessThan(string partitionKey)
+        {
+            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThan, partitionKey);
+            return NewQuery(newFilter);
+        }
+
+        public ITableQuery<T> PartitionKeyLessThanOrEqual(string partitionKey)
+        {
+            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThanOrEqual, partitionKey);
+            return NewQuery(newFilter);
+        }
+
+        public ITableQuery<T> PartitionKeyGreaterThan(string partitionKey)
+        {
+            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThan, partitionKey);
+            return NewQuery(newFilter);
+        }
+
+        public ITableQuery<T> PartitionKeyGreaterThanOrEqual(string partitionKey)
+        {
+            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThanOrEqual, partitionKey);
+            return NewQuery(newFilter);
+        }
+
+        public ITableQuery<T> PartitionKeyStartsWith(string partitionKey)
+        {
+            // .startswith is not supported in table queries...
+            // instead: we increase the last char by one
+            int length = partitionKey.Length;
+            char lastChar = partitionKey[length - 1];
+            if (lastChar != char.MaxValue)
+            {
+                lastChar = Convert.ToChar(Convert.ToInt32(lastChar) + 1);
+            }
+            string endVal = partitionKey.Substring(0, length - 1) + lastChar;
+
+            string newFilter = CT.TableQuery.CombineFilters(
+                CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThanOrEqual, partitionKey),
+                CT.TableOperators.And,
+                CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThan, endVal));
+
+            return NewQuery(newFilter);
+        }
+
+
         public ITableQuery<T> RowKeyEquals(string rowKey)
         {
             string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.Equal, rowKey);

@@ -9,6 +9,11 @@ namespace Kalix.Leo.Table
         Task<T> ById(string partitionKey, string rowKey);
 
         ITableQuery<T> PartitionKeyEquals(string partitionKey);
+        ITableQuery<T> PartitionKeyLessThan(string rowKey);
+        ITableQuery<T> PartitionKeyLessThanOrEqual(string rowKey);
+        ITableQuery<T> PartitionKeyGreaterThan(string rowKey);
+        ITableQuery<T> PartitionKeyGreaterThanOrEqual(string rowKey);
+        ITableQuery<T> PartitionKeyStartsWith(string partitionKey);
 
         ITableQuery<T> RowKeyEquals(string rowKey);
         ITableQuery<T> RowKeyLessThan(string rowKey);
