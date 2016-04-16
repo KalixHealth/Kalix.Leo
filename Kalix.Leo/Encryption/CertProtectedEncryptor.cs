@@ -1,7 +1,6 @@
 ﻿using Kalix.ApiCrypto.AES;
 using Kalix.ApiCrypto.RSA;
 using Kalix.Leo.Storage;
-using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,41 +11,10 @@ namespace Kalix.Leo.Encryption
     {
         private const AESKeySize DefaultKeySize = AESKeySize.AES256;
 
-        private readonly Lazy<AESEncryptor> _encryptor;
+        private readonly AESEncryptor _encryptor;
         private readonly string _partition;
 
-        public CertProtectedEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
-        {
-            _partition = keyLocation.Container;
-            _encryptor = new Lazy<AESEncryptor>(() =>
-            {
-                try
-                {
-                    return CreateEncryptor(store, keyLocation, rsaCert).Result;
-                }
-                catch (AggregateException ex)
-                {
-                    throw ex.InnerException;
-                }
-            });
-        }
-
-        public string Algorithm
-        {
-            get { return "AES_" + _partition; }
-        }
-
-        public Stream Encrypt(Stream data, bool readMode)
-        {
-            return _encryptor.Value.Encrypt(data, readMode);
-        }
-
-        public Stream Decrypt(Stream encyptedData, bool readMode)
-        {
-            return _encryptor.Value.Decrypt(encyptedData, readMode);
-        }
-
-        private static async Task<AESEncryptor> CreateEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
+        public static async Task<IEncryptor> CreateEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
         {
             bool isFound;
             byte[] blob;
@@ -75,7 +43,29 @@ namespace Kalix.Leo.Encryption
                 }
             } while (!isFound);
 
-            return AESBlob.CreateEncryptor(blob, rsaCert);
+            var encryptor = AESBlob.CreateEncryptor(blob, rsaCert);
+            return new CertProtectedEncryptor(keyLocation.Container, encryptor);
+        }
+
+        private CertProtectedEncryptor(string partition, AESEncryptor encryptor)
+        {
+            _partition = partition;
+            _encryptor = encryptor;
+        }
+
+        public string Algorithm
+        {
+            get { return "AES_" + _partition; }
+        }
+
+        public Stream Encrypt(Stream data, bool readMode)
+        {
+            return _encryptor.Encrypt(data, readMode);
+        }
+
+        public Stream Decrypt(Stream encyptedData, bool readMode)
+        {
+            return _encryptor.Decrypt(encyptedData, readMode);
         }
     }
 }

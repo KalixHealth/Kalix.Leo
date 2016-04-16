@@ -1,4 +1,6 @@
-﻿using Kalix.Leo.Indexing;
+﻿using Kalix.Leo.Encryption;
+using Kalix.Leo.Indexing;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
@@ -32,6 +34,13 @@ namespace Kalix.Leo
         /// <param name="partitionId">The id to seperate all records saved to this partition</param>
         /// <returns>Object partition that can be used to save/load/search etc</returns>
         IObjectPartition<T> GetObjectPartition<T>(long partitionId) where T : ObjectWithAuditInfo;
+
+        /// <summary>
+        /// Retrieve the encryptor used for a given partition, can be useful if you want to use tables/store manually
+        /// </summary>
+        /// <param name="partitionId">The id to seperate all records saved to this partition</param>
+        /// <returns>Encryptor for the given partition</returns>
+        Task<IEncryptor> GetEncryptor(long partitionId);
 
         /// <summary>
         /// Start listeners for the index and backup queues

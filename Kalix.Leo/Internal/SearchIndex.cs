@@ -1,6 +1,7 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Storage;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
@@ -10,19 +11,20 @@ namespace Kalix.Leo.Internal
     public class SearchIndex<TMain, TSearch> : ISearchIndex<TMain, TSearch>
     {
         private readonly long _partitionId;
-        private readonly IEncryptor _encryptor;
+        private readonly Lazy<Task<IEncryptor>> _encryptor;
         private readonly IRecordSearchComposition<TMain, TSearch> _composition;
 
-        public SearchIndex(IRecordSearchComposition<TMain, TSearch> composition, IEncryptor encryptor, long partitionId)
+        public SearchIndex(IRecordSearchComposition<TMain, TSearch> composition, Lazy<Task<IEncryptor>> encryptor, long partitionId)
         {
-            _encryptor = encryptor;
+            _encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
             _partitionId = partitionId;
             _composition = composition;
         }
 
-        public Task Save(string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
+        public async Task Save(string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
         {
-            return _composition.Save(_partitionId, id, item, previous, _encryptor);
+            var encryptor = await _encryptor.Value.ConfigureAwait(false);
+            await _composition.Save(_partitionId, id, item, previous, encryptor).ConfigureAwait(false);
         }
 
         public Task Save(long id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)

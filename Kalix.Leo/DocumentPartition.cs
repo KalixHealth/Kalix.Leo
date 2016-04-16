@@ -1,4 +1,5 @@
 ﻿using Kalix.Leo.Configuration;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
@@ -13,29 +14,35 @@ namespace Kalix.Leo
 {
     public class DocumentPartition : BasePartition, IDocumentPartition
     {
-        public DocumentPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
-            : base(engineConfig, partitionId, config)
+        public DocumentPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config, Func<Task<IEncryptor>> encFactory)
+            : base(engineConfig, partitionId, config, encFactory)
         {
         }
 
-        public Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
+        public async Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
         {
-            return _store.SaveData(GetLocation(path), metadata, audit, savingFunc, token, _encryptor.Value, _options);
+            await Initialise().ConfigureAwait(false);
+            var enc = await _encryptor.Value.ConfigureAwait(false);
+            return await _store.SaveData(GetLocation(path), metadata, audit, savingFunc, token, enc, _options).ConfigureAwait(false);
         }
 
-        public Task<Metadata> SaveMetadata(string path, Metadata metadata)
+        public async Task<Metadata> SaveMetadata(string path, Metadata metadata)
         {
-            return _store.SaveMetadata(GetLocation(path), metadata, _options);
+            await Initialise().ConfigureAwait(false);
+            return await _store.SaveMetadata(GetLocation(path), metadata, _options).ConfigureAwait(false);
         }
 
-        public Task<DataWithMetadata> Load(string path, string snapshot = null)
+        public async Task<DataWithMetadata> Load(string path, string snapshot = null)
         {
-            return _store.LoadData(GetLocation(path), snapshot, _encryptor.Value);
+            await Initialise().ConfigureAwait(false);
+            var enc = await _encryptor.Value.ConfigureAwait(false);
+            return await _store.LoadData(GetLocation(path), snapshot, enc).ConfigureAwait(false);
         }
 
-        public Task<Metadata> GetMetadata(string path, string snapshot = null)
+        public async Task<Metadata> GetMetadata(string path, string snapshot = null)
         {
-            return _store.GetMetadata(GetLocation(path), snapshot);
+            await Initialise().ConfigureAwait(false);
+            return await _store.GetMetadata(GetLocation(path), snapshot);
         }
 
         public IAsyncEnumerable<Snapshot> FindSnapshots(string path)
@@ -52,15 +59,17 @@ namespace Kalix.Leo
                 .Select(l => new PathWithMetadata(l.Location.BasePath.Substring(baseLength), l.Metadata));
         }
 
-        public Task Delete(string path, UpdateAuditInfo audit)
+        public async Task Delete(string path, UpdateAuditInfo audit)
         {
-            return _store.Delete(GetLocation(path), audit, _options);
+            await Initialise().ConfigureAwait(false);
+            await _store.Delete(GetLocation(path), audit, _options).ConfigureAwait(false);
         }
 
-        public Task DeletePermanent(string path)
+        public async Task DeletePermanent(string path)
         {
+            await Initialise().ConfigureAwait(false);
             // Remove the keep deletes option...
-            return _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes);
+            await _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes).ConfigureAwait(false);
         }
 
         public Task ReIndexAll()

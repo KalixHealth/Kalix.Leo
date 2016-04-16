@@ -123,61 +123,61 @@ namespace Kalix.Leo.Indexing
             return context.Save();
         }
 
-        public IAsyncEnumerable<TSearch> SearchAll(long partitionKey, IEncryptor encryptor, IRecordSearch search)
+        public IAsyncEnumerable<TSearch> SearchAll(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        public IAsyncEnumerable<TSearch> SearchAll<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        public IAsyncEnumerable<TSearch> SearchAll<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search)
+        public IAsyncEnumerable<TSearch> SearchAll<T1, T2>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1, T2> search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
         }
 
-        private IAsyncEnumerable<TSearch> Search(long partitionKey, IEncryptor encryptor, string prefix, object search)
+        private IAsyncEnumerable<TSearch> Search(long partitionKey, Lazy<Task<IEncryptor>> encryptor, string prefix, object search)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
                 throw new InvalidOperationException("This search has not been added as a mapping");
             }
 
-            return _client.Query<TSearch>(_tableName, encryptor)
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(prefix + Underscore)
-                .AsEnumerable();
+                .AsEnumerable());
         }
 
-        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1, T2> search, T1 val)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
                 throw new InvalidOperationException("This search has not been added as a mapping");
             }
 
-            return _client.Query<TSearch>(_tableName, encryptor)
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
-                .AsEnumerable();
+                .AsEnumerable());
         }
 
-        public IAsyncEnumerable<TSearch> SearchFor<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 val)
+        public IAsyncEnumerable<TSearch> SearchFor<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search, T1 val)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
                 throw new InvalidOperationException("This search has not been added as a mapping");
             }
 
-            return _client.Query<TSearch>(_tableName, encryptor)
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
-                .AsEnumerable();
+                .AsEnumerable());
         }
 
-        public IAsyncEnumerable<TSearch> SearchBetween<T1>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1> search, T1 start, T1 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search, T1 start, T1 end)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -193,14 +193,14 @@ namespace Kalix.Leo.Indexing
                 actualEnd = temp;
             }
 
-            return _client.Query<TSearch>(_tableName, encryptor)
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualStart + Underscore)
                 .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualEnd + Underscore)
-                .AsEnumerable();
+                .AsEnumerable());
         }
 
-        public IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(long partitionKey, IEncryptor encryptor, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
+        public IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
         {
             if (!_validSearches.Any(v => v.Equals(search)))
             {
@@ -216,12 +216,31 @@ namespace Kalix.Leo.Indexing
                 actualStart = actualEnd;
                 actualEnd = temp;
             }
-
-            return _client.Query<TSearch>(_tableName, encryptor)
+            
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualVal + Underscore + actualStart + Underscore)
                 .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualVal + Underscore + actualEnd + Underscore)
-                .AsEnumerable();
+                .AsEnumerable());
+        }
+
+        private IAsyncEnumerable<T> ExecuteWithEncryptor<T>(Lazy<Task<IEncryptor>> encryptor, Func<IEncryptor, IAsyncEnumerable<T>> factory)
+        {
+            encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
+
+            return AsyncEnumerableEx.Create((Func<AsyncYielder<T>, Task>)(async y =>
+            {
+                var enc = await encryptor.Value.ConfigureAwait(false);
+                var enumerator = factory(enc).GetEnumerator();
+                while(!y.CancellationToken.IsCancellationRequested)
+                {
+                    if(!await enumerator.MoveNext(y.CancellationToken).ConfigureAwait(false))
+                    {
+                        break;
+                    }
+                    await y.YieldReturn(enumerator.Current).ConfigureAwait(false);
+                }
+            }));
         }
 
         private string KeyParser(object key)

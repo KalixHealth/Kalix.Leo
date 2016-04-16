@@ -1,12 +1,15 @@
 ﻿using Kalix.Leo.Configuration;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
+using Kalix.Leo.Storage;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Caching;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
@@ -23,6 +26,7 @@ namespace Kalix.Leo
         private readonly string _baseName;
 
         private bool _listenersStarted;
+        private bool _hasInitEncryptorContainer;
         private List<IDisposable> _disposables;
 
         public LeoEngine(LeoEngineConfiguration config)
@@ -48,18 +52,6 @@ namespace Kalix.Leo
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
             _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore));
-
-            if (!string.IsNullOrEmpty(config.KeyContainer))
-            {
-                try
-                {
-                    config.BaseStore.CreateContainerIfNotExists(config.KeyContainer).Wait();
-                }
-                catch(AggregateException ex)
-                {
-                    throw ex.InnerException;
-                }
-            }
 
             if (_indexListener != null)
             {
@@ -104,17 +96,7 @@ namespace Kalix.Leo
             }
             var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
 
-            ObjectPartition<T> cacheVal;
-            lock (_cacheLock)
-            {
-                cacheVal = _cache.Get(key) as ObjectPartition<T>;
-                if(cacheVal == null)
-                {
-                    cacheVal = new ObjectPartition<T>(_config, partitionId, config);
-                    _cache.Set(key, cacheVal, _cachePolicy);
-                }
-            }
-            return cacheVal;
+            return GetCachedValue(key, () => new ObjectPartition<T>(_config, partitionId, config, () => GetEncryptor(partitionId)));
         }
 
         public IDocumentPartition GetDocumentPartition(string basePath, long partitionId)
@@ -127,18 +109,20 @@ namespace Kalix.Leo
 
             var key = _baseName + config.BasePath + "::" + partitionId.ToString(CultureInfo.InvariantCulture);
 
-            DocumentPartition cacheVal;
-            lock (_cacheLock)
+            return GetCachedValue(key, () => new DocumentPartition(_config, partitionId, config, () => GetEncryptor(partitionId)));
+        }
+
+        public Task<IEncryptor> GetEncryptor(long partitionId)
+        {
+            if (!_hasInitEncryptorContainer && !string.IsNullOrEmpty(_config.KeyContainer))
             {
-                cacheVal = _cache.Get(key) as DocumentPartition;
-                if (cacheVal == null)
-                {
-                    cacheVal = new DocumentPartition(_config, partitionId, config);
-                    _cache.Set(key, cacheVal, _cachePolicy);
-                }
+                _config.BaseStore.CreateContainerIfNotExists(_config.KeyContainer);
+                _hasInitEncryptorContainer = true;
             }
 
-            return cacheVal;
+            var partitionKey = partitionId.ToString(CultureInfo.InvariantCulture);
+            var key = _baseName + "Encryptor::" + partitionKey;
+            return GetCachedValue(key, () => CertProtectedEncryptor.CreateEncryptor(_config.BaseStore, new StoreLocation(_config.KeyContainer, partitionKey), _config.RsaCert));
         }
 
         public void StartListeners(int? messagesToProcessInParallel = null)
@@ -167,6 +151,22 @@ namespace Kalix.Leo
             {
                 d.Dispose();
             }
+        }
+
+        private Task<T> GetCachedValue<T>(string key, Func<Task<T>> factory)
+            where T : class
+        {
+            var lazy = new Lazy<Task<T>>(factory, true);
+            _cache.AddOrGetExisting(key, lazy, _cachePolicy);
+            return ((Lazy<Task<T>>)_cache.Get(key)).Value;
+        }
+
+        private T GetCachedValue<T>(string key, Func<T> factory)
+            where T : class
+        {
+            var lazy = new Lazy<T>(factory, true);
+            _cache.AddOrGetExisting(key, lazy, _cachePolicy);
+            return ((Lazy<T>)_cache.Get(key)).Value;
         }
 
         private static MethodInfo _genericGetPartitionInfo = typeof(LeoEngine).GetMethod("GetObjectPartition");

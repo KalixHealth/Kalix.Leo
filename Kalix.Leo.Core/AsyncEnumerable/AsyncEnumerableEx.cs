@@ -68,14 +68,14 @@ namespace System.Collections.Generic
 
         private sealed class YieldAsyncEnumerator<T> : IAsyncEnumerator<T>
         {
-            Func<AsyncYielder<T>, Task> func;
-            AsyncYielder<T> yielder;
-            Task task;
+            Func<AsyncYielder<T>, Task> _func;
+            AsyncYielder<T> _yielder;
+            Task _task;
 
             public YieldAsyncEnumerator(Func<AsyncYielder<T>, Task> func)
             {
                 Debug.Assert(func != null);
-                this.func = func;
+                _func = func;
             }
 
             ~YieldAsyncEnumerator()
@@ -87,34 +87,34 @@ namespace System.Collections.Generic
 
             public async Task<bool> MoveNext(CancellationToken cancellationToken)
             {
-                if (task != null)
+                if (_task != null)
                 {
                     // Second MoveNext() call. Tell Yielder to let the function continue.
-                    yielder.CancellationToken = cancellationToken;
-                    yielder.Continue();
+                    _yielder.CancellationToken = cancellationToken;
+                    _yielder.Continue();
                 }
                 else
                 {
-                    if (func == null)
+                    if (_func == null)
                     {
                         throw new AsyncYielderDisposedException();
                     }
 
                     // First MoveNext() call. Start the task.
 
-                    yielder = new AsyncYielder<T>();
-                    yielder.CancellationToken = cancellationToken;
+                    _yielder = new AsyncYielder<T>();
+                    _yielder.CancellationToken = cancellationToken;
 
-                    task = func(yielder);
-                    func = null;
+                    _task = _func(_yielder);
+                    _func = null;
                 }
 
                 // Wait for yield or return.
 
-                Task finished = await Task.WhenAny(task, yielder.YieldTask).ConfigureAwait(false);
+                Task finished = await Task.WhenAny(_task, _yielder.YieldTask).ConfigureAwait(false);
 
-                var y = yielder;
-                if (finished != task && y != null)
+                var y = _yielder;
+                if (finished != _task && y != null)
                 {
                     // the function returned a result.
                     Current = y.YieldTask.Result;
@@ -123,10 +123,10 @@ namespace System.Collections.Generic
 
                 // The operation is finished.
 
-                Task t = task;
+                Task t = _task;
 
-                yielder = null;
-                task = null;
+                _yielder = null;
+                _task = null;
 
                 if (t != null && t.IsFaulted)
                 {
@@ -144,14 +144,14 @@ namespace System.Collections.Generic
 
             void DisposeImpl()
             {
-                var y = yielder;
+                var y = _yielder;
                 if (y != null)
                 {
                     y.Break();
-                    yielder = null;
+                    _yielder = null;
                 }
                 
-                var t = task;
+                var t = _task;
                 if (t != null)
                 {
                     try
@@ -169,8 +169,8 @@ namespace System.Collections.Generic
                     finally
                     {
                         t.Dispose();
-                        task = null;
-                        func = null;
+                        _task = null;
+                        _func = null;
                     }
                 }
             }

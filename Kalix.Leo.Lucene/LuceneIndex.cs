@@ -43,8 +43,10 @@ namespace Kalix.Leo.Lucene
         /// <param name="basePath">The path to namespace this index in</param>
         /// <param name="encryptor">The encryptor to encryt any records being saved</param>
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
-        public LuceneIndex(ISecureStore store, string container, string basePath, IEncryptor encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
+        public LuceneIndex(ISecureStore store, string container, string basePath, Lazy<Task<IEncryptor>> encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
         {
+            encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
+
             //var path = IO.Path.Combine(_baseDirectory, container, basePath);
             //_cacheDirectory = FSDirectory.Open(path);
             _cacheDirectory = new RAMDirectory();

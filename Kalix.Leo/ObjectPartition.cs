@@ -1,4 +1,5 @@
 ﻿using Kalix.Leo.Configuration;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Internal;
 using Kalix.Leo.Storage;
 using System;
@@ -17,8 +18,8 @@ namespace Kalix.Leo
     {
         private readonly Lazy<UniqueIdGenerator> _idGenerator;
 
-        public ObjectPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config)
-            : base(engineConfig, partitionId, config)
+        public ObjectPartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config, Func<Task<IEncryptor>> encFactory)
+            : base(engineConfig, partitionId, config, encFactory)
         {
             _idGenerator = new Lazy<UniqueIdGenerator>(() =>
             {
@@ -29,8 +30,10 @@ namespace Kalix.Leo
 
         public async Task<ObjectPartitionWriteResult<T>> Save(T data, long id, UpdateAuditInfo audit, Metadata metadata = null)
         {
+            await Initialise().ConfigureAwait(false);
+            var enc = await _encryptor.Value.ConfigureAwait(false);
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id), obj, audit, _encryptor.Value, _options).ConfigureAwait(false);
+            var result = await _store.SaveObject(GetLocation(id), obj, audit, enc, _options).ConfigureAwait(false);
             return new ObjectPartitionWriteResult<T>
             {
                 Id = id,
@@ -38,13 +41,16 @@ namespace Kalix.Leo
             };
         }
 
-        public Task<Metadata> SaveMetadata(long id, Metadata metadata)
+        public async Task<Metadata> SaveMetadata(long id, Metadata metadata)
         {
-            return _store.SaveMetadata(GetLocation(id), metadata, _options);
+            await Initialise().ConfigureAwait(false);
+            return await _store.SaveMetadata(GetLocation(id), metadata, _options).ConfigureAwait(false);
         }
 
         public async Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Action<long> preSaveProcessing = null, Metadata metadata = null)
         {
+            await Initialise().ConfigureAwait(false);
+
             var member = idField.Body as MemberExpression;
             if(member == null)
             {
@@ -69,8 +75,9 @@ namespace Kalix.Leo
                 preSaveProcessing(id.Value);
             }
 
+            var enc = await _encryptor.Value.ConfigureAwait(false);
             var obj = new ObjectWithMetadata<T>(data, metadata);
-            var result = await _store.SaveObject(GetLocation(id.Value), obj, audit, _encryptor.Value, _options).ConfigureAwait(false);
+            var result = await _store.SaveObject(GetLocation(id.Value), obj, audit, enc, _options).ConfigureAwait(false);
             return new ObjectPartitionWriteResult<T>
             {
                 Id = id.Value,
@@ -78,14 +85,17 @@ namespace Kalix.Leo
             };
         }
 
-        public Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null)
+        public async Task<ObjectWithMetadata<T>> Load(long id, string snapshot = null)
         {
-            return _store.LoadObject<T>(GetLocation(id), snapshot, _encryptor.Value);
+            await Initialise().ConfigureAwait(false);
+            var enc = await _encryptor.Value.ConfigureAwait(false);
+            return await _store.LoadObject<T>(GetLocation(id), snapshot, enc).ConfigureAwait(false);
         }
 
-        public Task<Metadata> GetMetadata(long id, string snapshot = null)
+        public async Task<Metadata> GetMetadata(long id, string snapshot = null)
         {
-            return _store.GetMetadata(GetLocation(id), snapshot);
+            await Initialise().ConfigureAwait(false);
+            return await _store.GetMetadata(GetLocation(id), snapshot).ConfigureAwait(false);
         }
 
         public IAsyncEnumerable<Snapshot> FindSnapshots(long id)
@@ -100,15 +110,17 @@ namespace Kalix.Leo
                 .Select(l => new IdWithMetadata(l.Location.Id.Value, l.Metadata));
         }
 
-        public Task Delete(long id, UpdateAuditInfo audit)
+        public async Task Delete(long id, UpdateAuditInfo audit)
         {
-            return _store.Delete(GetLocation(id), audit, _options);
+            await Initialise().ConfigureAwait(false);
+            await _store.Delete(GetLocation(id), audit, _options).ConfigureAwait(false);
         }
 
-        public Task DeletePermanent(long id)
+        public async Task DeletePermanent(long id)
         {
+            await Initialise().ConfigureAwait(false);
             // Remove the keep deletes option...
-            return _store.Delete(GetLocation(id), null, _options & ~SecureStoreOptions.KeepDeletes);
+            await _store.Delete(GetLocation(id), null, _options & ~SecureStoreOptions.KeepDeletes).ConfigureAwait(false);
         }
 
         public Task ReIndexAll()

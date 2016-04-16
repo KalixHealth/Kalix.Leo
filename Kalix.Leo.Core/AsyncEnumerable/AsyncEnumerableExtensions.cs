@@ -197,13 +197,13 @@ namespace System.Collections.Generic
             if (!RunningTask.IsCompleted)
             {
                 _cts.Cancel();
-            }
 
-            try
-            {
-                RunningTask.Wait();
+                try
+                {
+                    RunningTask.Wait();
+                }
+                catch (Exception) { }
             }
-            catch (Exception) { }
 
             _cts.Dispose();
             _enumerator.Dispose();

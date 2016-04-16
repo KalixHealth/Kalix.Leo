@@ -15,17 +15,17 @@ namespace Kalix.Leo.Lucene.Store
         private readonly ISecureStore _store;
         private readonly string _container;
         private readonly string _basePath;
-        private readonly IEncryptor _encryptor;
+        private readonly Lazy<Task<IEncryptor>> _encryptor;
         private readonly SecureStoreOptions _options;
         private readonly Directory _cache;
 
-        public SecureStoreDirectory(Directory cache, ISecureStore store, string container, string basePath, IEncryptor encryptor)
+        public SecureStoreDirectory(Directory cache, ISecureStore store, string container, string basePath, Lazy<Task<IEncryptor>> encryptor)
         {
             _container = container;
             _basePath = basePath ?? string.Empty;
             _cache = cache;
             _store = store;
-            _encryptor = encryptor;
+            _encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
 
             _options = SecureStoreOptions.None;
             if (_store.CanCompress)
@@ -117,14 +117,15 @@ namespace Kalix.Leo.Lucene.Store
                 metadata.LastModified = data.Metadata.LastModified;
 
                 var ct = CancellationToken.None;
-                await _store.SaveData(loc, metadata, null, (s) => data.Stream.CopyToAsync(s, ct), ct, _encryptor, _options).ConfigureAwait(false);
+                var encryptor = await _encryptor.Value.ConfigureAwait(false);
+                await _store.SaveData(loc, metadata, null, (s) => data.Stream.CopyToAsync(s, ct), ct, encryptor, _options).ConfigureAwait(false);
             });
         }
 
         /// <summary>Returns a stream reading an existing file. </summary>
         public override IndexInput OpenInput(string name)
         {
-            return new SecureStoreIndexInput(this, _cache, _store, _encryptor, GetLocation(name), name);
+            return new SecureStoreIndexInput(this, _cache, _store, _encryptor.Value.Result, GetLocation(name), name);
         }
 
         private Dictionary<string, SecureStoreLock> _locks = new Dictionary<string, SecureStoreLock>();
