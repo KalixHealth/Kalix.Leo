@@ -27,6 +27,7 @@ namespace Kalix.Leo.Internal
             _store = new SecureStore(engineConfig.BaseStore, engineConfig.BackupQueue, engineConfig.IndexQueue, engineConfig.Compressor);
             _partitionId = partitionId;
             _config = config;
+            _engineConfig = engineConfig;
 
             _options = SecureStoreOptions.KeepDeletes;
             if (config.DoBackup) { _options = _options | SecureStoreOptions.Backup; }
