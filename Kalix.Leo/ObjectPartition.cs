@@ -25,7 +25,7 @@ namespace Kalix.Leo
             {
                 var loc = new StoreLocation(partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(config.BasePath, engineConfig.UniqueIdGeneratorPath));
                 return new UniqueIdGenerator(engineConfig.BaseStore, loc, 5);
-            });
+            }, true);
         }
 
         public async Task<ObjectPartitionWriteResult<T>> Save(T data, long id, UpdateAuditInfo audit, Metadata metadata = null)

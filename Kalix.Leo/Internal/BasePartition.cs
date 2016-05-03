@@ -34,10 +34,10 @@ namespace Kalix.Leo.Internal
             if (config.Indexer != null) { _options = _options | SecureStoreOptions.Index; }
             if (config.DoCompress) { _options = _options | SecureStoreOptions.Compress; }
 
-            _encryptor = new Lazy<Task<IEncryptor>>(async () => config.DoEncrypt ? await encryptorFactory().ConfigureAwait(false) : null);
+            _encryptor = new Lazy<Task<IEncryptor>>(async () => config.DoEncrypt ? await encryptorFactory().ConfigureAwait(false) : null, true);
 
             string container = partitionId.ToString(CultureInfo.InvariantCulture);
-            _luceneIndex = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor, 20, 10));
+            _luceneIndex = new Lazy<LuceneIndex>(() => engineConfig.IndexStore == null ? null : new LuceneIndex(new SecureStore(engineConfig.IndexStore, null, null, engineConfig.Compressor), container, config.BasePath, _encryptor, 20, 10), true);
         }
 
         public ISearchIndex<TMain, TSearch> Index<TMain, TSearch>(IRecordSearchComposition<TMain, TSearch> composition)

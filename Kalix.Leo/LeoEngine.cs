@@ -51,7 +51,7 @@ namespace Kalix.Leo
             };
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
-            _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore));
+            _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore), true);
 
             if (_indexListener != null)
             {
@@ -156,17 +156,29 @@ namespace Kalix.Leo
         private Task<T> GetCachedValue<T>(string key, Func<Task<T>> factory)
             where T : class
         {
+            // This is very safe, will only create one. This will not dispose, but that was the case anyways
             var lazy = new Lazy<Task<T>>(factory, true);
             _cache.AddOrGetExisting(key, lazy, _cachePolicy);
             return ((Lazy<Task<T>>)_cache.Get(key)).Value;
         }
 
         private T GetCachedValue<T>(string key, Func<T> factory)
-            where T : class
+            where T : class, IDisposable
         {
-            var lazy = new Lazy<T>(factory, true);
-            _cache.AddOrGetExisting(key, lazy, _cachePolicy);
-            return ((Lazy<T>)_cache.Get(key)).Value;
+            // We need this method to produce values that will be disposed when removed from the cache
+            // Not so important that we create additional values
+            var value = _cache.Get(key);
+            if (value == null)
+            {
+                var newValue = factory();
+                value = _cache.AddOrGetExisting(key, newValue, _cachePolicy);
+                if (value != null)
+                {
+                    // We can dispose this one straight away, we are using something that already exists
+                    newValue.Dispose();
+                }
+            }
+            return (T)value;
         }
 
         private static MethodInfo _genericGetPartitionInfo = typeof(LeoEngine).GetMethod("GetObjectPartition");
