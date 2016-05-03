@@ -172,7 +172,11 @@ namespace Kalix.Leo
             {
                 var newValue = factory();
                 value = _cache.AddOrGetExisting(key, newValue, _cachePolicy);
-                if (value != null)
+                if (value == null)
+                {
+                    value = newValue;
+                }
+                else
                 {
                     // We can dispose this one straight away, we are using something that already exists
                     newValue.Dispose();
