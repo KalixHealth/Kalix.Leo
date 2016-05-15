@@ -12,7 +12,7 @@ namespace Kalix.Leo.Indexing
 {
     public class RecordSearchComposition<TMain, TSearch> : IRecordSearchComposition<TMain, TSearch>
     {
-        private const string Underscore = "_";
+        private const char Underscore = '_';
         private readonly string _tableName;
         private readonly ITableClient _client;
         private readonly IEnumerable<IRecordMappingConfig<TMain>> _mappings;

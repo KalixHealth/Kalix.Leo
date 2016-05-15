@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.2.2</version>
+    <version>8.2.3</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -23,7 +23,7 @@
       8.1.3 Allow flush on read stream
       8.1.4 Allow watcher stream to call Position on underlying stream
       8.2.1 Added additional table methods
-      8.2.2 SearchBetween is end/start value inclusive
+      8.2.3 SearchBetween is end/start value inclusive
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
