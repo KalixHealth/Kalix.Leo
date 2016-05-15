@@ -193,10 +193,11 @@ namespace Kalix.Leo.Indexing
                 actualEnd = temp;
             }
 
+            // End value is inclusive, lets add a char to the underscore so it includes everything
             return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualStart + Underscore)
-                .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualEnd + Underscore)
+                .RowKeyLessThan(search.Prefix + Underscore + actualEnd + Convert.ToChar(Convert.ToInt32(Underscore) + 1))
                 .AsEnumerable());
         }
 
@@ -216,11 +217,12 @@ namespace Kalix.Leo.Indexing
                 actualStart = actualEnd;
                 actualEnd = temp;
             }
-            
+
+            // End value is inclusive, lets add a char to the underscore so it includes everything
             return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyGreaterThan(search.Prefix + Underscore + actualVal + Underscore + actualStart + Underscore)
-                .RowKeyLessThanOrEqual(search.Prefix + Underscore + actualVal + Underscore + actualEnd + Underscore)
+                .RowKeyLessThan(search.Prefix + Underscore + actualVal + Underscore + actualEnd + Convert.ToChar(Convert.ToInt32(Underscore) + 1))
                 .AsEnumerable());
         }
 
