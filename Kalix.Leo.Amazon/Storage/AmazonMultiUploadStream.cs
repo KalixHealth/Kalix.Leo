@@ -107,6 +107,12 @@ namespace Kalix.Leo.Amazon.Storage
             }
         }
 
+        public Task Cancel()
+        {
+            Dispose();
+            return Task.FromResult(0);
+        }
+
         public Task FlushAsync(CancellationToken ct)
         {
             return Task.FromResult(0);
@@ -119,6 +125,7 @@ namespace Kalix.Leo.Amazon.Storage
                 _uploader.Abort();
                 _uploader = null;
             }
+            _isComplete = true;
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,6 +11,7 @@ namespace Kalix.Leo.Streams
     public class AsyncMemoryStream : IWriteAsyncStream
     {
         private readonly MemoryStream _stream;
+        private bool _isDisposed;
 
         /// <summary>
         /// Creates an async memory stream with the default constructor
@@ -34,6 +36,7 @@ namespace Kalix.Leo.Streams
         {
             get
             {
+                if (_isDisposed) { throw new ObjectDisposedException("_stream"); };
                 return (int)_stream.Length;
             }
         }
@@ -44,6 +47,7 @@ namespace Kalix.Leo.Streams
         /// </summary>
         public byte[] GetBuffer()
         {
+            if (_isDisposed) { throw new ObjectDisposedException("_stream"); };
             return _stream.GetBuffer();
         }
 
@@ -52,6 +56,7 @@ namespace Kalix.Leo.Streams
         /// </summary>
         public byte[] ToArray()
         {
+            if (_isDisposed) { throw new ObjectDisposedException("_stream"); };
             return _stream.ToArray();
         }
 
@@ -60,6 +65,7 @@ namespace Kalix.Leo.Streams
         /// </summary>
         public Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
+            if (_isDisposed) { throw new ObjectDisposedException("_stream"); };
             _stream.Write(buffer, offset, count);
             ct.ThrowIfCancellationRequested();
             return Task.FromResult(0);
@@ -74,10 +80,21 @@ namespace Kalix.Leo.Streams
         }
 
         /// <summary>
+        /// In this case we should dispose the memory stream
+        /// </summary>
+        /// <returns></returns>
+        public Task Cancel()
+        {
+            Dispose();
+            return Task.FromResult(0);
+        }
+
+        /// <summary>
         /// Flush does nothing for a memory stream
         /// </summary>
         public Task FlushAsync(CancellationToken ct)
         {
+            if (_isDisposed) { throw new ObjectDisposedException("_stream"); };
             return Task.FromResult(0);
         }
         
@@ -86,7 +103,11 @@ namespace Kalix.Leo.Streams
         /// </summary>
         public void Dispose()
         {
-            _stream.Dispose();
+            if (!_isDisposed)
+            {
+                _stream.Dispose();
+                _isDisposed = true;
+            }
         }
     }
 }

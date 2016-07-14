@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>8.2.1</version>
+    <version>8.3.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -12,14 +12,15 @@
       Azure implementation of the Kalix.Leo storage abstraction
     </description>
     <releaseNotes>
-      8.1.0 Update dependencies to latest versions
-      8.2.1 Added additional table methods
+8.1.0 Update dependencies to latest versions
+8.2.1 Added additional table methods
+8.3.0 Added Cancel method to write async streams
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="8.2.1" />
-      <dependency id="WindowsAzure.Storage" version="7.0.0" />
+      <dependency id="Kalix.Leo.Core" version="8.3.0" />
+      <dependency id="WindowsAzure.Storage" version="7.1.2" />
     </dependencies>
   </metadata>
 </package>

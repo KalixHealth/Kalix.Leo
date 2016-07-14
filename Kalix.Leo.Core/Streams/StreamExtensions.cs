@@ -186,6 +186,13 @@ namespace Kalix.Leo
                 }
             }
 
+            public async Task Cancel()
+            {
+                await _stream.Cancel().ConfigureAwait(false);
+                if (!_isComplete) { _stack.Dispose(); }
+                _isComplete = true;
+            }
+
             public Task FlushAsync(CancellationToken ct)
             {
                 return Task.FromResult(0);
@@ -196,6 +203,7 @@ namespace Kalix.Leo
                 if (!_isComplete) { _stack.Dispose(); }
                 _ms.Dispose();
                 _stream.Dispose();
+                _isComplete = true;
             }
         }
 

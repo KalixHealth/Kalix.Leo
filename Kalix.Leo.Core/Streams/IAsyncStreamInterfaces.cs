@@ -89,5 +89,13 @@ namespace Kalix.Leo
         /// A task that represents the asynchronous complete operation.
         /// </returns>
         Task Complete(CancellationToken ct);
+
+        /// <summary>
+        /// Calling this method should stop any more writes to the underlying stream, it should also make any writen data is deleted
+        /// </summary>
+        /// <returns>
+        /// A task the represents the asynchronous cancel operation
+        /// </returns>
+        Task Cancel();
     }
 }

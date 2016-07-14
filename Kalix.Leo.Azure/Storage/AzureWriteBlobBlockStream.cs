@@ -97,6 +97,14 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
+        public Task Cancel()
+        {
+            // To cancel the upload we just need to prevent the complete method from firing
+            // So either the single block or PutBlockList is never called
+            _hasCompleted = true;
+            return Task.FromResult(0);
+        }
+
         public Task FlushAsync(CancellationToken ct)
         {
             return Task.FromResult(0);
@@ -105,6 +113,7 @@ namespace Kalix.Leo.Azure.Storage
         public void Dispose()
         {
             _buff.Dispose();
+            _hasCompleted = true;
         }
 
         private string GetKey(int part)
