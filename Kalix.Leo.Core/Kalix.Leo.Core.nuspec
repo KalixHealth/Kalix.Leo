@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.3.0</version>
+    <version>8.3.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -25,6 +25,7 @@
 8.2.1 Added additional table methods
 8.2.3 SearchBetween is end/start value inclusive
 8.3.0 Added Cancel method to write async streams
+8.3.1 Better waiting on listener, better error checking on async enumerable extension
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

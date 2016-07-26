@@ -196,10 +196,9 @@ namespace System.Collections.Generic
         {
             if (!RunningTask.IsCompleted)
             {
-                _cts.Cancel();
-
                 try
                 {
+                    _cts.Cancel();
                     RunningTask.Wait();
                 }
                 catch (Exception) { }

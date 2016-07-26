@@ -89,7 +89,7 @@ namespace Kalix.Leo.Listeners
                         // Wait until we have free slots...
                         if (hash.Count >= maxMessages)
                         {
-                            await Task.Delay(1000, ct).ConfigureAwait(false);
+                            await Task.WhenAny(hash.Values).ConfigureAwait(false);
                             continue;
                         }
 
