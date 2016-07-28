@@ -62,7 +62,11 @@ namespace Kalix.Leo.Storage
 
             await FindFiles(container, prefix)
                 .Where(filter)
-                .Select(f => _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
+                .Select(f =>
+                {
+                    f.Metadata[MetadataConstants.ReindexMetadataKey] = "true";
+                    return _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata));
+                })
                 .Unwrap()
                 .LastOrDefault()
                 .ConfigureAwait(false);

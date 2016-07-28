@@ -54,6 +54,7 @@
     <Compile Include="Indexing\IRecordSearchComposer.cs" />
     <Compile Include="Indexing\IRecordSearchComposition.cs" />
     <Compile Include="Indexing\IRecordUniqueIndex.cs" />
+    <Compile Include="Indexing\IReindexer.cs" />
     <Compile Include="LeoTrace.cs" />
     <Compile Include="ObjectWithAuditInfo.cs" />
     <Compile Include="Storage\LengthCounterStream.cs" />

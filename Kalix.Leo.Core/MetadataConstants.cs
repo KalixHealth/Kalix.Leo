@@ -39,5 +39,10 @@
         /// Stores the audit information
         /// </summary>
         public static readonly string AuditMetadataKey = "leoaudit";
+
+        /// <summary>
+        /// We use this metadata to indicate that we want to reindex this method (only useful during index phase)
+        /// </summary>
+        public static readonly string ReindexMetadataKey = "leoreindex";
     }
 }

@@ -144,35 +144,67 @@ namespace Kalix.Leo.Listeners
         {
             try
             {
-                var details = messages.Select(m => JsonConvert.DeserializeObject<StoreDataDetails>(m.Message)).ToList();
+                var baseDetails = messages
+                    .Select(m => JsonConvert.DeserializeObject<StoreDataDetails>(m.Message))
+                    .GroupBy(m => m.Metadata.ContainsKey(MetadataConstants.ReindexMetadataKey) && m.Metadata[MetadataConstants.ReindexMetadataKey] == "true")
+                    .ToList();
 
-                bool hasData = false;
-                string type = null;
-                if(details[0].Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
+                foreach (var g in baseDetails)
                 {
-                    type = details[0].Metadata[MetadataConstants.TypeMetadataKey];
-                    if(_typeIndexers.ContainsKey(type))
-                    {
-                        var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
-                        await indexer.Index(details).ConfigureAwait(false);
-                        hasData = true;
-                    }
-                }
-                
-                if(!hasData)
-                {
-                    var key = _pathIndexers.Keys.Where(k => details[0].BasePath.StartsWith(k)).FirstOrDefault();
-                    if (key != null)
-                    {
-                        var indexer = (IIndexer)_typeResolver(_pathIndexers[key]);
-                        await indexer.Index(details).ConfigureAwait(false);
-                        hasData = true;
-                    }
-                }
+                    var isReindex = g.Key;
+                    var details = g.ToList();
 
-                if(!hasData)
-                {
-                    throw new InvalidOperationException("Could not find indexer for record: container=" + details[0].Container + ", path=" + details[0].BasePath + ", type=" + (type ?? "None") + ":" + details.Count);
+                    // Make sure to remove the reindex key, we don't want it to propagate
+                    if (isReindex)
+                    {
+                        foreach(var d in details)
+                        {
+                            d.Metadata.Remove(MetadataConstants.ReindexMetadataKey);
+                        }
+                    }
+
+                    bool hasData = false;
+                    string type = null;
+                    if (details[0].Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
+                    {
+                        type = details[0].Metadata[MetadataConstants.TypeMetadataKey];
+                        if (_typeIndexers.ContainsKey(type))
+                        {
+                            var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
+                            if (isReindex && indexer is IReindexer)
+                            {
+                                await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await indexer.Index(details).ConfigureAwait(false);
+                            }
+                            hasData = true;
+                        }
+                    }
+
+                    if (!hasData)
+                    {
+                        var key = _pathIndexers.Keys.Where(k => details[0].BasePath.StartsWith(k)).FirstOrDefault();
+                        if (key != null)
+                        {
+                            var indexer = (IIndexer)_typeResolver(_pathIndexers[key]);
+                            if (isReindex && indexer is IReindexer)
+                            {
+                                await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                await indexer.Index(details).ConfigureAwait(false);
+                            }
+                            hasData = true;
+                        }
+                    }
+
+                    if (!hasData)
+                    {
+                        throw new InvalidOperationException("Could not find indexer for record: container=" + details[0].Container + ", path=" + details[0].BasePath + ", type=" + (type ?? "None") + ":" + details.Count);
+                    }
                 }
 
                 await Task.WhenAll(messages.Select(m => m.Complete())).ConfigureAwait(false);
