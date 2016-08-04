@@ -31,8 +31,6 @@ namespace Kalix.Leo.Lucene
         private readonly double _RAMSizeMb;
         private bool _isDisposed;
 
-        private static readonly string _baseDirectory = IO.Path.Combine(IO.Path.GetTempPath(), "LeoLuceneIndexes");
-
         /// <summary>
         /// Create a lucene index over the top of a secure store, using an encrypted file cache and english analyzer
         /// Only one instance should be used for both indexing and searching (on any number of threads) for best results
@@ -42,14 +40,22 @@ namespace Kalix.Leo.Lucene
         /// <param name="RAMSizeMb">The max amount of memory to use before flushing when writing</param>
         /// <param name="basePath">The path to namespace this index in</param>
         /// <param name="encryptor">The encryptor to encryt any records being saved</param>
+        /// <param name="fileBasedPath">If not null, will build lucene file cache at this location (instead of an in-memory one)</param>
         /// <param name="secsTillReaderRefresh">This is the amount of time to cache the reader before updating it</param>
-        public LuceneIndex(ISecureStore store, string container, string basePath, Lazy<Task<IEncryptor>> encryptor, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
+        public LuceneIndex(ISecureStore store, string container, string basePath, Lazy<Task<IEncryptor>> encryptor, string fileBasedPath = null, double RAMSizeMb = 20, int secsTillReaderRefresh = 10)
         {
             encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
 
-            //var path = IO.Path.Combine(_baseDirectory, container, basePath);
-            //_cacheDirectory = FSDirectory.Open(path);
-            _cacheDirectory = new RAMDirectory();
+            if (string.IsNullOrWhiteSpace(fileBasedPath))
+            {
+                _cacheDirectory = new RAMDirectory();
+            }
+            else
+            {
+                var path = IO.Path.Combine(fileBasedPath, container, basePath);
+                _cacheDirectory = new MMapDirectory(new System.IO.DirectoryInfo(path));
+            }
+            
             _directory = new SecureStoreDirectory(_cacheDirectory, store, container, basePath, encryptor);
             _analyzer = new EnglishAnalyzer();
             _RAMSizeMb = RAMSizeMb;

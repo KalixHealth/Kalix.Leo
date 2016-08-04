@@ -9,6 +9,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using IO = System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ namespace Kalix.Leo.Lucene.Tests
     {
         protected IOptimisticStore _store;
         protected LuceneIndex _indexer;
+        private string _tempDir;
 
         [SetUp]
         public void Init()
@@ -27,8 +29,12 @@ namespace Kalix.Leo.Lucene.Tests
             _store = new AzureStore(client, false, null); // Do not snapshot and do tracing!
             _store.CreateContainerIfNotExists("testindexer");
 
+            // Use a file based cache for tests (more common use case)
+            _tempDir = IO.Path.Combine(IO.Path.GetTempPath(), IO.Path.GetFileNameWithoutExtension(IO.Path.GetRandomFileName()));
+            IO.Directory.CreateDirectory(_tempDir);
+
             var store = new SecureStore(_store);
-            _indexer = new LuceneIndex(store, "testindexer", "basePath", null);
+            _indexer = new LuceneIndex(store, "testindexer", "basePath", null, _tempDir);
         }
 
         [TearDown]
@@ -36,6 +42,7 @@ namespace Kalix.Leo.Lucene.Tests
         {
             _indexer.DeleteAll().Wait();
             _indexer.Dispose();
+            IO.Directory.Delete(_tempDir, true);
         }
 
         [Test]

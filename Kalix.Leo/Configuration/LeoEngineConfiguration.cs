@@ -64,6 +64,11 @@ namespace Kalix.Leo.Configuration
         public IOptimisticStore IndexStore { get; set; }
 
         /// <summary>
+        /// If set, then the underlying Lucene engine will use a MMapDirectoy instead of a RamDirectory as a cache in the given folder
+        /// </summary>
+        public string LuceneCacheBasePath { get; set; }
+
+        /// <summary>
         /// An optional property to be able to hook into any uncaught exceptions in the leo engine
         /// Often called from messages that fail etc
         /// </summary>

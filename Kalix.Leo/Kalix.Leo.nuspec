@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>8.3.0</version>
+    <version>8.4.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -18,12 +18,13 @@
 8.2.1 Removed a number of blocking calls (ie to Result/Wait) for better async performance, added access to encryptor from engine
 8.2.3 Handle caching and disposing better, especially important for Object/Document partitions and the lucene indexes
 8.3.0 Added Cancel method to write async streams
+8.4.0 You can pick a base path for a file-based Lucene index
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="8.3.0" />
-      <dependency id="Kalix.Leo.Lucene" version="8.3.0" />
+      <dependency id="Kalix.Leo.Core" version="8.4.0" />
+      <dependency id="Kalix.Leo.Lucene" version="8.4.0" />
       <dependency id="Kalix.ApiCrypto" version="2.0.3" />
     </dependencies>
   </metadata>
