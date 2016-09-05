@@ -38,7 +38,7 @@ namespace Kalix.Leo.Azure.Table
         public async Task<T> ById(string partitionKey, string rowKey)
         {
             CT.TableOperation op = CT.TableOperation.Retrieve<FatEntity>(partitionKey, rowKey);
-            CT.TableResult result = await _table.ExecuteAsync(op).ConfigureAwait(false);
+            CT.TableResult result = await _table.ExecuteWrap(t => t.ExecuteAsync(op)).ConfigureAwait(false);
             if(result.Result == null)
             {
                 return default(T);
@@ -184,7 +184,7 @@ namespace Kalix.Leo.Azure.Table
                 CT.TableQuerySegment<FatEntity> segment = null;
                 while ((segment == null || segment.ContinuationToken != null) && !y.CancellationToken.IsCancellationRequested)
                 {
-                    segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, y.CancellationToken).ConfigureAwait(false);
+                    segment = await _table.ExecuteWrap(t => t.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, y.CancellationToken)).ConfigureAwait(false);
                     foreach (var entity in segment)
                     {
                         await y.YieldReturn(ConvertFatEntity(entity)).ConfigureAwait(false);

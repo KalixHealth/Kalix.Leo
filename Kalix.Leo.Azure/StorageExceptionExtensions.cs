@@ -1,9 +1,10 @@
 ﻿using Microsoft.WindowsAzure.Storage;
 using System.Linq;
+using System.Net;
 
 namespace Kalix.Leo.Azure
 {
-    public static class StorageExceptionExtensions
+    internal static class StorageExceptionExtensions
     {
         // http://alexandrebrisebois.wordpress.com/2013/07/03/handling-windows-azure-storage-exceptions/
         public static AzureException Wrap(this StorageException ex, string path)

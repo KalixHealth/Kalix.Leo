@@ -18,12 +18,12 @@ namespace Kalix.Leo.Azure.Table
 
         public Task CreateTableIfNotExist(string tableName)
         {
-            return _client.GetTableReference(GetName(tableName)).CreateIfNotExistsAsync();
+            return _client.GetTableReference(GetName(tableName)).ExecuteWrap(t => t.CreateIfNotExistsAsync());
         }
 
         public Task DeleteTableIfExists(string tableName)
         {
-            return _client.GetTableReference(GetName(tableName)).DeleteIfExistsAsync();
+            return _client.GetTableReference(GetName(tableName)).ExecuteWrap(t => t.DeleteIfExistsAsync());
         }
 
         public ITableContext Context(string tableName, IEncryptor encryptor)

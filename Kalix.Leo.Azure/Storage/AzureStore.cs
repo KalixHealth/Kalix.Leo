@@ -49,22 +49,12 @@ namespace Kalix.Leo.Azure.Storage
         public async Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata)
         {
             var blob = GetBlockBlob(location);
-            try
+            if(!await blob.ExecuteWrap(b => b.FetchAttributesAsync(), true).ConfigureAwait(false))
             {
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
-            }
-            catch (StorageException e)
-            {
-                // No metadata to update in this case...
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return null;
-                }
-
-                throw e.Wrap(blob.Name);
+                return null;
             }
 
-            foreach(var m in metadata)
+            foreach (var m in metadata)
             {
                 // Do not override audit information!
                 if (m.Key != MetadataConstants.AuditMetadataKey)
@@ -73,7 +63,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
             }
 
-            await blob.SetMetadataAsync().ConfigureAwait(false);
+            await blob.ExecuteWrap(b => b.SetMetadataAsync()).ConfigureAwait(false);
             return await GetActualMetadata(blob).ConfigureAwait(false);
         }
 
@@ -94,7 +84,7 @@ namespace Kalix.Leo.Azure.Storage
         {
             var blob = GetBlockBlob(location);
             // blob.Exists has the side effect of calling blob.FetchAttributes, which populates the metadata collection
-            while (!(await blob.ExistsAsync().ConfigureAwait(false)) || !blob.Metadata.ContainsKey("progress") || blob.Metadata["progress"] != "done")
+            while (!(await blob.ExecuteWrap(b => b.ExistsAsync()).ConfigureAwait(false)) || !blob.Metadata.ContainsKey("progress") || blob.Metadata["progress"] != "done")
             {
                 var lease = await LockInternal(blob).ConfigureAwait(false);
                 if (lease != null)
@@ -106,7 +96,7 @@ namespace Kalix.Leo.Azure.Storage
                         {
                             await action().ConfigureAwait(false);
                             blob.Metadata["progress"] = "done";
-                            await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null).ConfigureAwait(false);
+                            await blob.ExecuteWrap(b => b.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null)).ConfigureAwait(false);
                         }
                     }
                 }
@@ -123,8 +113,10 @@ namespace Kalix.Leo.Azure.Storage
             {
                 var blob = GetBlockBlob(location);
 
+                var minimum = TimeSpan.FromSeconds(5); // so we're not polling the leased blob too fast
                 while (!y.CancellationToken.IsCancellationRequested)
                 {
+                    var timeLeft = TimeSpan.FromSeconds(0);
                     // Don't allow you to throw to get out of the loop...
                     try
                     {
@@ -134,7 +126,7 @@ namespace Kalix.Leo.Azure.Storage
                         {
                             using (var arl = lease.Item1)
                             {
-                                await blob.FetchAttributesAsync(y.CancellationToken).ConfigureAwait(false);
+                                await blob.ExecuteWrap(b => b.FetchAttributesAsync(y.CancellationToken)).ConfigureAwait(false);
                                 if (blob.Metadata.ContainsKey("lastPerformed"))
                                 {
                                     DateTimeOffset.TryParseExact(blob.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
@@ -144,24 +136,21 @@ namespace Kalix.Leo.Azure.Storage
                                     await y.YieldReturn(true).ConfigureAwait(false);
                                     lastPerformed = DateTimeOffset.UtcNow;
                                     blob.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
-                                    await blob.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null, y.CancellationToken).ConfigureAwait(false);
+                                    await blob.ExecuteWrap(b => b.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null, y.CancellationToken)).ConfigureAwait(false);
                                 }
                             }
                         }
-                        var timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
-                        var minimum = TimeSpan.FromSeconds(5); // so we're not polling the leased blob too fast
-                        await Task.Delay(timeLeft > minimum ? timeLeft : minimum, y.CancellationToken).ConfigureAwait(false);
+                        timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
                     }
                     catch (TaskCanceledException) { throw; }
                     catch (Exception e)
                     {
-                        if (unhandledExceptions != null)
-                        {
-                            unhandledExceptions(e);
-                        }
-                            
+                        unhandledExceptions?.Invoke(e);
                         LeoTrace.WriteLine("Error on lock loop: " + e.Message);
                     }
+
+                    // Do this outside the exception to prevent it going out of control
+                    await Task.Delay(timeLeft > minimum ? timeLeft : minimum, y.CancellationToken).ConfigureAwait(false);
                 }
             });
         }
@@ -248,7 +237,7 @@ namespace Kalix.Leo.Azure.Storage
 
             blob.Metadata[MetadataConstants.AuditMetadataKey] = metadata[MetadataConstants.AuditMetadataKey];
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
-            await blob.SetMetadataAsync().ConfigureAwait(false);
+            await blob.ExecuteWrap(b => b.SetMetadataAsync()).ConfigureAwait(false);
             LeoTrace.WriteLine("Soft deleted (2 calls): " + blob.Name);
         }
 
@@ -256,42 +245,47 @@ namespace Kalix.Leo.Azure.Storage
         {
             var blob = GetBlockBlob(location);
             LeoTrace.WriteLine("Deleted blob: " + blob.Name);
-            return blob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null);
+            return blob.ExecuteWrap(b => b.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, null, null, null));
         }
 
-        public Task CreateContainerIfNotExists(string container)
+        public async Task CreateContainerIfNotExists(string container)
         {
             container = SafeContainerName(container);
             LeoTrace.WriteLine("Trying to create container: " + container);
 
             var c = _blobStorage.GetContainerReference(container);
-            return c.CreateIfNotExistsAsync();
+            try
+            {
+                await c.CreateIfNotExistsAsync().ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                throw e.Wrap(c.Name);
+            }
         }
 
-        public Task PermanentDeleteContainer(string container)
+        public async Task PermanentDeleteContainer(string container)
         {
             container = SafeContainerName(container);
             LeoTrace.WriteLine("Trying to delete container: " + container);
 
             var c = _blobStorage.GetContainerReference(container);
-            return c.DeleteIfExistsAsync();
+            try
+            {
+                await c.DeleteIfExistsAsync().ConfigureAwait(false);
+            }
+            catch (StorageException e)
+            {
+                throw e.Wrap(c.Name);
+            }
         }
 
         private async Task<Metadata> GetBlobMetadata(CloudBlockBlob blob)
         {
-            try
+            LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
+            if(!await blob.ExecuteWrap(b => b.FetchAttributesAsync(), true).ConfigureAwait(false))
             {
-                LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
-                await blob.FetchAttributesAsync().ConfigureAwait(false);
-            }
-            catch (StorageException e)
-            {
-                if (e.RequestInformation.HttpStatusCode == 404)
-                {
-                    return null;
-                }
-
-                throw e.Wrap(blob.Name);
+                return null;
             }
 
             return await GetActualMetadata(blob).ConfigureAwait(false);
@@ -504,6 +498,11 @@ namespace Kalix.Leo.Azure.Storage
                     {
                         result.Result = false;
                     }
+                    else
+                    {
+                        // Might have been a different error?
+                        throw exc.Wrap(blob.Name);
+                    }
                 }
                 else
                 {
@@ -513,6 +512,7 @@ namespace Kalix.Leo.Azure.Storage
                         throw new LockException("The underlying storage is currently locked for save");
                     }
 
+                    // Might have been a different error?
                     throw exc.Wrap(blob.Name);
                 }
             }

@@ -84,10 +84,12 @@
     <Compile Include="Queue\AzureQueueStorageMessage.cs" />
     <Compile Include="SafePath.cs" />
     <Compile Include="StorageExceptionExtensions.cs" />
+    <Compile Include="Storage\AzureBlobExceptionExtensions.cs" />
     <Compile Include="Storage\AzureReadBlockBlobStream.cs" />
     <Compile Include="Storage\AzureStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Storage\AzureWriteBlobBlockStream.cs" />
+    <Compile Include="Table\AzureTableExceptionExtensions.cs" />
     <Compile Include="Table\Internal\FatEntity.cs" />
     <Compile Include="Table\AzureTableClient.cs" />
     <Compile Include="Table\AzureTableContext.cs" />
@@ -98,7 +100,9 @@
     <None Include="Kalix.Leo.Azure.nuspec">
       <SubType>Designer</SubType>
     </None>
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj">
