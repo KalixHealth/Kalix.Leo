@@ -1,4 +1,6 @@
 ﻿using Microsoft.WindowsAzure.Storage;
+using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 
@@ -15,7 +17,25 @@ namespace Kalix.Leo.Azure
             // if you have aditional information, you can use it for your logs
             if (information == null)
             {
-                return new AzureException(string.Format("An unknown azure exception occurred for path '{0}': {1}", path, ex.Message), ex);
+                string webDetails = string.Empty;
+                try
+                {
+                    var inner = ex.InnerException as WebException;
+                    if (inner != null && inner.Response != null)
+                    {
+                        using (var s = inner.Response.GetResponseStream())
+                        using (var reader = new StreamReader(s))
+                        {
+                            webDetails = reader.ReadToEnd();
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    webDetails = "Error while trying to extract web details. " + e.Message;
+                }
+
+                return new AzureException(string.Format("An unknown azure exception occurred for path '{0}': {1}. Details: {2}", path, ex.Message, webDetails), ex);
             }
             
             var message = string.Format("({0}) {1} - '{2}'", information.ErrorCode, information.ErrorMessage, path);
@@ -28,7 +48,7 @@ namespace Kalix.Leo.Azure
                 })
                 .Trim(',');
 
-            return new AzureException(message + " details " + details, ex);
+            return new AzureException(message + ". Details: " + details, ex);
         }
     }
 }
