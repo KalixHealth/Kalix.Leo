@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>8.4.2</version>
+    <version>8.4.3</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -15,13 +15,13 @@
 8.1.0 Update dependencies to latest versions
 8.2.1 Added additional table methods
 8.3.0 Added Cancel method to write async streams
-8.4.2 Make sure to wrap every method that could throw a StorageException to extract more information, roll back azure storage to 6.2.0
+8.4.3 Make sure to wrap every method that could throw a StorageException to extract more information, roll back azure storage to 6.2.0
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Kalix.Leo.Core" version="8.4.0" />
-      <dependency id="WindowsAzure.Storage" version="7.0.0" />
+      <dependency id="WindowsAzure.Storage" version="6.2.0" />
     </dependencies>
   </metadata>
 </package>

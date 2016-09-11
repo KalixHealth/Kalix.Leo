@@ -164,6 +164,19 @@ namespace Kalix.Leo.Indexing
                 .AsEnumerable());
         }
 
+        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1, T2> search, T1 val, T2 val2)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            return ExecuteWithEncryptor(encryptor, e => _client.Query<TSearch>(_tableName, e)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore + KeyParser(val2) + Underscore)
+                .AsEnumerable());
+        }
+
         public IAsyncEnumerable<TSearch> SearchFor<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search, T1 val)
         {
             if (!_validSearches.Any(v => v.Equals(search)))

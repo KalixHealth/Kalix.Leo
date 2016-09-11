@@ -67,6 +67,11 @@ namespace Kalix.Leo.Internal
             return _composition.SearchFor(_partitionId, _encryptor, search, val);
         }
 
+        public IAsyncEnumerable<TSearch> SearchFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 val2)
+        {
+            return _composition.SearchFor(_partitionId, _encryptor, search, val, val2);
+        }
+
         public IAsyncEnumerable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end)
         {
             return _composition.SearchBetween(_partitionId, _encryptor, search, start, end);
