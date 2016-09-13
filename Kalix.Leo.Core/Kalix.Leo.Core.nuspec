@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.4.1</version>
+    <version>8.4.2</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -21,6 +21,7 @@
 8.3.1 Better waiting on listener, better error checking on async enumerable extension
 8.4.0 Added IReindexer interface that can be used instead of IIndexer if different behavior is required on a re-index
 8.4.1 Added SearchFor variation on indexer to allow for two values
+8.4.2 Audit information should automatically be saved back on object save
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

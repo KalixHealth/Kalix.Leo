@@ -163,7 +163,7 @@ namespace Kalix.Leo.Storage
             return _store.GetMetadata(location, snapshot);
         }
 
-        public Task<Metadata> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, UpdateAuditInfo audit, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<Metadata> SaveObject<T>(StoreLocation location, ObjectWithMetadata<T> obj, UpdateAuditInfo audit, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
             where T : ObjectWithAuditInfo
         {
             // Serialise to json as more cross platform
@@ -173,7 +173,9 @@ namespace Kalix.Leo.Storage
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
             var ct = CancellationToken.None;
-            return SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
+            var metadata = await SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options).ConfigureAwait(false);
+            obj.Data.Audit = metadata.Audit;
+            return metadata;
         }
 
         public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
