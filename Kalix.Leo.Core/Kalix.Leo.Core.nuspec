@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>8.5.0</version>
+    <version>8.5.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -22,7 +22,7 @@
 8.4.0 Added IReindexer interface that can be used instead of IIndexer if different behavior is required on a re-index
 8.4.1 Added SearchFor variation on indexer to allow for two values
 8.4.2 Audit information should automatically be saved back on object save
-8.5.0 Added count method to table interface
+8.5.1 Added count method to table interface, and exposed on record composition
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>

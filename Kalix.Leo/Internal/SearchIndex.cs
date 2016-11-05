@@ -81,5 +81,45 @@ namespace Kalix.Leo.Internal
         {
             return _composition.SearchBetween(_partitionId, _encryptor, search, val, start, end);
         }
+
+        public Task<int> CountAll(IRecordSearch search)
+        {
+            return _composition.CountAll(_partitionId, search);
+        }
+
+        public Task<int> CountAll<T1>(IRecordSearch<T1> search)
+        {
+            return _composition.CountAll(_partitionId, search);
+        }
+
+        public Task<int> CountAll<T1, T2>(IRecordSearch<T1, T2> search)
+        {
+            return _composition.CountAll(_partitionId, search);
+        }
+
+        public Task<int> CountFor<T1>(IRecordSearch<T1> search, T1 val)
+        {
+            return _composition.CountFor(_partitionId, search, val);
+        }
+
+        public Task<int> CountFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val)
+        {
+            return _composition.CountFor(_partitionId, search, val);
+        }
+
+        public Task<int> CountFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 val2)
+        {
+            return _composition.CountFor(_partitionId, search, val, val2);
+        }
+
+        public Task<int> CountBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end)
+        {
+            return _composition.CountBetween(_partitionId, search, start, end);
+        }
+
+        public Task<int> CountBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
+        {
+            return _composition.CountBetween(_partitionId, search, val, start, end);
+        }
     }
 }

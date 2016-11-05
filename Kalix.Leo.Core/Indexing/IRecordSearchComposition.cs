@@ -22,5 +22,17 @@ namespace Kalix.Leo.Indexing
         IAsyncEnumerable<TSearch> SearchBetween<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search, T1 start, T1 end);
 
         IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
+
+        Task<int> CountAll(long partitionKey, IRecordSearch search);
+        Task<int> CountAll<T1>(long partitionKey, IRecordSearch<T1> search);
+        Task<int> CountAll<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search);
+
+        Task<int> CountFor<T1>(long partitionKey, IRecordSearch<T1> search, T1 val);
+        Task<int> CountFor<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val);
+        Task<int> CountFor<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val, T2 val2);
+
+        Task<int> CountBetween<T1>(long partitionKey, IRecordSearch<T1> search, T1 start, T1 end);
+
+        Task<int> CountBetween<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
     }
 }

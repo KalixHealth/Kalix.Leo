@@ -239,6 +239,122 @@ namespace Kalix.Leo.Indexing
                 .AsEnumerable());
         }
 
+        public Task<int> CountAll(long partitionKey, IRecordSearch search)
+        {
+            return Count(partitionKey, search.Prefix, search);
+        }
+
+        public Task<int> CountAll<T1>(long partitionKey, IRecordSearch<T1> search)
+        {
+            return Count(partitionKey, search.Prefix, search);
+        }
+
+        public Task<int> CountAll<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search)
+        {
+            return Count(partitionKey, search.Prefix, search);
+        }
+
+        private Task<int> Count(long partitionKey, string prefix, object search)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyStartsWith(prefix + Underscore)
+                .Count();
+        }
+
+        public Task<int> CountFor<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
+                .Count();
+        }
+
+        public Task<int> CountFor<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val, T2 val2)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore + KeyParser(val2) + Underscore)
+                .Count();
+        }
+
+        public Task<int> CountFor<T1>(long partitionKey, IRecordSearch<T1> search, T1 val)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyStartsWith(search.Prefix + Underscore + KeyParser(val) + Underscore)
+                .Count();
+        }
+
+        public Task<int> CountBetween<T1>(long partitionKey, IRecordSearch<T1> search, T1 start, T1 end)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            string actualStart = KeyParser(start);
+            string actualEnd = KeyParser(end);
+            if (actualEnd.CompareTo(actualStart) < 0)
+            {
+                var temp = actualStart;
+                actualStart = actualEnd;
+                actualEnd = temp;
+            }
+
+            // End value is inclusive, lets add a char to the underscore so it includes everything
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyGreaterThan(search.Prefix + Underscore + actualStart + Underscore)
+                .RowKeyLessThan(search.Prefix + Underscore + actualEnd + Convert.ToChar(Convert.ToInt32(Underscore) + 1))
+                .Count();
+        }
+
+        public Task<int> CountBetween<T1, T2>(long partitionKey, IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end)
+        {
+            if (!_validSearches.Any(v => v.Equals(search)))
+            {
+                throw new InvalidOperationException("This search has not been added as a mapping");
+            }
+
+            string actualVal = KeyParser(val);
+            string actualStart = KeyParser(start);
+            string actualEnd = KeyParser(end);
+            if (actualEnd.CompareTo(actualStart) < 0)
+            {
+                var temp = actualStart;
+                actualStart = actualEnd;
+                actualEnd = temp;
+            }
+
+            // End value is inclusive, lets add a char to the underscore so it includes everything
+            return _client.Query<TSearch>(_tableName, null)
+                .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
+                .RowKeyGreaterThan(search.Prefix + Underscore + actualVal + Underscore + actualStart + Underscore)
+                .RowKeyLessThan(search.Prefix + Underscore + actualVal + Underscore + actualEnd + Convert.ToChar(Convert.ToInt32(Underscore) + 1))
+                .Count();
+        }
+
         private IAsyncEnumerable<T> ExecuteWithEncryptor<T>(Lazy<Task<IEncryptor>> encryptor, Func<IEncryptor, IAsyncEnumerable<T>> factory)
         {
             encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));

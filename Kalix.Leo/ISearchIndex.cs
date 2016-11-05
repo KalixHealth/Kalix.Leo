@@ -23,5 +23,17 @@ namespace Kalix.Leo
         IAsyncEnumerable<TSearch> SearchBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end);
 
         IAsyncEnumerable<TSearch> SearchBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
+
+        Task<int> CountAll(IRecordSearch search);
+        Task<int> CountAll<T1>(IRecordSearch<T1> search);
+        Task<int> CountAll<T1, T2>(IRecordSearch<T1, T2> search);
+
+        Task<int> CountFor<T1>(IRecordSearch<T1> search, T1 val);
+        Task<int> CountFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val);
+        Task<int> CountFor<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 val2);
+
+        Task<int> CountBetween<T1>(IRecordSearch<T1> search, T1 start, T1 end);
+
+        Task<int> CountBetween<T1, T2>(IRecordSearch<T1, T2> search, T1 val, T2 start, T2 end);
     }
 }
