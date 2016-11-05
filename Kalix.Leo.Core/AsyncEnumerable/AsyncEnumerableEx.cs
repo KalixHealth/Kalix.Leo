@@ -218,16 +218,15 @@ namespace System.Collections.Generic
 
         internal void Break()
         {
-            AsyncYielderDisposedException ex = new AsyncYielderDisposedException();
             var gTcs = getTcs;
             if (gTcs != null)
             {
-                gTcs.TrySetException(ex);
+                gTcs.TrySetCanceled();
             }
             var sTcs = setTcs;
             if (sTcs != null)
             {
-                sTcs.TrySetException(ex);
+                sTcs.TrySetCanceled();
             }
         }
     }

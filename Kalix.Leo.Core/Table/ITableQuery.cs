@@ -7,6 +7,7 @@ namespace Kalix.Leo.Table
     {
         Task<T> FirstOrDefault();
         Task<T> ById(string partitionKey, string rowKey);
+        Task<int> Count();
 
         ITableQuery<T> PartitionKeyEquals(string partitionKey);
         ITableQuery<T> PartitionKeyLessThan(string rowKey);

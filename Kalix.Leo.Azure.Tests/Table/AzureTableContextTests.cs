@@ -4,7 +4,6 @@ using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
 using NUnit.Framework;
 using System.Linq;
-using E = Kalix.Leo.Table.ITableEntity;
 
 namespace Kalix.Leo.Azure.Tests.Table
 {
@@ -18,7 +17,7 @@ namespace Kalix.Leo.Azure.Tests.Table
         public virtual void Init()
         {
             var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudTableClient();
-            _table = client.GetTableReference("kalixleotests");
+            _table = client.GetTableReference("kalixleotablecontext");
             _table.CreateIfNotExists();
 
             _azureTable = new AzureTableContext(_table, null);
@@ -47,14 +46,5 @@ namespace Kalix.Leo.Azure.Tests.Table
                 Assert.IsFalse(items.Any());
             }
         }
-    }
-
-    public class TestEntity : E
-    {
-        public string PartitionKey { get; set; }
-
-        public string RowKey { get; set; }
-
-        public object DataObject { get; set; }
     }
 }

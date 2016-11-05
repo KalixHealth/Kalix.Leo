@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using CT = Microsoft.WindowsAzure.Storage.Table;
 
@@ -50,6 +51,11 @@ namespace Kalix.Leo.Azure.Table
         public Task<T> FirstOrDefault()
         {
             return ExecuteQuery(_filter, 1).FirstOrDefault();
+        }
+
+        public Task<int> Count()
+        {
+            return ExecuteCount(_filter, CancellationToken.None);
         }
 
         public ITableQuery<T> PartitionKeyEquals(string partitionKey)
@@ -182,7 +188,7 @@ namespace Kalix.Leo.Azure.Table
                 }
 
                 CT.TableQuerySegment<FatEntity> segment = null;
-                while ((segment == null || segment.ContinuationToken != null) && !y.CancellationToken.IsCancellationRequested)
+                do
                 {
                     segment = await _table.ExecuteWrap(t => t.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, y.CancellationToken)).ConfigureAwait(false);
                     foreach (var entity in segment)
@@ -191,7 +197,30 @@ namespace Kalix.Leo.Azure.Table
                         y.ThrowIfCancellationRequested();
                     }
                 }
+                while (segment.ContinuationToken != null && !y.CancellationToken.IsCancellationRequested);
             });
+        }
+
+        private async Task<int> ExecuteCount(string filter, CancellationToken token)
+        {
+            var query = new CT.TableQuery<FatEntity>();
+            if (filter != null)
+            {
+                query = query.Where(filter);
+            }
+
+            // Just select one column to reduce the payload significantly
+            query.SelectColumns = new List<string> { "PartitionKey" };
+
+            int count = 0;
+            CT.TableQuerySegment<FatEntity> segment = null;
+            do
+            {
+                segment = await _table.ExecuteWrap(t => t.ExecuteQuerySegmentedAsync(query, segment?.ContinuationToken, token)).ConfigureAwait(false);
+                count += segment.Results.Count;
+            }
+            while (segment.ContinuationToken != null);
+            return count;
         }
 
         private T ConvertFatEntity(FatEntity fat)
