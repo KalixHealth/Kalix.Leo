@@ -53,6 +53,26 @@ namespace Kalix.Leo.Storage
             return _store.FindFiles(container, prefix);
         }
 
+        public Task ForceObjectIndex<T>(StoreLocation location, Metadata metadata = null)
+        {
+            metadata = metadata ?? new Metadata();
+            metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
+            // Note: This is not getting reindex flag on purpose, this is a forced FULL index
+
+            return ForceIndex(location, metadata);
+        }
+
+        public Task ForceIndex(StoreLocation location, Metadata metadata)
+        {
+            if (_indexQueue == null)
+            {
+                throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+            }
+
+            metadata = metadata ?? new Metadata();
+            return _indexQueue.SendMessage(GetMessageDetails(location, metadata));
+        }
+
         public async Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null)
         {
             if (_indexQueue == null)
@@ -256,12 +276,7 @@ namespace Kalix.Leo.Storage
 
             if (options.HasFlag(SecureStoreOptions.Index))
             {
-                if (_indexQueue == null)
-                {
-                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
-                }
-
-                tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
+                tasks.Add(ForceIndex(location, metadata));
             }
 
             if (tasks.Count > 0)

@@ -26,6 +26,9 @@ namespace Kalix.Leo.Storage
         IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location);
         IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null);
 
+        Task ForceObjectIndex<T>(StoreLocation location, Metadata metadata = null);
+        Task ForceIndex(StoreLocation location, Metadata metadata);
+
         Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null);
         Task BackupAll(string container, string prefix = null);
 

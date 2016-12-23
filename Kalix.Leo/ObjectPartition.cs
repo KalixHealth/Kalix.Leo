@@ -70,10 +70,7 @@ namespace Kalix.Leo
                 propInfo.SetValue(data, id);
             }
 
-            if (preSaveProcessing != null)
-            {
-                preSaveProcessing(id.Value);
-            }
+            preSaveProcessing?.Invoke(id.Value);
 
             var enc = await _encryptor.Value.ConfigureAwait(false);
             var obj = new ObjectWithMetadata<T>(data, metadata);
@@ -121,6 +118,12 @@ namespace Kalix.Leo
             await Initialise().ConfigureAwait(false);
             // Remove the keep deletes option...
             await _store.Delete(GetLocation(id), null, _options & ~SecureStoreOptions.KeepDeletes).ConfigureAwait(false);
+        }
+
+        public Task ForceIndex(long id, Metadata metadata = null)
+        {
+            var loc = GetLocation(id);
+            return _store.ForceObjectIndex<T>(loc, metadata);
         }
 
         public Task ReIndexAll()

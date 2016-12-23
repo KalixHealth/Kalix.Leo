@@ -42,7 +42,7 @@ namespace Kalix.Leo
         public async Task<Metadata> GetMetadata(string path, string snapshot = null)
         {
             await Initialise().ConfigureAwait(false);
-            return await _store.GetMetadata(GetLocation(path), snapshot);
+            return await _store.GetMetadata(GetLocation(path), snapshot).ConfigureAwait(false);
         }
 
         public IAsyncEnumerable<Snapshot> FindSnapshots(string path)
@@ -70,6 +70,11 @@ namespace Kalix.Leo
             await Initialise().ConfigureAwait(false);
             // Remove the keep deletes option...
             await _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes).ConfigureAwait(false);
+        }
+
+        public Task ForceIndex(string path, Metadata metadata = null)
+        {
+            return _store.ForceIndex(GetLocation(path), metadata);
         }
 
         public Task ReIndexAll()

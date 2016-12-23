@@ -88,6 +88,14 @@ namespace Kalix.Leo
         Task DeletePermanent(long id);
 
         /// <summary>
+        /// Will send out an index message for this item, even if there was no data saved
+        /// </summary>
+        /// <param name="id">Id of the object</param>
+        /// <param name="metadata">Optional metadata, required metadata will be added automatically</param>
+        /// <returns>Task when queue message has been sent</returns>
+        Task ForceIndex(long id, Metadata metadata = null);
+
+        /// <summary>
         /// If this partition is configured to index, will find all records and queue an index message
         /// </summary>
         /// <returns>Task that completes when all records have been queued to index</returns>
