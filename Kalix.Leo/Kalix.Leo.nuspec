@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>8.6.1</version>
+    <version>8.6.2</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -21,7 +21,7 @@
 8.4.1 Added SearchFor variation on indexer to allow for two values
 8.5.0 Added Count methods to Search Index
 8.6.0 Added ForceIndex to Object and Document partitions
-8.6.1 Updated ApiCrypto library
+8.6.2 Updated ApiCrypto library, added Task based overload for pre-prossecing save
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
