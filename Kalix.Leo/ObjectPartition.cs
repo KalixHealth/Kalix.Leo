@@ -47,16 +47,6 @@ namespace Kalix.Leo
             return await _store.SaveMetadata(GetLocation(id), metadata, _options).ConfigureAwait(false);
         }
 
-        public Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Action<long> preSaveProcessing = null, Metadata metadata = null)
-        {
-            var presave = preSaveProcessing == null ? null : (Func<long, Task>)((id) =>
-            {
-                preSaveProcessing(id);
-                return Task.FromResult(0);
-            });
-            return Save(data, idField, audit, presave, metadata);
-        }
-
         public async Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Func<long, Task> preSaveProcessing = null, Metadata metadata = null)
         {
             await Initialise().ConfigureAwait(false);

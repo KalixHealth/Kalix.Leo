@@ -31,18 +31,7 @@ namespace Kalix.Leo
         /// <param name="metadata">metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that completes when the metadata is saved</returns>
         Task<Metadata> SaveMetadata(long id, Metadata metadata);
-
-        /// <summary>
-        /// Save a new or existing record record
-        /// </summary>
-        /// <param name="data">The data to save</param>
-        /// <param name="idField">The expression to access the id field on the object</param>
-        /// <param name="audit">Audit information to save against this record</param>
-        /// <param name="preSaveProcessing">An optional step to do some processing after the id has been created but before the record is saved</param>
-        /// <param name="metadata">Any additional metadata to save (Note this is NOT encrypted)</param>
-        /// <returns>Task that completes when the record is saved, returns the id</returns>
-        Task<ObjectPartitionWriteResult<T>> Save(T data, Expression<Func<T, long?>> idField, UpdateAuditInfo audit, Action<long> preSaveProcessing = null, Metadata metadata = null);
-
+        
         /// <summary>
         /// Save a new or existing record record
         /// </summary>
