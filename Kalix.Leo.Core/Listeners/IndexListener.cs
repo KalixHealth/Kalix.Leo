@@ -171,6 +171,9 @@ namespace Kalix.Leo.Listeners
                         if (_typeIndexers.ContainsKey(type))
                         {
                             var indexer = (IIndexer)_typeResolver(_typeIndexers[type]);
+
+                            // Do need to reindex the same id multiple times
+                            details = details.GroupBy(d => d.Id.Value).Select(d => d.First()).ToList();
                             if (isReindex && indexer is IReindexer)
                             {
                                 await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);
@@ -189,6 +192,9 @@ namespace Kalix.Leo.Listeners
                         if (key != null)
                         {
                             var indexer = (IIndexer)_typeResolver(_pathIndexers[key]);
+
+                            // Only need to index the same path once
+                            details = details.GroupBy(d => d.BasePath).Select(d => d.First()).ToList();
                             if (isReindex && indexer is IReindexer)
                             {
                                 await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);

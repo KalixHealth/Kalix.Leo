@@ -97,7 +97,7 @@ namespace Kalix.Leo.Azure.Table
                     }
                     catch(StorageException ex)
                     {
-                        if (ex.RequestInformation.ExtendedErrorInformation.ErrorCode != "ResourceNotFound")
+                        if (ex.RequestInformation.HttpStatusCode != 404)
                         {
                             throw;
                         }
