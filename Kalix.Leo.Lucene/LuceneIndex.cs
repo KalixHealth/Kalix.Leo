@@ -6,13 +6,16 @@ using Lucene.Net.Analysis;
 using Lucene.Net.Contrib.Management;
 using Lucene.Net.Contrib.Management.Client;
 using Lucene.Net.Documents;
+using Lucene.Net.Index;
 using Lucene.Net.Search;
 using Lucene.Net.Store;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using IO = System.IO;
 using L = Lucene.Net.Index;
+using System.Linq;
 
 namespace Kalix.Leo.Lucene
 {
@@ -26,7 +29,8 @@ namespace Kalix.Leo.Lucene
         private IndexSearcher _reader;
         private DateTime _lastRead;
 
-        private SearcherContext _writer;
+        private SearcherContextInternal _writer;
+        private object _writerLock = new object();
 
         private readonly double _RAMSizeMb;
         private bool _isDisposed;
@@ -92,6 +96,10 @@ namespace Kalix.Leo.Lucene
             if(waitForGeneration)
             {
                 writer.WaitForGeneration(gen);
+
+                // This is a bit hacky but no point waiting for the generation but then
+                // not commiting it so that it can be used on other machines
+                _writer._writer.Commit();
             }
             return Task.FromResult(0);
         }
@@ -103,20 +111,21 @@ namespace Kalix.Leo.Lucene
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            await writeUsingIndex(GetWriter()).ConfigureAwait(false);
+            var writer = GetWriter();
+            await writeUsingIndex(writer).ConfigureAwait(false);
         }
 
-        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc)
+        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc, bool forceCheck = false)
         {
             if (_isDisposed)
             {
                 throw new ObjectDisposedException("LuceneIndex");
             }
 
-            return SearchDocuments((s, a) => doSearchFunc(s));
+            return SearchDocuments((s, a) => doSearchFunc(s), forceCheck);
         }
 
-        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc)
+        public IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc, bool forceCheck = false)
         {
             if (_isDisposed)
             {
@@ -125,6 +134,10 @@ namespace Kalix.Leo.Lucene
             
             if (_writer != null)
             {
+                if (forceCheck)
+                {
+                    _writer.Manager.MaybeReopen(true);
+                }
                 using (var searcher = _writer.GetSearcher())
                 {
                     var docs = doSearchFunc(searcher.Searcher, _analyzer);
@@ -137,7 +150,8 @@ namespace Kalix.Leo.Lucene
             }
             else
             {
-                var reader = GetReader();
+                var reader = GetReader(forceCheck);
+                
                 var docs = doSearchFunc(reader, _analyzer);
 
                 foreach (var doc in docs.ScoreDocs)
@@ -159,7 +173,7 @@ namespace Kalix.Leo.Lucene
             return Task.FromResult(0);
         }
 
-        private IndexSearcher GetReader()
+        private IndexSearcher GetReader(bool forceCheck)
         {
             var currentReader = _reader;
             if (currentReader == null)
@@ -177,8 +191,7 @@ namespace Kalix.Leo.Lucene
 
                 _lastRead = DateTime.UtcNow;
             }
-
-            if (_lastRead < DateTime.UtcNow.AddSeconds(-10))
+            else if (forceCheck || _lastRead.AddSeconds(5) < DateTime.UtcNow)
             {
                 if (!currentReader.IndexReader.IsCurrent())
                 {
@@ -196,7 +209,13 @@ namespace Kalix.Leo.Lucene
         {
             if(_writer == null)
             {
-                _writer = new SearcherContext(_directory, _analyzer);
+                lock (_writerLock)
+                {
+                    if (_writer == null)
+                    {
+                        _writer = new SearcherContextInternal(_directory, _analyzer);
+                    }
+                }
             }
 
             // Once we have the writer that takes over!
@@ -229,6 +248,69 @@ namespace Kalix.Leo.Lucene
                 {
                     _cacheDirectory.Dispose();
                 }
+            }
+        }
+
+        /// <summary>
+        /// Copied from (but slightly modified so we can access indexwriter)
+        /// https://github.com/NielsKuhnel/NrtManager/blob/master/source/Lucene.Net.Contrib.Management/Client/SearcherContext.cs
+        /// </summary>
+        private class SearcherContextInternal : IDisposable
+        {
+            public NrtManager Manager { get; private set; }
+
+            public PerFieldAnalyzerWrapper Analyzer { get; private set; }
+
+            public readonly IndexWriter _writer;
+
+            private readonly NrtManagerReopener _reopener;
+            private readonly Committer _committer;
+
+            private readonly List<Thread> _threads = new List<Thread>();
+
+            public SearcherContextInternal(Directory dir, Analyzer defaultAnalyzer)
+                : this(dir, defaultAnalyzer, TimeSpan.FromSeconds(.1), TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(10), TimeSpan.FromHours(2))
+            {
+            }
+
+            public SearcherContextInternal(Directory dir, Analyzer defaultAnalyzer,
+                            TimeSpan targetMinStale, TimeSpan targetMaxStale,
+                            TimeSpan commitInterval, TimeSpan optimizeInterval)
+            {
+                Analyzer = new PerFieldAnalyzerWrapper(defaultAnalyzer);
+                _writer = new IndexWriter(dir, Analyzer, IndexWriter.MaxFieldLength.UNLIMITED);
+
+                Manager = new NrtManager(_writer);
+                _reopener = new NrtManagerReopener(Manager, targetMaxStale, targetMinStale);
+                _committer = new Committer(_writer, commitInterval, optimizeInterval);
+
+                _threads.AddRange(new[] { new Thread(_reopener.Start), new Thread(_committer.Start) });
+
+                foreach (var t in _threads)
+                {
+                    t.Start();
+                }
+            }
+
+            public SearcherManager.IndexSearcherToken GetSearcher()
+            {
+                return Manager.GetSearcherManager().Acquire();
+            }
+
+            public void Dispose()
+            {
+                var disposeActions = new List<Action>
+                {
+                    _reopener.Dispose,
+                    _committer.Dispose,
+                    Manager.Dispose,
+                    () => _writer.Dispose(true)
+                };
+
+                disposeActions.AddRange(_threads.Select(t => (Action)t.Join));
+
+                DisposeUtil.PostponeExceptions(disposeActions.ToArray());
             }
         }
     }

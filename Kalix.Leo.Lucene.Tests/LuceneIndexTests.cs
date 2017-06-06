@@ -9,9 +9,9 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using IO = System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using IO = System.IO;
 
 namespace Kalix.Leo.Lucene.Tests
 {
@@ -86,8 +86,8 @@ namespace Kalix.Leo.Lucene.Tests
         [Test]
         public void CanWriteFromSameIndexerConcurrently()
         {
-            var task1 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
-            var task2 = _indexer.WriteToIndex(CreateIpsumDocs(30000));
+            var task1 = Task.Run(() => _indexer.WriteToIndex(CreateIpsumDocs(30000), true));
+            var task2 = Task.Run(() => _indexer.WriteToIndex(CreateIpsumDocs(30000), true));
 
             Task.WhenAll(task1, task2).Wait();
         }
@@ -110,6 +110,21 @@ namespace Kalix.Leo.Lucene.Tests
             });
 
             Task.WaitAll(t1, t2);
+        }
+
+        [Test]
+        public void WaitsForNewGenerationOnReader()
+        {
+            var store = new SecureStore(_store);
+            using (var readIndexer = new LuceneIndex(store, "testindexer", "basePath", null))
+            {
+                // Hit the reader initially
+                readIndexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue)).Count();
+
+                _indexer.WriteToIndex(CreateIpsumDocs(3000), true).Wait();
+                var stream = readIndexer.SearchDocuments(s => s.Search(new MatchAllDocsQuery(), int.MaxValue), true);
+                Assert.AreEqual(3000, stream.Count());
+            }
         }
 
         [Test]

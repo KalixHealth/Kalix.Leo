@@ -17,15 +17,17 @@ namespace Kalix.Leo.Lucene
         /// Search for documents using lucene, you have to supply the actual search with the provided searcher
         /// </summary>
         /// <param name="doSearchFunc">Use a searcher to find a list of topdocs</param>
+        /// <param name="forceCheck">Whether to always check the index for any updates, less performant if true</param>
         /// <returns>A list of documents derived from the topdocs</returns>
-        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc);
+        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, TopDocs> doSearchFunc, bool forceCheck = false);
 
         /// <summary>
         /// Search for documents using lucene, you have to supply the actual search with the provided searcher
         /// </summary>
         /// <param name="doSearchFunc">Use a searcher and the underlying analyzer to find a list of topdocs</param>
+        /// <param name="forceCheck">Whether to always check the index for any updates, less performant if true</param>
         /// <returns>A list of documents derived from the topdocs</returns>
-        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc);
+        IEnumerable<Document> SearchDocuments(Func<IndexSearcher, Analyzer, TopDocs> doSearchFunc, bool forceCheck = false);
         
         /// <summary>
         /// Write a number of documents to the index at once
