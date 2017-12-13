@@ -450,7 +450,7 @@ namespace Kalix.Leo.Azure.Storage
                 blob.Metadata.Clear();
                 foreach (var m in metadata)
                 {
-                    blob.Metadata[m.Key] = m.Value;
+                    blob.Metadata[m.Key] = AzureStoreMetadataEncoder.EncodeMetadata(m.Value);
                 }
 
                 // Always store the version - We use this to do more efficient things on read
@@ -522,7 +522,9 @@ namespace Kalix.Leo.Azure.Storage
 
         private async Task<Metadata> GetActualMetadata(ICloudBlob blob)
         {
-            var metadata = new Metadata(blob.Metadata);
+            // Pass all custom metadata through the converter
+            var convertedMeta = blob.Metadata.ToDictionary(k => k.Key, k => AzureStoreMetadataEncoder.DecodeMetadata(k.Value));
+            var metadata = new Metadata(convertedMeta);
 
             if (blob.Properties.LastModified.HasValue || blob.SnapshotTime.HasValue)
             {

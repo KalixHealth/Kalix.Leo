@@ -56,9 +56,9 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 WriteData(_location, m, data);
-
+                
                 _blob.FetchAttributes();
-                Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
+                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", _blob.Metadata["metadata1"]);
             }
 
             [Test]
@@ -75,7 +75,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
 
                 _blob.FetchAttributes();
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
-                Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
+                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", _blob.Metadata["metadata2"]);
             }
 
             [Test]
@@ -112,7 +112,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 _blob.FetchAttributes();
                 Assert.IsTrue(success.Result);
                 Assert.IsNotNull(success.Metadata.Snapshot);
-                Assert.AreEqual("somemetadata", _blob.Metadata["metadata1"]);
+                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", _blob.Metadata["metadata1"]);
             }
 
             [Test]
@@ -137,7 +137,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 Assert.AreEqual(success2.Metadata.Snapshot, newMetadata.Snapshot);
                 Assert.AreNotEqual(success1.Metadata.Snapshot, success2.Metadata.Snapshot);
                 Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
-                Assert.AreEqual("othermetadata", _blob.Metadata["metadata2"]);
+                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", _blob.Metadata["metadata2"]);
             }
 
             [Test]
