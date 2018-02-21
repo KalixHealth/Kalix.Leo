@@ -494,7 +494,7 @@ namespace Kalix.Leo.Azure.Storage
                     // First condition occurrs when the eTags do not match
                     // Second condition when we specified no eTag (ie must be new blob)
                     if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.PreconditionFailed
-                        || (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict && exc.RequestInformation.ExtendedErrorInformation.ErrorCode == "BlobAlreadyExists"))
+                        || (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict && exc.RequestInformation.ErrorCode == "BlobAlreadyExists"))
                     {
                         result.Result = false;
                     }
@@ -507,7 +507,7 @@ namespace Kalix.Leo.Azure.Storage
                 else
                 {
                     if (exc.RequestInformation.HttpStatusCode == (int)HttpStatusCode.Conflict
-                        || exc.RequestInformation.ExtendedErrorInformation.ErrorCode == "LeaseIdMissing")
+                        || exc.RequestInformation.ErrorCode == "LeaseIdMissing")
                     {
                         throw new LockException("The underlying storage is currently locked for save");
                     }

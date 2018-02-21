@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>10.1.0</version>
+    <version>10.1.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -14,12 +14,13 @@
     <releaseNotes>
 10.0.0 Bump to match Lucene update
 10.1.0 Encode custom metadata
+10.1.1 Bump to WindowsAzure.Storage lib
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Kalix.Leo.Core" version="10.0.0" />
-      <dependency id="WindowsAzure.Storage" version="8.1.3" />
+      <dependency id="WindowsAzure.Storage" version="9.0.0" />
     </dependencies>
   </metadata>
 </package>

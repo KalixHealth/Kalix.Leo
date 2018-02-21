@@ -112,7 +112,7 @@ namespace Kalix.Leo.Azure.Table
                 }
                 catch (StorageException ex)
                 {
-                    if (ex.RequestInformation.ExtendedErrorInformation.ErrorCode == "EntityAlreadyExists")
+                    if (ex.RequestInformation.ErrorCode == "EntityAlreadyExists")
                     {
                         throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
                     }

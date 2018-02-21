@@ -38,7 +38,7 @@ namespace Kalix.Leo.Azure
                 return new AzureException(string.Format("An unknown azure exception occurred for path '{0}': {1}. Details: {2}", path, ex.Message, webDetails), ex);
             }
             
-            var message = string.Format("({0}) {1} - '{2}'", information.ErrorCode, information.ErrorMessage, path);
+            var message = string.Format("({0}) {1} - '{2}'", requestInformation.ErrorCode, information.ErrorMessage, path);
 
             var details = information
                 .AdditionalDetails
