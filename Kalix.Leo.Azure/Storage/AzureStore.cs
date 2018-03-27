@@ -59,7 +59,7 @@ namespace Kalix.Leo.Azure.Storage
                 // Do not override audit information!
                 if (m.Key != MetadataConstants.AuditMetadataKey)
                 {
-                    blob.Metadata[m.Key] = m.Value;
+                    blob.Metadata[m.Key] = AzureStoreMetadataEncoder.EncodeMetadata(m.Value);
                 }
             }
 
@@ -235,7 +235,7 @@ namespace Kalix.Leo.Azure.Storage
             var fullInfo = TransformAuditInformation(metadata, audit);
             metadata.Audit = fullInfo;
 
-            blob.Metadata[MetadataConstants.AuditMetadataKey] = metadata[MetadataConstants.AuditMetadataKey];
+            blob.Metadata[MetadataConstants.AuditMetadataKey] = AzureStoreMetadataEncoder.EncodeMetadata(metadata[MetadataConstants.AuditMetadataKey]);
             blob.Metadata[_deletedKey] = DateTime.UtcNow.Ticks.ToString();
             await blob.ExecuteWrap(b => b.SetMetadataAsync()).ConfigureAwait(false);
             LeoTrace.WriteLine("Soft deleted (2 calls): " + blob.Name);
