@@ -123,6 +123,14 @@ namespace Kalix.Leo.Indexing
             return context.Save();
         }
 
+        public async Task<TSearch> GetByIndex<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordUniqueIndex<T1> index, T1 val)
+        {
+            var enc = await encryptor.Value.ConfigureAwait(false);
+            return await _client.Query<TSearch>(_tableName, enc)
+                .ById(partitionKey.ToString(CultureInfo.InvariantCulture), index.Prefix + Underscore + KeyParser(val))
+                .ConfigureAwait(false);
+        }
+
         public IAsyncEnumerable<TSearch> SearchAll(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch search)
         {
             return Search(partitionKey, encryptor, search.Prefix, search);
