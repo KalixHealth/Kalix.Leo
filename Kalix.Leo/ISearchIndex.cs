@@ -12,7 +12,7 @@ namespace Kalix.Leo
         Task Delete(string id, ObjectWithMetadata<TMain> current);
         Task Delete(long id, ObjectWithMetadata<TMain> current);
 
-        Task<TSearch> GetByIndex<T1>(IRecordUniqueIndex<T1> index, T1 val);
+        Task<bool> IndexExists<T1>(IRecordUniqueIndex<T1> index, T1 val);
 
         IAsyncEnumerable<TSearch> SearchAll(IRecordSearch search);
         IAsyncEnumerable<TSearch> SearchAll<T1>(IRecordSearch<T1> search);

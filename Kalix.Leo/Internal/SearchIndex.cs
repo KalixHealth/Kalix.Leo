@@ -42,9 +42,9 @@ namespace Kalix.Leo.Internal
             return Delete(id.ToString(CultureInfo.InvariantCulture), current);
         }
 
-        public Task<TSearch> GetByIndex<T1>(IRecordUniqueIndex<T1> index, T1 val)
+        public Task<bool> IndexExists<T1>(IRecordUniqueIndex<T1> index, T1 val)
         {
-            return _composition.GetByIndex(_partitionId, _encryptor, index, val);
+            return _composition.IndexExists(_partitionId, _encryptor, index, val);
         }
 
         public IAsyncEnumerable<TSearch> SearchAll(IRecordSearch search)

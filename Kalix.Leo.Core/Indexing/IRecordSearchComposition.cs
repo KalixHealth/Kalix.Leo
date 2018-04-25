@@ -11,7 +11,7 @@ namespace Kalix.Leo.Indexing
         Task Save(long partitionKey, string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous, IEncryptor encryptor);
         Task Delete(long partitionKey, string id, ObjectWithMetadata<TMain> main);
 
-        Task<TSearch> GetByIndex<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordUniqueIndex<T1> index, T1 val);
+        Task<bool> IndexExists<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordUniqueIndex<T1> index, T1 val);
 
         IAsyncEnumerable<TSearch> SearchAll(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch search);
         IAsyncEnumerable<TSearch> SearchAll<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordSearch<T1> search);

@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo</id>
-    <version>10.1.0</version>
+    <version>10.1.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -13,12 +13,12 @@
     </description>
     <releaseNotes>
 10.0.0 Bump to match Lucene update
-10.1.0 Added unique index lookup
+10.1.1 Added unique index lookup
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="10.1.0" />
+      <dependency id="Kalix.Leo.Core" version="10.1.1" />
       <dependency id="Kalix.Leo.Lucene" version="10.1.0" />
       <dependency id="Kalix.ApiCrypto" version="3.0.0" />
     </dependencies>
