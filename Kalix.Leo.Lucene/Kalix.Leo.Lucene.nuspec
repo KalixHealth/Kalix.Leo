@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>10.1.0</version>
+    <version>10.2.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -14,12 +14,13 @@
     <releaseNotes>
 10.0.0 Rework of how we force commits so that there can be more control over when we want to refesh the index
 10.1.0 Match core version
+10.2.0 Match core version
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="10.1.0" />
+      <dependency id="Kalix.Leo.Core" version="10.2.0" />
       <dependency id="Lucene.Net.Contrib.Management" version="1.0.3" />
     </dependencies>
   </metadata>
