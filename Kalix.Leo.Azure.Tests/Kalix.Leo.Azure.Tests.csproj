@@ -73,6 +73,7 @@
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Queue\AzureQueueStorageTests.cs" />
     <Compile Include="Storage\AzureStoreTests.cs" />
     <Compile Include="AzureTestsHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

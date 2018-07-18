@@ -20,9 +20,9 @@ namespace Kalix.Leo.Azure.Queue
             _queueMessageTimeout = queueMessageTimeout;
         }
 
-        public Task SendMessage(string data)
+        public Task SendMessage(string data, TimeSpan? visibilityDelay = null)
         {
-            return Execute(q => q.AddMessageAsync(new CloudQueueMessage(data)));
+            return Execute(q => q.AddMessageAsync(new CloudQueueMessage(data), null, visibilityDelay, null, null));
         }
 
         public async Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, CancellationToken token)

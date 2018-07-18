@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,8 +15,9 @@ namespace Kalix.Leo.Queue
         /// Push a message into the queue
         /// </summary>
         /// <param name="data">The data to send</param>
+        /// <param name="visibilityDelay">The time we want to wait before the queue is visible initially</param>
         /// <returns>A task that completes when the message has been queued</returns>
-        Task SendMessage(string data);
+        Task SendMessage(string data, TimeSpan? visibilityDelay = null);
 
         /// <summary>
         /// Listen for messages originating from this queue
