@@ -112,7 +112,7 @@ namespace Kalix.Leo.Listeners
 
                             foreach (var g in nextSet.GroupBy(FindKey))
                             {
-                                if (messages.ContainsKey(g.Key))
+                                if (!messages.ContainsKey(g.Key))
                                 {
                                     messages[g.Key] = new List<IQueueMessage>();
                                 }
