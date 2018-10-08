@@ -10,6 +10,8 @@ namespace Kalix.Leo.Listeners
 {
     public class BackupListener : IBackupListener
     {
+        private const int MessagesAllowedToPoll = 32;
+
         private readonly IQueue _backupQueue;
         private readonly IStore _backupStore;
         private readonly IStore _originalStore;
@@ -23,7 +25,7 @@ namespace Kalix.Leo.Listeners
 
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
-            var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
+            // Ignore the passed in value... just use default (so we don't error)
             var token = new CancellationTokenSource();
             var ct = token.Token;
 
@@ -33,7 +35,7 @@ namespace Kalix.Leo.Listeners
                 {
                     try
                     {
-                        var messages = await _backupQueue.ListenForNextMessage(maxMessages, ct).ConfigureAwait(false);
+                        var messages = await _backupQueue.ListenForNextMessage(MessagesAllowedToPoll, ct).ConfigureAwait(false);
                         if (messages.Any())
                         {
                             await Task.WhenAll(messages.Select(MessageRecieved)).ConfigureAwait(false);
