@@ -12,6 +12,8 @@ namespace Kalix.Leo.Listeners
 {
     public class IndexListener : IIndexListener
     {
+        private const int MessagesAllowedToPoll = 32;
+
         private readonly IQueue _indexQueue;
         private readonly Dictionary<string, Type> _typeIndexers;
         private readonly Dictionary<string, Type> _pathIndexers;
@@ -94,7 +96,7 @@ namespace Kalix.Leo.Listeners
                         }
 
                         // Get more messages
-                        var messages = await _indexQueue.ListenForNextMessage(maxMessages, ct).ConfigureAwait(false);
+                        var messages = await _indexQueue.ListenForNextMessage(MessagesAllowedToPoll, ct).ConfigureAwait(false);
                         if (!messages.Any())
                         {
                             await Task.Delay(2000, ct).ConfigureAwait(false);
