@@ -13,6 +13,7 @@ namespace Kalix.Leo.Listeners
     public class IndexListener : IIndexListener
     {
         private const int MessagesAllowedToPoll = 32;
+        private const int PendingMessagesFactor = 10;
 
         private readonly IQueue _indexQueue;
         private readonly Dictionary<string, Type> _typeIndexers;
@@ -95,31 +96,54 @@ namespace Kalix.Leo.Listeners
                             continue;
                         }
 
-                        // Get more messages
-                        var messages = await _indexQueue.ListenForNextMessage(MessagesAllowedToPoll, ct).ConfigureAwait(false);
-                        if (!messages.Any())
+                        // Get more messages, pre-build the collection so we can collect as much as possible in one go
+                        bool shouldDelay = false;
+                        var totalPending = 0;
+                        var messages = new Dictionary<string, List<IQueueMessage>>();
+                        do
                         {
-                            await Task.Delay(2000, ct).ConfigureAwait(false);
-                            continue;
+                            var nextSet = await _indexQueue.ListenForNextMessage(MessagesAllowedToPoll, ct).ConfigureAwait(false);
+                            totalPending += nextSet.Count();
+                            if (!nextSet.Any())
+                            {
+                                shouldDelay = true;
+                                break;
+                            }
+
+                            foreach (var g in nextSet.GroupBy(FindKey))
+                            {
+                                if (messages.ContainsKey(g.Key))
+                                {
+                                    messages[g.Key] = new List<IQueueMessage>();
+                                }
+                                messages[g.Key].AddRange(nextSet);
+                            }
                         }
+                        while (messages.Count < maxMessages && totalPending < maxMessages * PendingMessagesFactor);
 
                         // Group the messages into buckets
-                        foreach (var g in messages.GroupBy(FindKey))
+                        foreach (var m in messages)
                         {
-                            var items = g.ToList();
-                            if (hash.ContainsKey(g.Key))
+                            var items = m.Value;
+                            if (hash.ContainsKey(m.Key))
                             {
                                 // If the bucket is already running, queue the next action
-                                hash[g.Key] = hash[g.Key]
+                                hash[m.Key] = hash[m.Key]
                                     .ContinueWith(t => ExecuteMessages(items, uncaughtException), ct)
                                     .Unwrap();
                             }
                             else
                             {
                                 // Start a new independant thread
-                                hash[g.Key] = ExecuteMessages(items, uncaughtException);
+                                hash[m.Key] = ExecuteMessages(items, uncaughtException);
                             }
                         }
+
+                        if (shouldDelay)
+                        {
+                            await Task.Delay(2000, ct).ConfigureAwait(false);
+                        }
+                        
                     }
                     catch(Exception e)
                     {
