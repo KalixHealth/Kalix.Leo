@@ -98,7 +98,8 @@ namespace Kalix.Leo.Listeners
                                 {
                                     try
                                     {
-                                        await Task.WhenAll(item.Value.Item2.Select(m => m.Complete())).ConfigureAwait(false);
+                                        // Don't bother trying to close anything that is already broken...
+                                        await Task.WhenAll(item.Value.Item2.Where(m => !m.IsComplete).Select(m => m.Complete())).ConfigureAwait(false);
                                     }
                                     catch (Exception e)
                                     {
@@ -114,8 +115,19 @@ namespace Kalix.Leo.Listeners
                         var extendTasks = hash.Values
                             .SelectMany(v => v.Item2)
                             .Concat(messages.Values.SelectMany(q => q))
-                            .Where(m => !m.NextVisible.HasValue || m.NextVisible < buffer)
-                            .Select(m => m.ExtendVisibility(VisiblityTimeout));
+                            // Don't bother extending the already broken ones...
+                            .Where(m => !m.IsComplete && (!m.NextVisible.HasValue || m.NextVisible < buffer))
+                            .Select(async m =>
+                            {
+                                try
+                                {
+                                    await m.ExtendVisibility(VisiblityTimeout).ConfigureAwait(false);
+                                }
+                                catch (Exception e)
+                                {
+                                    uncaughtException?.Invoke(new Exception("Could not extend messages", e));
+                                }
+                            });
 
                         await Task.WhenAll(extendTasks).ConfigureAwait(false);
 
@@ -130,6 +142,14 @@ namespace Kalix.Leo.Listeners
                         {
                             foreach (var m in messages.ToList())
                             {
+                                // We might have lost the message already
+                                messages[m.Key] = m.Value.Where(me => !me.IsComplete).ToList();
+                                if (!messages[m.Key].Any())
+                                {
+                                    messages.Remove(m.Key);
+                                    continue;
+                                }
+
                                 if (!hash.ContainsKey(m.Key))
                                 {
                                     hash[m.Key] = Tuple.Create(ExecuteMessages(m.Value, uncaughtException), m.Value);
@@ -139,6 +159,7 @@ namespace Kalix.Leo.Listeners
                             
                             if ((messages.Count + hash.Count) >= maxMessages)
                             {
+                                await Task.Delay(2000).ConfigureAwait(false);
                                 continue;
                             }
                         }

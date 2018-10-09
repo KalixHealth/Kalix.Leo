@@ -19,15 +19,20 @@ namespace Kalix.Leo.Queue
         string Message { get; }
 
         /// <summary>
+        /// If the message threw an error while extending, or if complete was called, this will be true
+        /// </summary>
+        bool IsComplete { get; }
+
+        /// <summary>
         /// Extends the time that the message should not be visible
         /// </summary>
         /// <param name="span">Amount of time to hide</param>
-        Task ExtendVisibility(TimeSpan span);
+        Task<bool> ExtendVisibility(TimeSpan span);
 
         /// <summary>
         /// Indicate that the message has been successfully handled
         /// </summary>
         /// <returns>Task that completes when the message has been cleared from its originating queue</returns>
-        Task Complete();
+        Task<bool> Complete();
     }
 }
