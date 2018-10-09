@@ -12,18 +12,22 @@ namespace Kalix.Leo.Listeners
 {
     public class IndexListener : IIndexListener
     {
-        private const int MessagesAllowedToPoll = 32;
+        private static readonly TimeSpan VisiblityTimeout = TimeSpan.FromMinutes(10);
+        private static readonly TimeSpan VisibilityBuffer = TimeSpan.FromMinutes(2);
+
         private const int PendingMessagesFactor = 10;
 
         private readonly IQueue _indexQueue;
+        private readonly IQueue _backupIndexQueue;
         private readonly Dictionary<string, Type> _typeIndexers;
         private readonly Dictionary<string, Type> _pathIndexers;
         private readonly Func<string, Type> _typeNameResolver;
         private readonly Func<Type, object> _typeResolver;
 
-        public IndexListener(IQueue indexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
+        public IndexListener(IQueue indexQueue, IQueue backupIndexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
         {
             _indexQueue = indexQueue;
+            _backupIndexQueue = backupIndexQueue;
             _typeIndexers = new Dictionary<string, Type>();
             _pathIndexers = new Dictionary<string, Type>();
             _typeNameResolver = typeNameResolver ?? (s => Type.GetType(s, false));
@@ -70,44 +74,81 @@ namespace Kalix.Leo.Listeners
             var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
             var token = new CancellationTokenSource();
             var ct = token.Token;
-
+            
             Task.Run(async () =>
             {
+                var messages = new Dictionary<string, List<IQueueMessage>>();
+                var hash = new Dictionary<string, Tuple<Task, List<IQueueMessage>>>();
+
                 // Special queue system
                 // We grab messages as soon as we have free slots, and then queue them up by type and org
-                var hash = new Dictionary<string, Task>();
-                while(!ct.IsCancellationRequested)
+                while (!ct.IsCancellationRequested)
                 {
                     try
                     {
                         // Clean up any finished tasks
                         foreach (var item in hash.ToList())
                         {
-                            if (item.Value.IsCanceled || item.Value.IsCompleted || item.Value.IsFaulted)
+                            if (item.Value.Item1.IsCanceled || item.Value.Item1.IsCompleted || item.Value.Item1.IsFaulted)
                             {
                                 hash.Remove(item.Key);
                             }
                         }
 
+                        // Now that any hashes that are done are cleared up, extend any messages that need it...
+                        var buffer = DateTimeOffset.Now.Add(VisibilityBuffer);
+                        var extendTasks = hash.Values
+                            .SelectMany(v => v.Item2)
+                            .Where(m => !m.NextVisible.HasValue || m.NextVisible < buffer)
+                            .Select(m => m.ExtendVisibility(VisiblityTimeout));
+
+                        await Task.WhenAll(extendTasks).ConfigureAwait(false);
+
                         // Wait until we have free slots...
                         if (hash.Count >= maxMessages)
                         {
-                            await Task.WhenAny(hash.Values).ConfigureAwait(false);
+                            await Task.Delay(2000).ConfigureAwait(false);
                             continue;
+                        }
+
+                        if (messages.Any())
+                        {
+                            foreach (var m in messages.ToList())
+                            {
+                                if (!hash.ContainsKey(m.Key))
+                                {
+                                    hash[m.Key] = Tuple.Create(ExecuteMessages(m.Value, uncaughtException), m.Value);
+                                    messages.Remove(m.Key);
+                                }
+                            }
+                            
+                            if ((messages.Count + hash.Count) >= maxMessages)
+                            {
+                                continue;
+                            }
                         }
 
                         // Get more messages, pre-build the collection so we can collect as much as possible in one go
                         bool shouldDelay = false;
                         var totalPending = 0;
-                        var messages = new Dictionary<string, List<IQueueMessage>>();
+
                         do
                         {
-                            var nextSet = await _indexQueue.ListenForNextMessage(MessagesAllowedToPoll, ct).ConfigureAwait(false);
+                            var nextSet = await _indexQueue.ListenForNextMessage(maxMessages, VisiblityTimeout, ct).ConfigureAwait(false);
                             totalPending += nextSet.Count();
                             if (!nextSet.Any())
                             {
-                                shouldDelay = true;
-                                break;
+                                if (_backupIndexQueue != null)
+                                {
+                                    nextSet = await _backupIndexQueue.ListenForNextMessage(maxMessages, VisiblityTimeout, ct).ConfigureAwait(false);
+                                    totalPending += nextSet.Count();
+                                }
+
+                                if (!nextSet.Any())
+                                {
+                                    shouldDelay = true;
+                                    break;
+                                }
                             }
 
                             foreach (var g in nextSet.GroupBy(FindKey))
@@ -121,25 +162,7 @@ namespace Kalix.Leo.Listeners
                         }
                         while (messages.Count < maxMessages && totalPending < maxMessages * PendingMessagesFactor);
 
-                        // Group the messages into buckets
-                        foreach (var m in messages)
-                        {
-                            var items = m.Value;
-                            if (hash.ContainsKey(m.Key))
-                            {
-                                // If the bucket is already running, queue the next action
-                                hash[m.Key] = hash[m.Key]
-                                    .ContinueWith(t => ExecuteMessages(items, uncaughtException), ct)
-                                    .Unwrap();
-                            }
-                            else
-                            {
-                                // Start a new independant thread
-                                hash[m.Key] = ExecuteMessages(items, uncaughtException);
-                            }
-                        }
-
-                        if (shouldDelay)
+                        if (shouldDelay && !messages.Any())
                         {
                             await Task.Delay(2000, ct).ConfigureAwait(false);
                         }
@@ -249,13 +272,6 @@ namespace Kalix.Leo.Listeners
                     uncaughtException(ex);
                 }
                 throw;
-            }
-            finally
-            {
-                foreach (var m in messages)
-                {
-                    m.Dispose();
-                }
             }
         }
     }

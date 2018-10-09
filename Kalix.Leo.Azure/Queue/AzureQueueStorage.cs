@@ -11,13 +11,14 @@ namespace Kalix.Leo.Azure.Queue
 {
     public class AzureQueueStorage : IQueue
     {
-        private readonly CloudQueue _queue;
-        private readonly TimeSpan _queueMessageTimeout;
+        private static readonly TimeSpan MaxVisibilityTimeout = TimeSpan.FromDays(7);
+        private const int MaxPollingAmountAllowed = 32;
 
-        public AzureQueueStorage(CloudQueueClient queueClient, string queue, TimeSpan queueMessageTimeout)
+        private readonly CloudQueue _queue;
+
+        public AzureQueueStorage(CloudQueueClient queueClient, string queue)
         {
             _queue = queueClient.GetQueueReference(queue);
-            _queueMessageTimeout = queueMessageTimeout;
         }
 
         public Task SendMessage(string data, TimeSpan? visibilityDelay = null)
@@ -25,12 +26,15 @@ namespace Kalix.Leo.Azure.Queue
             return Execute(q => q.AddMessageAsync(new CloudQueueMessage(data), null, visibilityDelay, null, null));
         }
 
-        public async Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, CancellationToken token)
+        public async Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, TimeSpan visibility, CancellationToken token)
         {
+            if (visibility > MaxVisibilityTimeout) { visibility = MaxVisibilityTimeout; }
+            if (maxMessages > MaxPollingAmountAllowed) { maxMessages = MaxPollingAmountAllowed; }
+
             try
             {
-                var messages = await _queue.GetMessagesAsync(maxMessages, TimeSpan.FromMinutes(1), null, null).ConfigureAwait(false);
-                return messages.Select(m => new AzureQueueStorageMessage(_queue, m, _queueMessageTimeout)).ToList();
+                var messages = await _queue.GetMessagesAsync(maxMessages, visibility, null, null).ConfigureAwait(false);
+                return messages.Select(m => new AzureQueueStorageMessage(_queue, m)).ToList();
             }
             catch (StorageException e)
             {

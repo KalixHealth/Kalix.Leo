@@ -22,7 +22,7 @@ namespace Kalix.Leo.Azure.Tests.Queue
             _queue = client.GetQueueReference("kalixleotestqueue");
             await _queue.CreateIfNotExistsAsync();
 
-            _azureQueue = new AzureQueueStorage(client, "kalixleotestqueue", TimeSpan.FromMinutes(1));
+            _azureQueue = new AzureQueueStorage(client, "kalixleotestqueue");
         }
 
         [TearDown]
@@ -39,7 +39,7 @@ namespace Kalix.Leo.Azure.Tests.Queue
             {
                 await _azureQueue.SendMessage("test");
 
-                var messages = (await _azureQueue.ListenForNextMessage(30, CancellationToken.None)).ToList();
+                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
 
                 Assert.AreEqual(1, messages.Count);
                 Assert.AreEqual("test", messages[0].Message);
@@ -50,13 +50,13 @@ namespace Kalix.Leo.Azure.Tests.Queue
             {
                 await _azureQueue.SendMessage("test", TimeSpan.FromSeconds(2));
 
-                var messages = (await _azureQueue.ListenForNextMessage(30, CancellationToken.None)).ToList();
+                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
 
                 Assert.AreEqual(0, messages.Count);
 
                 await Task.Delay(3000);
 
-                messages = (await _azureQueue.ListenForNextMessage(30, CancellationToken.None)).ToList();
+                messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
                 Assert.AreEqual(1, messages.Count);
                 Assert.AreEqual("test", messages[0].Message);
             }

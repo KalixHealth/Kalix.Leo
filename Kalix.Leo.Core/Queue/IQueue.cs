@@ -23,11 +23,12 @@ namespace Kalix.Leo.Queue
         /// Listen for messages originating from this queue
         /// </summary>
         /// <param name="maxMessages">Max number of messages to pull</param>
+        /// <param name="visibility">The amount of time to make the messages invisible for</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>
         /// An list of queue messages - might be empty (task may take some time to return due to long polling of messages...)
         /// </returns>
-        Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, CancellationToken token);
+        Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, TimeSpan visibility, CancellationToken token);
 
         /// <summary>
         /// Make sure that the queue has been created

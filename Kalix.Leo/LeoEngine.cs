@@ -34,7 +34,7 @@ namespace Kalix.Leo
             _config = config;
             _disposables = new List<IDisposable>();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
-            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
+            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.SecondaryIndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
             _cache = MemoryCache.Default;
             _cachePolicy = new CacheItemPolicy
             {

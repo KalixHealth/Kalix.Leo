@@ -16,15 +16,17 @@ namespace Kalix.Leo.Storage
         private readonly IOptimisticStore _store;
         private readonly IQueue _backupQueue;
         private readonly IQueue _indexQueue;
+        private readonly IQueue _secondaryIndexQueue;
         private readonly ICompressor _compressor;
 
-        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, ICompressor compressor = null)
+        public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IQueue secondaryIndexQueue = null, ICompressor compressor = null)
         {
             if (store == null) { throw new ArgumentNullException("store"); }
 
             _store = store;
             _backupQueue = backupQueue;
             _indexQueue = indexQueue;
+            _secondaryIndexQueue = secondaryIndexQueue;
             _compressor = compressor;
         }
 
@@ -70,7 +72,8 @@ namespace Kalix.Leo.Storage
             }
 
             metadata = metadata ?? new Metadata();
-            return _indexQueue.SendMessage(GetMessageDetails(location, metadata));
+            var queue = _secondaryIndexQueue != null && metadata.UseSecondaryIndexQueue ? _secondaryIndexQueue : _indexQueue;
+            return queue.SendMessage(GetMessageDetails(location, metadata));
         }
 
         public async Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null)
@@ -84,8 +87,10 @@ namespace Kalix.Leo.Storage
                 .Where(filter)
                 .Select(f =>
                 {
+                    // Reindexes always go in the secondary queue, if available
                     f.Metadata[MetadataConstants.ReindexMetadataKey] = "true";
-                    return _indexQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata));
+                    f.Metadata.UseSecondaryIndexQueue = true;
+                    return (_secondaryIndexQueue ?? _indexQueue).SendMessage(GetMessageDetails(f.Location, f.Metadata));
                 })
                 .Unwrap()
                 .LastOrDefault()
@@ -314,7 +319,8 @@ namespace Kalix.Leo.Storage
                     throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
                 }
 
-                tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
+                var queue = _secondaryIndexQueue != null && (metadata?.UseSecondaryIndexQueue ?? false) ? _secondaryIndexQueue : _indexQueue;
+                tasks.Add(queue.SendMessage(GetMessageDetails(location, metadata)));
             }
 
             if (tasks.Count > 0)

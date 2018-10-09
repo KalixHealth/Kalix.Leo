@@ -59,6 +59,11 @@ namespace Kalix.Leo.Configuration
         public IQueue IndexQueue { get; set; }
 
         /// <summary>
+        /// The queue that will be drained while the primary is empty
+        /// </summary>
+        public IQueue SecondaryIndexQueue { get; set; }
+
+        /// <summary>
         /// The store that will hold the index (Specifically the full text lucene index)
         /// </summary>
         public IOptimisticStore IndexStore { get; set; }

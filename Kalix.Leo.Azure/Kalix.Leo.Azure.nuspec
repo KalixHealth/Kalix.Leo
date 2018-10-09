@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>10.4.0</version>
+    <version>11.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -20,12 +20,13 @@
       10.3.0 Updated WindowsAzure.Storage lib and bumped up dep to core
       10.3.1 Roll back to v9.1.0 of windowsazure.storage due to performance bug
       10.4.0 Use the updated interface for queue visibility
+      11.0.0 Updated devs, bump to match
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="10.2.0" />
-      <dependency id="WindowsAzure.Storage" version="9.1.0" />
+      <dependency id="Kalix.Leo.Core" version="11.0.0" />
+      <dependency id="WindowsAzure.Storage" version="9.3.2" />
     </dependencies>
   </metadata>
 </package>
