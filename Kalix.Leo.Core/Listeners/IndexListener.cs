@@ -193,7 +193,7 @@ namespace Kalix.Leo.Listeners
                                 {
                                     messages[g.Key] = new List<IQueueMessage>();
                                 }
-                                messages[g.Key].AddRange(nextSet);
+                                messages[g.Key].AddRange(g);
                             }
                         }
                         while (messages.Count < maxMessages && totalPending < maxMessages * PendingMessagesFactor);
