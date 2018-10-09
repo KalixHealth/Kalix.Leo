@@ -55,10 +55,11 @@ namespace Kalix.Leo.Azure.Tests.Queue
                 Assert.AreEqual(0, messages.Count);
 
                 await Task.Delay(3000);
-
-                messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
+                
+                messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(10), CancellationToken.None)).ToList();
                 Assert.AreEqual(1, messages.Count);
                 Assert.AreEqual("test", messages[0].Message);
+                Assert.GreaterOrEqual(messages[0].NextVisible.Value, DateTimeOffset.UtcNow.Add(TimeSpan.FromMinutes(9)));
             }
         }
     }
