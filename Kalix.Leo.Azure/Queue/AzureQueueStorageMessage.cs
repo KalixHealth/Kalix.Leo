@@ -7,6 +7,8 @@ namespace Kalix.Leo.Azure.Queue
 {
     public sealed class AzureQueueStorageMessage : IQueueMessage
     {
+        private static readonly TimeSpan MaxVisibilityTimeout = TimeSpan.FromDays(7);
+
         private readonly CloudQueue _queue;
         private readonly CloudQueueMessage _message;
         private readonly Lazy<string> _strMessage;
@@ -23,6 +25,8 @@ namespace Kalix.Leo.Azure.Queue
 
         public Task ExtendVisibility(TimeSpan span)
         {
+            if (span > MaxVisibilityTimeout) { span = MaxVisibilityTimeout; }
+
             return _queue.UpdateMessageAsync(_message, span, MessageUpdateFields.Visibility);
         }
 

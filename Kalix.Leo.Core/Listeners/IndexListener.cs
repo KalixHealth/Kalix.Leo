@@ -99,6 +99,7 @@ namespace Kalix.Leo.Listeners
                         var buffer = DateTimeOffset.Now.Add(VisibilityBuffer);
                         var extendTasks = hash.Values
                             .SelectMany(v => v.Item2)
+                            .Concat(messages.Values.SelectMany(q => q))
                             .Where(m => !m.NextVisible.HasValue || m.NextVisible < buffer)
                             .Select(m => m.ExtendVisibility(VisiblityTimeout));
 
