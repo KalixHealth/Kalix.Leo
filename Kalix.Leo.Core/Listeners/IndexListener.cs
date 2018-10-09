@@ -89,8 +89,22 @@ namespace Kalix.Leo.Listeners
                         // Clean up any finished tasks
                         foreach (var item in hash.ToList())
                         {
-                            if (item.Value.Item1.IsCanceled || item.Value.Item1.IsCompleted || item.Value.Item1.IsFaulted)
+                            var task = item.Value.Item1;
+                            var hasError = task.IsCanceled || task.IsFaulted;
+                            if (task.IsCompleted || hasError)
                             {
+                                // We do the completions here so we don't get overlap with the visibility extensions
+                                if (!hasError)
+                                {
+                                    try
+                                    {
+                                        await Task.WhenAll(item.Value.Item2.Select(m => m.Complete())).ConfigureAwait(false);
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        uncaughtException?.Invoke(new Exception("Could not complete messages", e));
+                                    }
+                                }
                                 hash.Remove(item.Key);
                             }
                         }
@@ -262,8 +276,6 @@ namespace Kalix.Leo.Listeners
                         throw new InvalidOperationException("Could not find indexer for record: container=" + details[0].Container + ", path=" + details[0].BasePath + ", type=" + (type ?? "None") + ":" + details.Count);
                     }
                 }
-
-                await Task.WhenAll(messages.Select(m => m.Complete())).ConfigureAwait(false);
             }
             catch(Exception e)
             {
