@@ -61,6 +61,19 @@ namespace Kalix.Leo.Azure.Tests.Queue
                 Assert.AreEqual("test", messages[0].Message);
                 Assert.GreaterOrEqual(messages[0].NextVisible.Value, DateTimeOffset.UtcNow.Add(TimeSpan.FromMinutes(9)));
             }
+
+            [Test]
+            public async Task ExtendVisibilityAfterListenWorks()
+            {
+                await _azureQueue.SendMessage("test2");
+
+                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
+                Assert.AreEqual(1, messages.Count);
+
+                await messages[0].ExtendVisibility(TimeSpan.FromMinutes(10));
+
+                Assert.GreaterOrEqual(messages[0].NextVisible.Value, DateTimeOffset.UtcNow.Add(TimeSpan.FromMinutes(9)));
+            }
         }
     }
 }
