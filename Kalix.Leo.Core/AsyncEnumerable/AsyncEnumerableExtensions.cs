@@ -182,26 +182,14 @@ namespace System.Collections.Generic
 
         private async Task WaitLoop()
         {
-            if (!await _enumerator.MoveNext(_token).ConfigureAwait(false))
-            {
-                _cts.Token.ThrowIfCancellationRequested();
-                return;
-            }
-
-            _cts.Token.ThrowIfCancellationRequested();
-            await WaitLoop().ConfigureAwait(false);
+            while (!_token.IsCancellationRequested && await _enumerator.MoveNext(_token).ConfigureAwait(false)) { }
         }
 
         public void Dispose()
         {
             if (!RunningTask.IsCompleted)
             {
-                try
-                {
-                    _cts.Cancel();
-                    RunningTask.Wait();
-                }
-                catch (Exception) { }
+                _cts.Cancel();
             }
 
             _cts.Dispose();
