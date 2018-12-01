@@ -15,7 +15,7 @@ namespace Kalix.Leo.Listeners
         private static readonly TimeSpan VisiblityTimeout = TimeSpan.FromMinutes(10);
         private static readonly TimeSpan VisibilityBuffer = TimeSpan.FromMinutes(2);
 
-        private const int PendingMessagesFactor = 10;
+        private const int PendingMessagesFactor = 5;
 
         private readonly IQueue _indexQueue;
         private readonly IQueue _backupIndexQueue;
@@ -72,6 +72,7 @@ namespace Kalix.Leo.Listeners
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
+            var maxTotalMessages = maxMessages * PendingMessagesFactor;
             var token = new CancellationTokenSource();
             var ct = token.Token;
             
@@ -132,7 +133,7 @@ namespace Kalix.Leo.Listeners
                         await Task.WhenAll(extendTasks).ConfigureAwait(false);
 
                         // Wait until we have free slots...
-                        if (hash.Count >= maxMessages)
+                        if (hash.Count >= maxMessages || hash.Sum(h => h.Value.Item2.Count) >= maxTotalMessages)
                         {
                             await Task.Delay(2000).ConfigureAwait(false);
                             continue;
@@ -157,7 +158,7 @@ namespace Kalix.Leo.Listeners
                                 }
                             }
                             
-                            if ((messages.Count + hash.Count) >= maxMessages)
+                            if ((messages.Count + hash.Count) >= maxMessages || (messages.Sum(m => m.Value.Count) + hash.Sum(h => h.Value.Item2.Count)) >= maxTotalMessages)
                             {
                                 await Task.Delay(2000).ConfigureAwait(false);
                                 continue;
@@ -196,7 +197,7 @@ namespace Kalix.Leo.Listeners
                                 messages[g.Key].AddRange(g);
                             }
                         }
-                        while (messages.Count < maxMessages && totalPending < maxMessages * PendingMessagesFactor);
+                        while (messages.Count < maxMessages && totalPending < maxTotalMessages);
 
                         if (shouldDelay && !messages.Any())
                         {
