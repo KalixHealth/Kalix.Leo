@@ -66,7 +66,7 @@ namespace Kalix.Leo
             var id = (long?)propInfo.GetValue(data);
             if (!id.HasValue)
             {
-                id = await _idGenerator.Value.NextId().ConfigureAwait(false);
+                id = await GetNextId().ConfigureAwait(false);
                 propInfo.SetValue(data, id);
             }
 
@@ -143,6 +143,11 @@ namespace Kalix.Leo
         public Task SetInternalIdGenerator(long newId)
         {
             return _idGenerator.Value.SetCurrentId(newId);
+        }
+
+        public Task<long> GetNextId()
+        {
+            return _idGenerator.Value.NextId();
         }
 
         private StoreLocation GetLocation(long? id)

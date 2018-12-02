@@ -114,6 +114,11 @@ namespace Kalix.Leo
         /// <param name="newId">Id to set the generator to</param>
         /// <returns>Task when the generator has been changed</returns>
         Task SetInternalIdGenerator(long newId);
+
+        /// <summary>
+        /// Manually get the next id for an object, this will always return a unique value each call
+        /// </summary>
+        Task<long> GetNextId();
     }
 
     /// <summary>
