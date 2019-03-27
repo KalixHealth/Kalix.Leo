@@ -80,7 +80,7 @@ namespace System.Collections.Generic
 
             ~YieldAsyncEnumerator()
             {
-                DisposeImpl();
+                DisposeImpl(false);
             }
 
             public T Current { get; private set; }
@@ -138,11 +138,11 @@ namespace System.Collections.Generic
 
             public void Dispose()
             {
-                DisposeImpl();
+                DisposeImpl(true);
                 GC.SuppressFinalize(this);
             }
 
-            void DisposeImpl()
+            void DisposeImpl(bool shouldThrow)
             {
                 var y = _yielder;
                 if (y != null)
@@ -154,7 +154,7 @@ namespace System.Collections.Generic
                 var t = _task;
                 if (t != null)
                 {
-                    if (t.IsFaulted)
+                    if (shouldThrow && t.IsFaulted)
                     {
                         var b = t.Exception.GetBaseException();
                         if (!(b is AsyncYielderDisposedException || b is TaskCanceledException))
