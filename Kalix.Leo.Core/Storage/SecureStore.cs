@@ -288,7 +288,7 @@ namespace Kalix.Leo.Storage
 
             if (options.HasFlag(SecureStoreOptions.Index))
             {
-                tasks.Add(ForceIndex(location, metadata));
+                tasks.Add(ForceIndex(location, mdata));
             }
 
             if (tasks.Count > 0)
