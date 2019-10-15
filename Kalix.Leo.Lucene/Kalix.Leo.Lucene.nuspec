@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Lucene</id>
-    <version>11.0.0</version>
+    <version>11.0.1</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -16,12 +16,13 @@
 10.1.0 Match core version
 10.2.0 Match core version
 11.0.0 Bump to match core version
+11.0.1 Better error throwing for not found files
     </releaseNotes>
     <copyright>Copyright 2014</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
       <dependency id="Lucene.Net" version="3.0.3" />
-      <dependency id="Kalix.Leo.Core" version="11.0.0" />
+      <dependency id="Kalix.Leo.Core" version="11.0.8" />
       <dependency id="Lucene.Net.Contrib.Management" version="1.0.3" />
     </dependencies>
   </metadata>

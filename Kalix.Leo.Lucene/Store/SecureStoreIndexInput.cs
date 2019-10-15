@@ -50,7 +50,7 @@ namespace Kalix.Leo.Lucene.Store
                 var metadata = await store.GetMetadata(location).ConfigureAwait(false);
                 if (metadata == null)
                 {
-                    throw new System.IO.FileNotFoundException(_name);
+                    throw new System.IO.FileNotFoundException($"{location.Container}/{location.BasePath} -> {_name}");
                 }
 
                 var blobLength = metadata.ContentLength ?? 0;
@@ -93,7 +93,7 @@ namespace Kalix.Leo.Lucene.Store
                     var data = await store.LoadData(location, null, encryptor).ConfigureAwait(false);
                     if (data == null)
                     {
-                        throw new System.IO.FileNotFoundException(_name);
+                        throw new System.IO.FileNotFoundException($"{location.Container}/{location.BasePath} -> {_name}");
                     }
                     await data.Stream.CopyToStream(fileStream, CancellationToken.None).ConfigureAwait(false);
                 }

@@ -363,7 +363,7 @@ namespace Kalix.Leo.Azure.Storage
                 }
                 else
                 {
-                    throw e.Wrap(blob.Name);
+                    throw e.Wrap($"{blob.Container.Name}/${blob.Name}");
                 }
             }
 
@@ -397,7 +397,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
                     else
                     {
-                        throw e.Wrap(blob.Name);
+                        throw e.Wrap($"{blob.Container.Name}/${blob.Name}");
                     }
                 }
             }
@@ -501,7 +501,7 @@ namespace Kalix.Leo.Azure.Storage
                     else
                     {
                         // Might have been a different error?
-                        throw exc.Wrap(blob.Name);
+                        throw exc.Wrap($"{blob.Container.Name}/${blob.Name}");
                     }
                 }
                 else
@@ -513,7 +513,7 @@ namespace Kalix.Leo.Azure.Storage
                     }
 
                     // Might have been a different error?
-                    throw exc.Wrap(blob.Name);
+                    throw exc.Wrap($"{blob.Container.Name}/${blob.Name}");
                 }
             }
 

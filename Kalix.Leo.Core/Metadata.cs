@@ -179,5 +179,10 @@ namespace Kalix.Leo
         /// When set to true during a save, will push the index to the secondary queue
         /// </summary>
         public bool UseSecondaryIndexQueue { get; set; }
+
+        /// <summary>
+        /// When set to true during a save, will not send an index message
+        /// </summary>
+        public bool DoNotIndex { get; set; }
     }
 }

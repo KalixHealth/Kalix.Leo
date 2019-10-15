@@ -21,7 +21,7 @@ namespace Kalix.Leo.Azure.Storage
                     return default(T);
                 }
 
-                throw e.Wrap(blob.Name);
+                throw e.Wrap($"{blob.Container.Name}/${blob.Name}");
             }
         }
 
@@ -40,7 +40,7 @@ namespace Kalix.Leo.Azure.Storage
                     return false;
                 }
 
-                throw e.Wrap(blob.Name);
+                throw e.Wrap($"{blob.Container.Name}/${blob.Name}");
             }
         }
     }

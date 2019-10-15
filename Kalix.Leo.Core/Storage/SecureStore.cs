@@ -72,8 +72,15 @@ namespace Kalix.Leo.Storage
             }
 
             metadata = metadata ?? new Metadata();
-            var queue = _secondaryIndexQueue != null && metadata.UseSecondaryIndexQueue ? _secondaryIndexQueue : _indexQueue;
-            return queue.SendMessage(GetMessageDetails(location, metadata));
+            if (metadata.DoNotIndex)
+            {
+                return Task.CompletedTask;
+            }   
+            else
+            {
+                var queue = _secondaryIndexQueue != null && metadata.UseSecondaryIndexQueue ? _secondaryIndexQueue : _indexQueue;
+                return queue.SendMessage(GetMessageDetails(location, metadata));
+            }
         }
 
         public async Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null)
@@ -312,7 +319,7 @@ namespace Kalix.Leo.Storage
                 tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
             }
 
-            if (options.HasFlag(SecureStoreOptions.Index))
+            if (options.HasFlag(SecureStoreOptions.Index) && !(metadata?.DoNotIndex ?? false))
             {
                 if (_indexQueue == null)
                 {
