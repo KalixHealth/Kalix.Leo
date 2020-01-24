@@ -14,10 +14,10 @@ namespace Kalix.Leo.Core.Tests.AsyncEnumerable
         {
             var stopwatch = Stopwatch.StartNew();
             var time = TimeSpan.FromSeconds(0.3);
-            var enumerable = AsyncEnumerableEx.CreateTimer(time).GetEnumerator();
-            enumerable.MoveNext().Wait();
-            enumerable.MoveNext().Wait();
-            enumerable.MoveNext().Wait();
+            var enumerable = AsyncEnumerableEx.CreateTimer(time).GetAsyncEnumerator();
+            enumerable.MoveNextAsync().GetAwaiter().GetResult();
+            enumerable.MoveNextAsync().GetAwaiter().GetResult();
+            enumerable.MoveNextAsync().GetAwaiter().GetResult();
             stopwatch.Stop();
 
             Assert.GreaterOrEqual(stopwatch.Elapsed, time + time + time);
@@ -34,7 +34,7 @@ namespace Kalix.Leo.Core.Tests.AsyncEnumerable
 
             Assert.AreEqual(true, finished);
             Assert.AreEqual(true, enumerable.RunningTask.IsCompleted);
-            Assert.AreEqual(true, enumerable.RunningTask.IsCanceled);
+            Assert.AreEqual(false, enumerable.RunningTask.IsCanceled);
         }
     }
 }

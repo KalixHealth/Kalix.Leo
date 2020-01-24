@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Azure</id>
-    <version>11.0.5</version>
+    <version>12.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -23,11 +23,12 @@
       11.0.0 Updated devs, bump to match
       11.0.4 Reduced dependency to azure storage lib, latest seems like it is causing issues
       11.0.5 Add container in error messages
+      12.0.0 Updated dependencies
     </releaseNotes>
-    <copyright>Copyright 2014</copyright>
+    <copyright>Copyright 2019</copyright>
     <tags>Azure Blob Table S3 Encryption Compression Lucene</tags>
     <dependencies>
-      <dependency id="Kalix.Leo.Core" version="11.0.8" />
+      <dependency id="Kalix.Leo.Core" version="12.0.0" />
       <dependency id="WindowsAzure.Storage" version="9.1.0" />
     </dependencies>
   </metadata>

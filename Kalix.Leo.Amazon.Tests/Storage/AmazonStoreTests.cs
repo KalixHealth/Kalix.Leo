@@ -192,7 +192,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
 
                 WriteData(location2, null, data);
 
-                var snapshots = _store.FindSnapshots(_location).ToList().Result;
+                var snapshots = _store.FindSnapshots(_location).ToListAsync().Result;
 
                 Assert.AreEqual(1, snapshots.Count());
             }
@@ -208,7 +208,7 @@ namespace Kalix.Leo.Amazon.Tests.Storage
                 var m = new Metadata();
                 m["metadata1"] = "metadata";
                 WriteData(_location, m, data);
-                var snapshots = _store.FindSnapshots(_location).ToList().Result;
+                var snapshots = _store.FindSnapshots(_location).ToListAsync().Result;
                 Assert.AreEqual(1, snapshots.Count);
 
                 var shapshot = snapshots.Single().Id;

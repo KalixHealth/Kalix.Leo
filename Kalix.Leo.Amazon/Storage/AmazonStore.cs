@@ -249,7 +249,7 @@ namespace Kalix.Leo.Amazon.Storage
                     return _client.DeleteObjectsAsync(delRequest);
                 })
                 .Unwrap()
-                .LastOrDefault()
+                .LastOrDefaultAsync()
                 .ConfigureAwait(false);
         }
 
@@ -280,7 +280,7 @@ namespace Kalix.Leo.Amazon.Storage
                     return _client.DeleteObjectsAsync(delRequest);
                 })
                 .Unwrap()
-                .LastOrDefault()
+                .LastOrDefaultAsync()
                 .ConfigureAwait(false); // Make sure we do not throw an exception if no snapshots to delete;
         }
 
@@ -338,7 +338,7 @@ namespace Kalix.Leo.Amazon.Storage
 
         private IAsyncEnumerable<S3ObjectVersion> ListObjects(string prefix)
         {
-            return AsyncEnumerableEx.Create<S3ObjectVersion>(async y =>
+            return System.Collections.Generic.AsyncEnumerableEx.Create<S3ObjectVersion>(async y =>
             {
                 var request = new ListVersionsRequest
                 {

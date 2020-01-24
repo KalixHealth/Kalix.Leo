@@ -68,16 +68,22 @@ namespace Kalix.Leo.Lucene.Tests
             string error = null;
             int numDocs = 0;
 
-            using (var reading = AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(0.5))
+            var reading = System.Collections.Generic.AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(0.5))
                 .Select(t => _indexer.SearchDocuments(i =>
                 {
                     var query = new TermQuery(new Term("words", "ipsum"));
                     return i.Search(query, 20);
                 }))
                 .Select(d => numDocs += d.Count())
-                .TakeUntilDisposed(null, t => { if (t.IsFaulted) { error = t.Exception.GetBaseException().Message; } }))
+                .TakeUntilDisposed(null, t => { if (t.IsFaulted) { error = t.Exception.GetBaseException().Message; } });
+
+            try
             {
                 _indexer.WriteToIndex(docs, true).Wait();
+            }
+            finally
+            {
+                reading.DisposeAsync().GetAwaiter().GetResult();
             }
 
             Assert.AreEqual(null, error);

@@ -112,34 +112,36 @@ namespace System.Collections.Generic
                 this.src = src;
             }
 
-            public IAsyncEnumerator<T> GetEnumerator()
+            public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default(CancellationToken))
             {
-                return new UnwrapEnumerator<T>(src);
+                return new UnwrapEnumerator<T>(src, cancellationToken);
             }
         }
 
         private sealed class UnwrapEnumerator<T> : IAsyncEnumerator<T>
         {
+            CancellationToken _token;
             IAsyncEnumerator<Task<T>> src;
             T current;
 
             public T Current { get { return current; } }
 
-            public UnwrapEnumerator(IAsyncEnumerable<Task<T>> src)
+            public UnwrapEnumerator(IAsyncEnumerable<Task<T>> src, CancellationToken token)
             {
                 Debug.Assert(src != null);
 
-                this.src = src.GetEnumerator();
+                _token = token;
+                this.src = src.GetAsyncEnumerator(token);
             }
 
-            public async Task<bool> MoveNext(CancellationToken cancellationToken)
+            public async ValueTask<bool> MoveNextAsync()
             {
                 if (src == null)
                 {
                     throw new ObjectDisposedException("UnwrapEnumerator");
                 }
 
-                if (await src.MoveNext(cancellationToken).ConfigureAwait(false))
+                if (await src.MoveNextAsync().ConfigureAwait(false))
                 {
                     current = await src.Current.ConfigureAwait(false);
                     return true;
@@ -148,18 +150,23 @@ namespace System.Collections.Generic
                 return false;
             }
 
-            public void Dispose()
+            public ValueTask DisposeAsync()
             {
                 if (src != null)
                 {
-                    src.Dispose();
+                    var result = src.DisposeAsync();
                     src = null;
+                    return result;
+                }
+                else
+                {
+                    return new ValueTask();
                 }
             }
         }
     }
 
-    public sealed class EnumerableCanceller<T> : IDisposable
+    public sealed class EnumerableCanceller<T> : IAsyncDisposable
     {
         private readonly IAsyncEnumerator<T> _enumerator;
         private readonly CancellationTokenSource _cts;
@@ -167,9 +174,9 @@ namespace System.Collections.Generic
 
         public EnumerableCanceller(IAsyncEnumerable<T> e, TimeSpan? maxWaitTime, Action<Task> onFinish)
         {
-            _enumerator = e.GetEnumerator();
             _cts = maxWaitTime.HasValue ? new CancellationTokenSource(maxWaitTime.Value) : new CancellationTokenSource();
             _token = _cts.Token;
+            _enumerator = e.GetAsyncEnumerator(_token);
 
             RunningTask = WaitLoop().ContinueWith(t =>
             {
@@ -182,10 +189,10 @@ namespace System.Collections.Generic
 
         private async Task WaitLoop()
         {
-            while (!_token.IsCancellationRequested && await _enumerator.MoveNext(_token).ConfigureAwait(false)) { }
+            while (!_token.IsCancellationRequested && await _enumerator.MoveNextAsync().ConfigureAwait(false)) { }
         }
 
-        public void Dispose()
+        public async ValueTask DisposeAsync()
         {
             if (!RunningTask.IsCompleted)
             {
@@ -193,7 +200,7 @@ namespace System.Collections.Generic
             }
 
             _cts.Dispose();
-            _enumerator.Dispose();
+            await _enumerator.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

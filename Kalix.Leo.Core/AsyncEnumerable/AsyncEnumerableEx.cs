@@ -60,22 +60,24 @@ namespace System.Collections.Generic
                 this.func = func;
             }
 
-            public IAsyncEnumerator<T> GetEnumerator()
+            public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default(CancellationToken))
             {
-                return new YieldAsyncEnumerator<T>(func);
+                return new YieldAsyncEnumerator<T>(func, cancellationToken);
             }
         }
 
         private sealed class YieldAsyncEnumerator<T> : IAsyncEnumerator<T>
         {
+            CancellationToken _token;
             Func<AsyncYielder<T>, Task> _func;
             AsyncYielder<T> _yielder;
             Task _task;
 
-            public YieldAsyncEnumerator(Func<AsyncYielder<T>, Task> func)
+            public YieldAsyncEnumerator(Func<AsyncYielder<T>, Task> func, CancellationToken token)
             {
                 Debug.Assert(func != null);
                 _func = func;
+                _token = token;
             }
 
             ~YieldAsyncEnumerator()
@@ -85,12 +87,12 @@ namespace System.Collections.Generic
 
             public T Current { get; private set; }
 
-            public async Task<bool> MoveNext(CancellationToken cancellationToken)
+            public async ValueTask<bool> MoveNextAsync()
             {
                 if (_task != null)
                 {
                     // Second MoveNext() call. Tell Yielder to let the function continue.
-                    _yielder.CancellationToken = cancellationToken;
+                    _yielder.CancellationToken = _token;
                     _yielder.Continue();
                 }
                 else
@@ -103,7 +105,7 @@ namespace System.Collections.Generic
                     // First MoveNext() call. Start the task.
 
                     _yielder = new AsyncYielder<T>();
-                    _yielder.CancellationToken = cancellationToken;
+                    _yielder.CancellationToken = _token;
 
                     _task = _func(_yielder);
                     _func = null;
@@ -117,7 +119,7 @@ namespace System.Collections.Generic
                 if (finished != _task && y != null)
                 {
                     // the function returned a result.
-                    Current = y.YieldTask.Result;
+                    Current = await y.YieldTask.ConfigureAwait(false);
                     return true;
                 }
 
@@ -136,10 +138,11 @@ namespace System.Collections.Generic
                 return false;
             }
 
-            public void Dispose()
+            public ValueTask DisposeAsync()
             {
                 DisposeImpl(true);
                 GC.SuppressFinalize(this);
+                return new ValueTask(Task.CompletedTask);
             }
 
             void DisposeImpl(bool shouldThrow)

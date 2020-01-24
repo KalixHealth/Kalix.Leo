@@ -448,20 +448,30 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void LockSuceedsEvenIfNoFile()
             {
-                using(var l = _store.Lock(_location).Result)
+                var l = _store.Lock(_location).Result;
+                try
                 {
                     Assert.IsNotNull(l);
+                }
+                finally
+                {
+                    l.DisposeAsync().GetAwaiter().GetResult();
                 }
             }
 
             [Test]
             public void IfAlreadyLockedOtherLocksFail()
             {
-                using(var l = _store.Lock(_location).Result)
-                using(var l2 = _store.Lock(_location).Result)
+                var l = _store.Lock(_location).Result;
+                var l2 = _store.Lock(_location).Result;
+                try
                 {
                     Assert.IsNotNull(l);
                     Assert.IsNull(l2);
+                }
+                finally
+                {
+                    l.DisposeAsync().GetAwaiter().GetResult();
                 }
             }
 
@@ -470,7 +480,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
             {
                 Assert.Throws<LockException>(() =>
                 {
-                    using (var l = _store.Lock(_location).Result)
+                    var l = _store.Lock(_location).Result;
+                    try
                     {
                         var data = AzureTestsHelper.RandomData(1);
                         try
@@ -481,6 +492,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                         {
                             throw e.InnerException;
                         }
+                    }
+                    finally
+                    {
+                        l.DisposeAsync().GetAwaiter().GetResult();
                     }
                 });
             }

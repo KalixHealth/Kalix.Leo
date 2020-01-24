@@ -50,7 +50,7 @@ namespace Kalix.Leo.Azure.Table
 
         public Task<T> FirstOrDefault()
         {
-            return ExecuteQuery(_filter, 1).FirstOrDefault();
+            return ExecuteQuery(_filter, 1).FirstOrDefaultAsync().AsTask();
         }
 
         public Task<int> Count()
@@ -175,7 +175,7 @@ namespace Kalix.Leo.Azure.Table
 
         private IAsyncEnumerable<T> ExecuteQuery(string filter, int? take)
         {
-            return AsyncEnumerableEx.Create<T>(async y =>
+            return System.Collections.Generic.AsyncEnumerableEx.Create<T>(async y =>
             {
                 var query = new CT.TableQuery<FatEntity>();
                 if (filter != null)

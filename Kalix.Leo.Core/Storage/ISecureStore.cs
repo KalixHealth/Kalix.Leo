@@ -32,7 +32,7 @@ namespace Kalix.Leo.Storage
         Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null);
         Task BackupAll(string container, string prefix = null);
 
-        Task<IDisposable> Lock(StoreLocation location);
+        Task<IAsyncDisposable> Lock(StoreLocation location);
         Task RunOnce(StoreLocation location, Func<Task> action);
         IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
 

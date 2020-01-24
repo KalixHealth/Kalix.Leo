@@ -9,7 +9,7 @@ namespace Kalix.Leo.Lucene.Store
         private readonly ISecureStore _store;
         private readonly StoreLocation _location;
 
-        private IDisposable _lock;
+        private IAsyncDisposable _lock;
 
         public SecureStoreLock(ISecureStore store, StoreLocation location)
         {
@@ -37,7 +37,7 @@ namespace Kalix.Leo.Lucene.Store
         {
             if(_lock != null)
             {
-                _lock.Dispose();
+                _lock.DisposeAsync().GetAwaiter().GetResult();
                 _lock = null;
             }
         }

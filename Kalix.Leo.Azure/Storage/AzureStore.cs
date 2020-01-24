@@ -72,7 +72,7 @@ namespace Kalix.Leo.Azure.Storage
             return SaveDataInternal(location, metadata, audit, savingFunc, token, true);
         }
 
-        public async Task<IDisposable> Lock(StoreLocation location)
+        public async Task<IAsyncDisposable> Lock(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
             var l = await LockInternal(blob).ConfigureAwait(false);
@@ -89,7 +89,8 @@ namespace Kalix.Leo.Azure.Storage
                 var lease = await LockInternal(blob).ConfigureAwait(false);
                 if (lease != null)
                 {
-                    using (var arl = lease.Item1)
+                    var arl = lease.Item1;
+                    try
                     {
                         // Once we have the lock make sure we are not done!
                         if (!blob.Metadata.ContainsKey("progress") || blob.Metadata["progress"] != "done")
@@ -98,6 +99,10 @@ namespace Kalix.Leo.Azure.Storage
                             blob.Metadata["progress"] = "done";
                             await blob.ExecuteWrap(b => b.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null)).ConfigureAwait(false);
                         }
+                    }
+                    finally
+                    {
+                        if (arl != null) { await arl.DisposeAsync().ConfigureAwait(false); }
                     }
                 }
                 else
@@ -109,7 +114,7 @@ namespace Kalix.Leo.Azure.Storage
 
         public IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null)
         {
-            return AsyncEnumerableEx.Create<bool>(async (y) =>
+            return System.Collections.Generic.AsyncEnumerableEx.Create<bool>(async (y) =>
             {
                 var blob = GetBlockBlob(location);
 
@@ -124,7 +129,8 @@ namespace Kalix.Leo.Azure.Storage
                         var lease = await LockInternal(blob).ConfigureAwait(false);
                         if (lease != null)
                         {
-                            using (var arl = lease.Item1)
+                            var arl = lease.Item1;
+                            try
                             {
                                 await blob.ExecuteWrap(b => b.FetchAttributesAsync(y.CancellationToken)).ConfigureAwait(false);
                                 if (blob.Metadata.ContainsKey("lastPerformed"))
@@ -138,6 +144,10 @@ namespace Kalix.Leo.Azure.Storage
                                     blob.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
                                     await blob.ExecuteWrap(b => b.SetMetadataAsync(AccessCondition.GenerateLeaseCondition(lease.Item2), null, null, y.CancellationToken)).ConfigureAwait(false);
                                 }
+                            }
+                            finally
+                            {
+                                if (arl != null) { await arl.DisposeAsync().ConfigureAwait(false); }
                             }
                         }
                         timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
@@ -310,7 +320,7 @@ namespace Kalix.Leo.Azure.Storage
             // Clean up the prefix if required
             prefix = prefix == null ? null : SafePath.MakeSafeFilePath(prefix);
 
-            return AsyncEnumerableEx.Create<ICloudBlob>(async (y) =>
+            return System.Collections.Generic.AsyncEnumerableEx.Create<ICloudBlob>(async (y) =>
             {
                 BlobContinuationToken token = new BlobContinuationToken();
 
@@ -340,7 +350,7 @@ namespace Kalix.Leo.Azure.Storage
             });
         }
 
-        private async Task<Tuple<IDisposable, string>> LockInternal(ICloudBlob blob)
+        private async Task<Tuple<IAsyncDisposable, string>> LockInternal(ICloudBlob blob)
         {
             string leaseId;
 
@@ -405,7 +415,7 @@ namespace Kalix.Leo.Azure.Storage
             var condition = AccessCondition.GenerateLeaseCondition(leaseId);
 
             // Every 30 secs keep the lock renewed
-            var keepAlive = AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(30))
+            var keepAlive = System.Collections.Generic.AsyncEnumerableEx.CreateTimer(TimeSpan.FromSeconds(30))
                 .Select(t =>
                 {
                     LeoTrace.WriteLine("Renewed Lease: " + blob.Name);
@@ -425,7 +435,7 @@ namespace Kalix.Leo.Azure.Storage
                 });
 
 
-            return Tuple.Create((IDisposable)keepAlive, leaseId);
+            return Tuple.Create((IAsyncDisposable)keepAlive, leaseId);
         }
 
         private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
@@ -569,7 +579,7 @@ namespace Kalix.Leo.Azure.Storage
                     var snapBlob = await ListBlobs(blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata)
                         .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
                         .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
-                        .LastOrDefault()
+                        .LastOrDefaultAsync()
                         .ConfigureAwait(false);
 
                     metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);

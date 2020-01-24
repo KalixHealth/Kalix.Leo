@@ -370,13 +370,13 @@ namespace Kalix.Leo.Indexing
         {
             encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
 
-            return AsyncEnumerableEx.Create((Func<AsyncYielder<T>, Task>)(async y =>
+            return System.Collections.Generic.AsyncEnumerableEx.Create((Func<AsyncYielder<T>, Task>)(async y =>
             {
                 var enc = await encryptor.Value.ConfigureAwait(false);
-                var enumerator = factory(enc).GetEnumerator();
+                var enumerator = factory(enc).GetAsyncEnumerator(y.CancellationToken);
                 while(!y.CancellationToken.IsCancellationRequested)
                 {
-                    if(!await enumerator.MoveNext(y.CancellationToken).ConfigureAwait(false))
+                    if(!await enumerator.MoveNextAsync().ConfigureAwait(false))
                     {
                         break;
                     }

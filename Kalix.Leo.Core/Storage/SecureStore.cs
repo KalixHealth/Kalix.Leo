@@ -100,7 +100,7 @@ namespace Kalix.Leo.Storage
                     return (_secondaryIndexQueue ?? _indexQueue).SendMessage(GetMessageDetails(f.Location, f.Metadata));
                 })
                 .Unwrap()
-                .LastOrDefault()
+                .LastOrDefaultAsync()
                 .ConfigureAwait(false);
         }
 
@@ -114,7 +114,7 @@ namespace Kalix.Leo.Storage
             await FindFiles(container, prefix)
                 .Select(f => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
                 .Unwrap()
-                .LastOrDefault()
+                .LastOrDefaultAsync()
                 .ConfigureAwait(false);
         }
 
@@ -381,7 +381,7 @@ namespace Kalix.Leo.Storage
             }
         }
 
-        public Task<IDisposable> Lock(StoreLocation location)
+        public Task<IAsyncDisposable> Lock(StoreLocation location)
         {
             return _store.Lock(location);
         }
