@@ -2,7 +2,7 @@
 <package >
   <metadata>
     <id>Kalix.Leo.Core</id>
-    <version>12.0.0</version>
+    <version>13.0.0</version>
     <authors>Felix Jorkowski (jorkowski.com)</authors>
     <owners>Kalix (www.kalixhealth.com)</owners>
     <licenseUrl>http://www.ohloh.net/licenses/mslpl</licenseUrl>
@@ -20,12 +20,14 @@
 11.0.8 Added DoNotIndex flag
 11.0.9 Using wrong meta in method
 12.0.0 Updated dependencies
+13.0.0 Upgraded to .net 4.7.2 and use package references
     </releaseNotes>
     <copyright>Copyright 2019</copyright>
     <tags>Azure Blob Table S3 Encryption Compression</tags>
     <dependencies>
-      <dependency id="System.Interactive.Async" version="4.0.0" />
+      <dependency id="System.Linq.Async" version="4.0.0" />
       <dependency id="Newtonsoft.Json" version="12.0.3" />
+      <dependency id="System.Diagnostics.Debug" version="4.3.0" />
     </dependencies>
   </metadata>
 </package>

@@ -234,23 +234,7 @@ namespace Kalix.Leo.Amazon.Storage
                 .Where(v => v.Key == key) // Make sure we are not getting anything unexpected
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
-            // Max 1000 objects to delete at once
-            await snapshots
-                .Buffer(1000)
-                .Select(d =>
-                {
-                    var delRequest = new DeleteObjectsRequest
-                    {
-                        BucketName = _bucket,
-                        Objects = d.ToList(),
-                        Quiet = true
-                    };
-
-                    return _client.DeleteObjectsAsync(delRequest);
-                })
-                .Unwrap()
-                .LastOrDefaultAsync()
-                .ConfigureAwait(false);
+            await DeleteObjects(snapshots).ConfigureAwait(false);
         }
 
         public Task CreateContainerIfNotExists(string container)
@@ -266,22 +250,7 @@ namespace Kalix.Leo.Amazon.Storage
             var snapshots = ListObjects(container + "/")
                 .Select(v => new KeyVersion { Key = v.Key, VersionId = v.VersionId });
 
-            await snapshots
-                .Buffer(1000)
-                .Select(d =>
-                {
-                    var delRequest = new DeleteObjectsRequest
-                    {
-                        BucketName = _bucket,
-                        Objects = d.ToList(),
-                        Quiet = true
-                    };
-
-                    return _client.DeleteObjectsAsync(delRequest);
-                })
-                .Unwrap()
-                .LastOrDefaultAsync()
-                .ConfigureAwait(false); // Make sure we do not throw an exception if no snapshots to delete;
+            await DeleteObjects(snapshots).ConfigureAwait(false);
         }
 
         private Metadata ActualMetadata(MetadataCollection m, string versionId, DateTime modified, long size, string contentType, string eTag)
@@ -317,6 +286,42 @@ namespace Kalix.Leo.Amazon.Storage
             }
 
             return string.Join("\\", list);
+        }
+
+        private async Task DeleteObjects(IAsyncEnumerable<KeyVersion> snapshots)
+        {
+            // Max 1000 objects to delete at once
+            var lastSet = await snapshots
+                .AggregateAwaitAsync(new List<KeyVersion>(), async (keys, k) =>
+                {
+                    keys.Add(k);
+                    if (keys.Count == 1000)
+                    {
+                        var delRequest = new DeleteObjectsRequest
+                        {
+                            BucketName = _bucket,
+                            Objects = keys,
+                            Quiet = true
+                        };
+
+                        await _client.DeleteObjectsAsync(delRequest).ConfigureAwait(false);
+                        keys.Clear();
+                    }
+                    return keys;
+                })
+                .ConfigureAwait(false);
+
+            if (lastSet.Any())
+            {
+                var delRequest = new DeleteObjectsRequest
+                {
+                    BucketName = _bucket,
+                    Objects = lastSet,
+                    Quiet = true
+                };
+
+                await _client.DeleteObjectsAsync(delRequest).ConfigureAwait(false);
+            }
         }
 
         private async Task<Snapshot> GetSnapshotFromVersion(S3ObjectVersion version)

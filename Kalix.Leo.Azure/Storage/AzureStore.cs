@@ -578,8 +578,7 @@ namespace Kalix.Leo.Azure.Storage
                     // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
                     var snapBlob = await ListBlobs(blob.Container, blob.Name, BlobListingDetails.Snapshots | BlobListingDetails.Metadata)
                         .Where(b => b.IsSnapshot && b.Uri == blob.Uri && b.SnapshotTime.HasValue)
-                        .Scan((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
-                        .LastOrDefaultAsync()
+                        .AggregateAsync((a, b) => a.SnapshotTime.Value > b.SnapshotTime.Value ? a : b)
                         .ConfigureAwait(false);
 
                     metadata.Snapshot = snapBlob == null ? null : snapBlob.SnapshotTime.Value.UtcTicks.ToString(CultureInfo.InvariantCulture);
