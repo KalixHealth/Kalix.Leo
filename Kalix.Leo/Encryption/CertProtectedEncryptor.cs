@@ -1,7 +1,7 @@
 ﻿using Kalix.ApiCrypto.AES;
-using Kalix.ApiCrypto.RSA;
 using Kalix.Leo.Storage;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,13 +14,13 @@ namespace Kalix.Leo.Encryption
         private readonly AESEncryptor _encryptor;
         private readonly string _partition;
 
-        public static async Task<IEncryptor> CreateEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSAServiceProvider rsaCert)
+        public static async Task<IEncryptor> CreateEncryptor(IOptimisticStore store, StoreLocation keyLocation, RSA rsaCert)
         {
             bool isFound;
             byte[] blob;
             do
             {
-                var data = await store.LoadData(keyLocation).ConfigureAwait(false);
+                var data = await store.LoadData(keyLocation);
                 if (data == null)
                 {
                     // Have to create a new key
@@ -31,14 +31,14 @@ namespace Kalix.Leo.Encryption
                     // This will catch rare cases where two server calls may try to create two keys
                     var result = await store.TryOptimisticWrite(keyLocation, null, null, async (s) =>
                     {
-                        await s.WriteAsync(blob, 0, blob.Length, ct).ConfigureAwait(false);
+                        await s.WriteAsync(blob, 0, blob.Length, ct);
                         return blob.Length;
-                    }, ct).ConfigureAwait(false);
+                    }, ct);
                     isFound = result.Result;
                 }
                 else
                 {
-                    blob = await data.Stream.ReadBytes().ConfigureAwait(false);
+                    blob = await data.Stream.ReadBytes();
                     isFound = true;
                 }
             } while (!isFound);

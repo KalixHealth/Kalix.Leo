@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -28,7 +29,7 @@ namespace Kalix.Leo.Queue
         /// <returns>
         /// An list of queue messages - might be empty (task may take some time to return due to long polling of messages...)
         /// </returns>
-        Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, TimeSpan visibility, CancellationToken token);
+        IAsyncEnumerable<IQueueMessage> ListenForMessages(int maxMessages, TimeSpan visibility, TimeSpan delayWhenEmpty, Action<Exception> uncaughtException = null, CancellationToken token = default);
 
         /// <summary>
         /// Make sure that the queue has been created

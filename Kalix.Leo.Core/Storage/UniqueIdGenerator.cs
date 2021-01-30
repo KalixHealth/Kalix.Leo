@@ -89,9 +89,9 @@ namespace Kalix.Leo.Storage
             var ct = CancellationToken.None;
             await _store.SaveData(_location, null, null, async (s) => 
             {
-                await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
+                await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct);
                 return limitBytes.Length;
-            }, ct).ConfigureAwait(false);
+            }, ct);
 
             // This will force a refresh on the Next
             _upperIdLimit = 0;
@@ -106,10 +106,10 @@ namespace Kalix.Leo.Storage
             {
                 string data = null;
 
-                var dataStream = await _store.LoadData(_location).ConfigureAwait(false);
+                var dataStream = await _store.LoadData(_location);
                 if (dataStream != null)
                 {
-                    var all = await dataStream.Stream.ReadBytes().ConfigureAwait(false);
+                    var all = await dataStream.Stream.ReadBytes();
                     data = Encoding.UTF8.GetString(all, 0, all.Length);
                 }
 
@@ -137,9 +137,9 @@ namespace Kalix.Leo.Storage
                 var ct = CancellationToken.None;
                 var result = await _store.TryOptimisticWrite(_location, m, null, async (s) =>
                 {
-                    await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct).ConfigureAwait(false);
+                    await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct);
                     return limitBytes.Length;
-                }, ct).ConfigureAwait(false);
+                }, ct);
 
                 if (result.Result)
                 {

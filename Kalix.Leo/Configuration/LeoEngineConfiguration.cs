@@ -1,10 +1,10 @@
-﻿using Kalix.ApiCrypto.RSA;
-using Kalix.Leo.Compression;
+﻿using Kalix.Leo.Compression;
 using Kalix.Leo.Queue;
 using Kalix.Leo.Storage;
 using Kalix.Leo.Table;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 
 namespace Kalix.Leo.Configuration
 {
@@ -41,7 +41,7 @@ namespace Kalix.Leo.Configuration
         /// <summary>
         /// The RSA certificate that can decode the key container (needs to contain a private key)
         /// </summary>
-        public RSAServiceProvider RsaCert { get; set; }
+        public RSA RsaCert { get; set; }
 
         /// <summary>
         /// The queue that will be used to send backup messages
@@ -62,16 +62,6 @@ namespace Kalix.Leo.Configuration
         /// The queue that will be drained while the primary is empty
         /// </summary>
         public IQueue SecondaryIndexQueue { get; set; }
-
-        /// <summary>
-        /// The store that will hold the index (Specifically the full text lucene index)
-        /// </summary>
-        public IOptimisticStore IndexStore { get; set; }
-
-        /// <summary>
-        /// If set, then the underlying Lucene engine will use a MMapDirectoy instead of a RamDirectory as a cache in the given folder
-        /// </summary>
-        public string LuceneCacheBasePath { get; set; }
 
         /// <summary>
         /// An optional property to be able to hook into any uncaught exceptions in the leo engine

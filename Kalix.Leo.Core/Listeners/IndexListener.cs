@@ -7,15 +7,15 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
 
 namespace Kalix.Leo.Listeners
 {
     public class IndexListener : IIndexListener
     {
         private static readonly TimeSpan VisiblityTimeout = TimeSpan.FromMinutes(10);
-        private static readonly TimeSpan VisibilityBuffer = TimeSpan.FromMinutes(2);
-
-        private const int PendingMessagesFactor = 5;
+        private static readonly TimeSpan DelayEmptyTimeout = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan TimeToWait = TimeSpan.FromSeconds(2);
 
         private readonly IQueue _indexQueue;
         private readonly IQueue _backupIndexQueue;
@@ -69,152 +69,44 @@ namespace Kalix.Leo.Listeners
             _typeIndexers[type.FullName] = indexer;
         }
 
+        private class GroupedMessages
+        {
+            public string Key { get; set; }
+            public List<IQueueMessage> Messages { get; set; }
+        }
+
         public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
-            var maxTotalMessages = maxMessages * PendingMessagesFactor;
             var token = new CancellationTokenSource();
             var ct = token.Token;
-            
-            Task.Run(async () =>
+
+            var messages = _indexQueue.ListenForMessages(maxMessages, VisiblityTimeout, DelayEmptyTimeout, uncaughtException, ct);
+            if (_backupIndexQueue != null)
             {
-                var messages = new Dictionary<string, List<IQueueMessage>>();
-                var hash = new Dictionary<string, Tuple<Task, List<IQueueMessage>>>();
+                // Combine messages where we take precendence on the primary messages
+                var backupMessages = _backupIndexQueue.ListenForMessages(maxMessages, VisiblityTimeout, DelayEmptyTimeout, uncaughtException, ct);
+                messages = new[] { messages, backupMessages }.Combine(AsyncEnumberableCombineType.FirstHasPriority, maxMessages, ct);
+            }
 
-                // Special queue system
-                // We grab messages as soon as we have free slots, and then queue them up by type and org
-                while (!ct.IsCancellationRequested)
+            var actionBlock = new ActionBlock<IGrouping<string, IQueueMessage>>(async g =>
+            {
+                try
                 {
-                    try
-                    {
-                        // Clean up any finished tasks
-                        foreach (var item in hash.ToList())
-                        {
-                            var task = item.Value.Item1;
-                            var hasError = task.IsCanceled || task.IsFaulted;
-                            if (task.IsCompleted || hasError)
-                            {
-                                // We do the completions here so we don't get overlap with the visibility extensions
-                                if (!hasError)
-                                {
-                                    try
-                                    {
-                                        // Don't bother trying to close anything that is already broken...
-                                        await Task.WhenAll(item.Value.Item2.Where(m => !m.IsComplete).Select(m => m.Complete())).ConfigureAwait(false);
-                                    }
-                                    catch (Exception e)
-                                    {
-                                        uncaughtException?.Invoke(new Exception("Could not complete messages", e));
-                                    }
-                                }
-                                hash.Remove(item.Key);
-                            }
-                        }
-
-                        // Now that any hashes that are done are cleared up, extend any messages that need it...
-                        var buffer = DateTimeOffset.Now.Add(VisibilityBuffer);
-                        var extendTasks = hash.Values
-                            .SelectMany(v => v.Item2)
-                            .Concat(messages.Values.SelectMany(q => q))
-                            // Don't bother extending the already broken ones...
-                            .Where(m => !m.IsComplete && (!m.NextVisible.HasValue || m.NextVisible < buffer))
-                            .Select(async m =>
-                            {
-                                try
-                                {
-                                    await m.ExtendVisibility(VisiblityTimeout).ConfigureAwait(false);
-                                }
-                                catch (Exception e)
-                                {
-                                    uncaughtException?.Invoke(new Exception("Could not extend messages", e));
-                                }
-                            });
-
-                        await Task.WhenAll(extendTasks).ConfigureAwait(false);
-
-                        // Wait until we have free slots...
-                        if (hash.Count >= maxMessages || hash.Sum(h => h.Value.Item2.Count) >= maxTotalMessages)
-                        {
-                            await Task.Delay(2000).ConfigureAwait(false);
-                            continue;
-                        }
-
-                        if (messages.Any())
-                        {
-                            foreach (var m in messages.ToList())
-                            {
-                                // We might have lost the message already
-                                messages[m.Key] = m.Value.Where(me => !me.IsComplete).ToList();
-                                if (!messages[m.Key].Any())
-                                {
-                                    messages.Remove(m.Key);
-                                    continue;
-                                }
-
-                                if (!hash.ContainsKey(m.Key))
-                                {
-                                    hash[m.Key] = Tuple.Create(ExecuteMessages(m.Value, uncaughtException), m.Value);
-                                    messages.Remove(m.Key);
-                                }
-                            }
-                            
-                            if ((messages.Count + hash.Count) >= maxMessages || (messages.Sum(m => m.Value.Count) + hash.Sum(h => h.Value.Item2.Count)) >= maxTotalMessages)
-                            {
-                                await Task.Delay(2000).ConfigureAwait(false);
-                                continue;
-                            }
-                        }
-
-                        // Get more messages, pre-build the collection so we can collect as much as possible in one go
-                        bool shouldDelay = false;
-                        var totalPending = 0;
-
-                        do
-                        {
-                            var nextSet = await _indexQueue.ListenForNextMessage(maxMessages, VisiblityTimeout, ct).ConfigureAwait(false);
-                            totalPending += nextSet.Count();
-                            if (!nextSet.Any())
-                            {
-                                if (_backupIndexQueue != null)
-                                {
-                                    nextSet = await _backupIndexQueue.ListenForNextMessage(maxMessages, VisiblityTimeout, ct).ConfigureAwait(false);
-                                    totalPending += nextSet.Count();
-                                }
-
-                                if (!nextSet.Any())
-                                {
-                                    shouldDelay = true;
-                                    break;
-                                }
-                            }
-
-                            foreach (var g in nextSet.GroupBy(FindKey))
-                            {
-                                if (!messages.ContainsKey(g.Key))
-                                {
-                                    messages[g.Key] = new List<IQueueMessage>();
-                                }
-                                messages[g.Key].AddRange(g);
-                            }
-                        }
-                        while (messages.Count < maxMessages && totalPending < maxTotalMessages);
-
-                        if (shouldDelay && !messages.Any())
-                        {
-                            await Task.Delay(2000, ct).ConfigureAwait(false);
-                        }
-                        
-                    }
-                    catch(Exception e)
-                    {
-                        if(uncaughtException != null)
-                        {
-                            var ex = new Exception("An exception occured in the message handling loop: " + e.Message, e);
-                            uncaughtException(ex);
-                        }
-                    }
+                    await ExecuteMessages(g, uncaughtException);
+                    await Task.WhenAll(g.Where(m => !m.IsComplete).Select(m => m.Complete()));
                 }
-            }, ct);
+                catch (Exception e)
+                {
+                    uncaughtException?.Invoke(e);
+                }
+            }, new ExecutionDataflowBlockOptions { BoundedCapacity = maxMessages, MaxDegreeOfParallelism = maxMessages });
+
+            // Thread to push messages onto the action block to process in parallel
+            _ = Task.Run(() =>
+                messages.TimedBuffer(maxMessages, TimeToWait, ct)
+                    .ForEachAwaitAsync(ma => ma.GroupBy(FindKey).ToAsyncEnumerable().ForEachAwaitAsync(g => actionBlock.SendAsync(g, ct), ct), ct)
+            , ct);
 
             return token;
         }
@@ -262,11 +154,11 @@ namespace Kalix.Leo.Listeners
                             details = details.GroupBy(d => d.Id.Value).Select(d => d.First()).ToList();
                             if (isReindex && indexer is IReindexer)
                             {
-                                await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);
+                                await (indexer as IReindexer).Reindex(details);
                             }
                             else
                             {
-                                await indexer.Index(details).ConfigureAwait(false);
+                                await indexer.Index(details);
                             }
                             hasData = true;
                         }
@@ -283,11 +175,11 @@ namespace Kalix.Leo.Listeners
                             details = details.GroupBy(d => d.BasePath).Select(d => d.First()).ToList();
                             if (isReindex && indexer is IReindexer)
                             {
-                                await (indexer as IReindexer).Reindex(details).ConfigureAwait(false);
+                                await (indexer as IReindexer).Reindex(details);
                             }
                             else
                             {
-                                await indexer.Index(details).ConfigureAwait(false);
+                                await indexer.Index(details);
                             }
                             hasData = true;
                         }
@@ -301,12 +193,7 @@ namespace Kalix.Leo.Listeners
             }
             catch(Exception e)
             {
-                if(uncaughtException != null)
-                {
-                    var ex = new Exception("An exception occurred while handling a message: " + e.Message, e);
-                    uncaughtException(ex);
-                }
-                throw;
+                throw new Exception("An exception occurred while handling a message: " + e.Message, e);
             }
         }
     }

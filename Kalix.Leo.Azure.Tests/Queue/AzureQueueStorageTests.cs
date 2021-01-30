@@ -1,28 +1,25 @@
-﻿using Kalix.Leo.Azure.Queue;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Queue;
+﻿using Azure.Storage.Queues;
+using Kalix.Leo.Azure.Queue;
 using NUnit.Framework;
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Tests.Queue
 {
     [TestFixture]
     public class AzureQueueStorageTests
     {
-        protected CloudQueue _queue;
+        protected QueueClient _queue;
         protected AzureQueueStorage _azureQueue;
 
         [SetUp]
         public virtual async Task Init()
         {
-            var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudQueueClient();
-            _queue = client.GetQueueReference("kalixleotestqueue");
+            _queue = new QueueClient(AzureTestsHelper.DevelopmetStorage, "kalixleotestqueue");
             await _queue.CreateIfNotExistsAsync();
 
-            _azureQueue = new AzureQueueStorage(client, "kalixleotestqueue");
+            _azureQueue = new AzureQueueStorage(_queue);
         }
 
         [TearDown]
@@ -38,41 +35,30 @@ namespace Kalix.Leo.Azure.Tests.Queue
             public async Task VisibleIfNoVisibility()
             {
                 await _azureQueue.SendMessage("test");
+                var messageTask = _azureQueue.ListenForMessages(30, TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(1)).FirstOrDefaultAsync().AsTask();
 
-                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
+                var t = await Task.WhenAny(Task.Delay(5000), messageTask);
 
-                Assert.AreEqual(1, messages.Count);
-                Assert.AreEqual("test", messages[0].Message);
+                Assert.AreEqual(t, messageTask);
+                Assert.AreEqual("test", messageTask.Result.Message);
             }
 
             [Test]
             public async Task UseVisibilityIfPassed()
             {
-                await _azureQueue.SendMessage("test", TimeSpan.FromSeconds(2));
+                await _azureQueue.SendMessage("test", TimeSpan.FromSeconds(5));
 
-                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
+                var messageTask = _azureQueue.ListenForMessages(30, TimeSpan.FromMinutes(10), TimeSpan.FromSeconds(1)).FirstOrDefaultAsync().AsTask();
+                var t = await Task.WhenAny(Task.Delay(3000), messageTask);
 
-                Assert.AreEqual(0, messages.Count);
+                Assert.AreNotEqual(t, messageTask);
 
                 await Task.Delay(3000);
                 
-                messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(10), CancellationToken.None)).ToList();
-                Assert.AreEqual(1, messages.Count);
-                Assert.AreEqual("test", messages[0].Message);
-                Assert.GreaterOrEqual(messages[0].NextVisible.Value, DateTimeOffset.UtcNow.Add(TimeSpan.FromMinutes(9)));
-            }
+                t = await Task.WhenAny(Task.Delay(3000), messageTask);
 
-            [Test]
-            public async Task ExtendVisibilityAfterListenWorks()
-            {
-                await _azureQueue.SendMessage("test2");
-
-                var messages = (await _azureQueue.ListenForNextMessage(30, TimeSpan.FromMinutes(1), CancellationToken.None)).ToList();
-                Assert.AreEqual(1, messages.Count);
-
-                await messages[0].ExtendVisibility(TimeSpan.FromMinutes(10));
-
-                Assert.GreaterOrEqual(messages[0].NextVisible.Value, DateTimeOffset.UtcNow.Add(TimeSpan.FromMinutes(9)));
+                Assert.AreEqual(t, messageTask);
+                Assert.AreEqual("test", messageTask.Result.Message);
             }
         }
     }

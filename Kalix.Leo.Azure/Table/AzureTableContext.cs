@@ -1,8 +1,7 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.Azure.Cosmos.Table;
 using Newtonsoft.Json;
 using System;
 using System.IO;
@@ -92,7 +91,7 @@ namespace Kalix.Leo.Azure.Table
                     // If you try to delete a row that doesn't exist then you get a resource not found exception
                     try
                     {
-                        await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                        await _table.ExecuteBatchAsync(_context);
                         tryWithDeletes = false;
                     }
                     catch(StorageException ex)
@@ -106,8 +105,8 @@ namespace Kalix.Leo.Azure.Table
                     // In that case, we want to try and add the deleted items,
                     if(tryWithDeletes)
                     {
-                        await _table.ExecuteBatchAsync(_deleteBackupContext).ConfigureAwait(false);
-                        await _table.ExecuteBatchAsync(_context).ConfigureAwait(false);
+                        await _table.ExecuteBatchAsync(_deleteBackupContext);
+                        await _table.ExecuteBatchAsync(_context);
                     }
                 }
                 catch (StorageException ex)
@@ -117,7 +116,7 @@ namespace Kalix.Leo.Azure.Table
                         throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
                     }
 
-                    throw ex.Wrap("Table: " + _table.Name);
+                    throw;
                 }
 
                 _hasSaved = true;

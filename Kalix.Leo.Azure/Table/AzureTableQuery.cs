@@ -6,10 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using CT = Microsoft.WindowsAzure.Storage.Table;
+using CT = Microsoft.Azure.Cosmos.Table;
 
 namespace Kalix.Leo.Azure.Table
 {
@@ -39,7 +40,7 @@ namespace Kalix.Leo.Azure.Table
         public async Task<T> ById(string partitionKey, string rowKey)
         {
             CT.TableOperation op = CT.TableOperation.Retrieve<FatEntity>(partitionKey, rowKey);
-            CT.TableResult result = await _table.ExecuteWrap(t => t.ExecuteAsync(op)).ConfigureAwait(false);
+            CT.TableResult result = await _table.ExecuteAsync(op);
             if(result.Result == null)
             {
                 return default(T);
@@ -173,32 +174,29 @@ namespace Kalix.Leo.Azure.Table
             return new AzureTableQuery<T>(_table, _decryptor, newFilter, _take);
         }
 
-        private IAsyncEnumerable<T> ExecuteQuery(string filter, int? take)
+        private async IAsyncEnumerable<T> ExecuteQuery(string filter, int? take, [EnumeratorCancellation] CancellationToken token = default)
         {
-            return System.Collections.Generic.AsyncEnumerableEx.Create<T>(async y =>
+            var query = new CT.TableQuery<FatEntity>();
+            if (filter != null)
             {
-                var query = new CT.TableQuery<FatEntity>();
-                if (filter != null)
-                {
-                    query = query.Where(filter);
-                }
-                if (take.HasValue)
-                {
-                    query = query.Take(take);
-                }
+                query = query.Where(filter);
+            }
+            if (take.HasValue)
+            {
+                query = query.Take(take);
+            }
 
-                CT.TableQuerySegment<FatEntity> segment = null;
-                do
+            CT.TableQuerySegment<FatEntity> segment = null;
+            do
+            {
+                segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, token);
+                foreach (var entity in segment)
                 {
-                    segment = await _table.ExecuteWrap(t => t.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, y.CancellationToken)).ConfigureAwait(false);
-                    foreach (var entity in segment)
-                    {
-                        await y.YieldReturn(ConvertFatEntity(entity)).ConfigureAwait(false);
-                        y.ThrowIfCancellationRequested();
-                    }
+                    yield return ConvertFatEntity(entity);
+                    if (token.IsCancellationRequested) { break; }
                 }
-                while (segment.ContinuationToken != null && !y.CancellationToken.IsCancellationRequested);
-            });
+            }
+            while (segment.ContinuationToken != null && !token.IsCancellationRequested);
         }
 
         private async Task<int> ExecuteCount(string filter, CancellationToken token)
@@ -216,7 +214,7 @@ namespace Kalix.Leo.Azure.Table
             CT.TableQuerySegment<FatEntity> segment = null;
             do
             {
-                segment = await _table.ExecuteWrap(t => t.ExecuteQuerySegmentedAsync(query, segment?.ContinuationToken, token)).ConfigureAwait(false);
+                segment = await _table.ExecuteQuerySegmentedAsync(query, segment?.ContinuationToken, token);
                 count += segment.Results.Count;
             }
             while (segment.ContinuationToken != null);

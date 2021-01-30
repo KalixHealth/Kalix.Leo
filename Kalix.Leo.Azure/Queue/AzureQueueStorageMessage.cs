@@ -1,7 +1,9 @@
-﻿using Kalix.Leo.Queue;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Queue;
+﻿using Azure;
+using Azure.Storage.Queues;
+using Azure.Storage.Queues.Models;
+using Kalix.Leo.Queue;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Queue
@@ -10,51 +12,74 @@ namespace Kalix.Leo.Azure.Queue
     {
         private static readonly TimeSpan MaxVisibilityTimeout = TimeSpan.FromDays(7);
 
-        private readonly CloudQueue _queue;
-        private readonly CloudQueueMessage _message;
-        private readonly Lazy<string> _strMessage;
+        private readonly CancellationTokenSource _tcs;
+        private readonly Task _visiblityTask;
+        private readonly QueueClient _queue;
+        private readonly string _messageId;
+        private string _popId;
 
-        public AzureQueueStorageMessage(CloudQueue queue, CloudQueueMessage message)
+        public AzureQueueStorageMessage(QueueClient queue, QueueMessage message, TimeSpan visiblityHoldTime)
         {
-            _message = message;
+            if (visiblityHoldTime > MaxVisibilityTimeout) { visiblityHoldTime = MaxVisibilityTimeout; }
+
             _queue = queue;
-            _strMessage = new Lazy<string>(() => _message.AsString);
+            Message = message.Body.ToString();
+            _messageId = message.MessageId;
+            _popId = message.PopReceipt;
             IsComplete = false;
+
+            _tcs = new CancellationTokenSource();
+            _visiblityTask = Task.Run(() => HoldVisiblility(visiblityHoldTime, _tcs.Token));
         }
 
-        public DateTimeOffset? NextVisible => _message.NextVisibleTime;
-        public string Message => _strMessage.Value;
+        public string Message { get; private set; }
         public bool IsComplete { get; private set; }
-
-        public async Task<bool> ExtendVisibility(TimeSpan span)
-        {
-            if (span > MaxVisibilityTimeout) { span = MaxVisibilityTimeout; }
-
-            try
-            {
-                await _queue.UpdateMessageAsync(_message, span, MessageUpdateFields.Visibility).ConfigureAwait(false);
-                return true;
-            }
-            catch (StorageException e)
-            {
-                IsComplete = true;
-                if (e.RequestInformation.HttpStatusCode == 404) { return false; }
-                throw e.Wrap(_queue.Name);
-            }
-        }
 
         public async Task<bool> Complete()
         {
+            if (IsComplete) { return false; }
+
             IsComplete = true;
+            _tcs.Cancel();
+            try { await _visiblityTask; } catch { }
+
             try
             {
-                await _queue.DeleteMessageAsync(_message).ConfigureAwait(false);
+                await _queue.DeleteMessageAsync(_messageId, _popId);
                 return true;
             }
-            catch (StorageException e)
+            catch (RequestFailedException e) when (e.ErrorCode == QueueErrorCode.MessageNotFound)
             {
-                if (e.RequestInformation.HttpStatusCode == 404) { return false; }
-                throw e.Wrap(_queue.Name);
+                return false;
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            IsComplete = true;
+            _tcs.Cancel();
+            try { await _visiblityTask; } catch { }
+            _tcs.Dispose();
+        }
+
+        private async Task HoldVisiblility(TimeSpan visibilityTimeout, CancellationToken token)
+        {
+            var refreshTime = TimeSpan.FromTicks(visibilityTimeout.Ticks / 2);
+
+            try
+            {
+                while (!token.IsCancellationRequested && !IsComplete)
+                {
+                    await Task.Delay(refreshTime, token);
+
+                    // Don't use cancellation token in next call on purpose, so always finishes if started
+                    var update = await _queue.UpdateMessageAsync(_messageId, _popId, visibilityTimeout: visibilityTimeout);
+                    _popId = update.Value.PopReceipt;
+                }
+            }
+            catch (Exception)
+            {
+                IsComplete = true;
             }
         }
     }

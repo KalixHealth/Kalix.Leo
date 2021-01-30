@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Indexing
@@ -60,7 +62,7 @@ namespace Kalix.Leo.Indexing
                     if (matchingOld != null && mapping.AdditionalActions.Any())
                     {
                         // Get the real old item to map from
-                        var actualOldItem = await _client.Query<TSearch>(_tableName, encryptor).ById(matchingOld.PartitionKey, matchingOld.RowKey).ConfigureAwait(false);
+                        var actualOldItem = await _client.Query<TSearch>(_tableName, encryptor).ById(matchingOld.PartitionKey, matchingOld.RowKey);
                         var actualOldItemEntity = new TableEntity<TSearch>(matchingOld.PartitionKey, matchingOld.RowKey, actualOldItem);
 
                         foreach (var action in mapping.AdditionalActions)
@@ -85,7 +87,7 @@ namespace Kalix.Leo.Indexing
 
             try
             {
-                await context.Save().ConfigureAwait(false);
+                await context.Save();
             }
             catch (StorageEntityAlreadyExistsException e)
             {
@@ -125,12 +127,12 @@ namespace Kalix.Leo.Indexing
 
         public async Task<bool> IndexExists<T1>(long partitionKey, Lazy<Task<IEncryptor>> encryptor, IRecordUniqueIndex<T1> index, T1 val)
         {
-            var enc = await encryptor.Value.ConfigureAwait(false);
+            var enc = await encryptor.Value;
             var count = await _client.Query<TSearch>(_tableName, enc)
                 .PartitionKeyEquals(partitionKey.ToString(CultureInfo.InvariantCulture))
                 .RowKeyEquals(index.Prefix + Underscore + KeyParser(val))
                 .Count()
-                .ConfigureAwait(false);
+                ;
             return count > 0;
         }
 
@@ -366,40 +368,32 @@ namespace Kalix.Leo.Indexing
                 .Count();
         }
 
-        private IAsyncEnumerable<T> ExecuteWithEncryptor<T>(Lazy<Task<IEncryptor>> encryptor, Func<IEncryptor, IAsyncEnumerable<T>> factory)
+        private async IAsyncEnumerable<T> ExecuteWithEncryptor<T>(Lazy<Task<IEncryptor>> encryptor, Func<IEncryptor, IAsyncEnumerable<T>> factory, [EnumeratorCancellation]CancellationToken token = default)
         {
             encryptor = encryptor ?? new Lazy<Task<IEncryptor>>(() => Task.FromResult((IEncryptor)null));
 
-            return System.Collections.Generic.AsyncEnumerableEx.Create((Func<AsyncYielder<T>, Task>)(async y =>
+            var enc = await encryptor.Value;
+            await foreach (var i in factory(enc).WithCancellation(token))
             {
-                var enc = await encryptor.Value.ConfigureAwait(false);
-                var enumerator = factory(enc).GetAsyncEnumerator(y.CancellationToken);
-                while(!y.CancellationToken.IsCancellationRequested)
-                {
-                    if(!await enumerator.MoveNextAsync().ConfigureAwait(false))
-                    {
-                        break;
-                    }
-                    await y.YieldReturn(enumerator.Current).ConfigureAwait(false);
-                }
-            }));
+                yield return i;
+            }
         }
 
         private string KeyParser(object key)
         {
-            if (key is long)
+            if (key is long i)
             {
-                return ((long)key).ToString(CultureInfo.InvariantCulture);
+                return i.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (key is DateTime)
+            if (key is DateTime time)
             {
-                return InverseTicksString((DateTime)key);
+                return InverseTicksString(time);
             }
 
-            if (key is string)
+            if (key is string str)
             {
-                return (string)key;
+                return str;
             }
 
             throw new InvalidOperationException("Key type " + key.GetType().Name + " is unkown");

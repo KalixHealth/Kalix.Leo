@@ -1,6 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
-using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.Azure.Cosmos.Table;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Table
@@ -18,12 +18,14 @@ namespace Kalix.Leo.Azure.Table
 
         public Task CreateTableIfNotExist(string tableName)
         {
-            return _client.GetTableReference(GetName(tableName)).ExecuteWrap(t => t.CreateIfNotExistsAsync());
+            var table = _client.GetTableReference(GetName(tableName));
+            return table.CreateIfNotExistsAsync();
         }
 
         public Task DeleteTableIfExists(string tableName)
         {
-            return _client.GetTableReference(GetName(tableName)).ExecuteWrap(t => t.DeleteIfExistsAsync());
+            var table = _client.GetTableReference(GetName(tableName));
+            return table.DeleteIfExistsAsync();
         }
 
         public ITableContext Context(string tableName, IEncryptor encryptor)

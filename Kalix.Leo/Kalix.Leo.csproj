@@ -1,100 +1,25 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{27416D6C-0BDF-4DD1-849C-D2431A023E3B}</ProjectGuid>
+    <TargetFramework>net5.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Kalix.Leo</RootNamespace>
-    <AssemblyName>Kalix.Leo</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
-    <TargetFrameworkProfile />
-    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <DocumentationFile>bin\Release\Kalix.Leo.XML</DocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>14.0.0</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <Copyright>Copyright 2021</Copyright>
+    <Company>Kalix, Inc</Company>
+    <Product>Kalix</Product>
+    <Authors>Felix Jorkowski</Authors>
+    <Description>Library to abstract indexing, querying, encryption and compression on a NoSQL store</Description>
+    <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
+    <PackageReleaseNotes>Changed to use .net 5</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Configuration\ItemConfiguration.cs" />
-    <Compile Include="DocumentPartition.cs" />
-    <Compile Include="Encryption\CertProtectedEncryptor.cs" />
-    <Compile Include="IBasePartition.cs" />
-    <Compile Include="IDocumentPartition.cs" />
-    <Compile Include="IdWithMetadata.cs" />
-    <Compile Include="ILeoEngine.cs" />
-    <Compile Include="Internal\BasePartition.cs" />
-    <Compile Include="Internal\SearchIndex.cs" />
-    <Compile Include="IObjectPartition.cs" />
-    <Compile Include="ISearchIndex.cs" />
-    <Compile Include="LeoEngine.cs" />
-    <Compile Include="Configuration\LeoEngineConfiguration.cs" />
-    <Compile Include="ObjectPartition.cs" />
-    <Compile Include="PathWithMetadata.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <PackageReference Include="Kalix.ApiCrypto" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="5.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="app.config">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
-    <None Include="Kalix.Leo.nuspec">
-      <SubType>Designer</SubType>
-    </None>
+    <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj">
-      <Project>{74b58639-e668-47f2-83ad-1987bbd49f58}</Project>
-      <Name>Kalix.Leo.Core</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Kalix.Leo.Lucene\Kalix.Leo.Lucene.csproj">
-      <Project>{6de256e3-04c1-4e3e-acab-ac6f10d65a38}</Project>
-      <Name>Kalix.Leo.Lucene</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Kalix.ApiCrypto">
-      <Version>3.0.0</Version>
-    </PackageReference>
-    <PackageReference Include="System.Runtime.Caching">
-      <Version>4.7.0</Version>
-    </PackageReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
-mkdir "$(ProjectDir)package\lib\net45"
-Xcopy.exe /Y "$(TargetDir)Kalix.Leo.dll" "$(ProjectDir)package\lib\net45"
-Xcopy.exe /Y "$(TargetDir)Kalix.Leo.xml" "$(ProjectDir)package\lib\net45"
-Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.nuspec" "$(ProjectDir)package"
-cd "$(ProjectDir)package"
-"$(SolutionDir)Nuget.exe" pack Kalix.Leo.nuspec
-xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
-  </PropertyGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>

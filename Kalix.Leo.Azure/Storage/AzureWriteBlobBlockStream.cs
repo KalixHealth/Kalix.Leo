@@ -1,5 +1,5 @@
-﻿using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
+﻿using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,23 +13,22 @@ namespace Kalix.Leo.Azure.Storage
     {
         private const int AzureBlockSize = 4194304;
 
-        private readonly CloudBlockBlob _blob;
-        private readonly AccessCondition _condition;
+        private readonly BlockBlobClient _blob;
+        private readonly BlobRequestConditions _condition;
+        private readonly IDictionary<string, string> _metadata;
 
         private MemoryStream _buff;
         private int _partNumber;
-        private long _length;
 
         private bool _hasCompleted;
 
-        public AzureWriteBlockBlobStream(CloudBlockBlob blob, AccessCondition condition)
+        public AzureWriteBlockBlobStream(BlockBlobClient blob, BlobRequestConditions condition, IDictionary<string, string> metadata)
         {
             _blob = blob;
             _condition = condition;
+            _metadata = metadata;
 
-            long min = Math.Min(blob.Properties.Length, AzureBlockSize);
-            if (min < 0) { min = 0; }
-            _buff = new MemoryStream((int)min);
+            _buff = new MemoryStream();
             _partNumber = 1;
         }
 
@@ -40,7 +39,6 @@ namespace Kalix.Leo.Azure.Storage
                 throw new InvalidOperationException("The azure write stream has already been completed");
             }
 
-            _length += count;
             while (count > 0)
             {
                 var read = (int)Math.Min(AzureBlockSize - _buff.Length, count);
@@ -53,7 +51,7 @@ namespace Kalix.Leo.Azure.Storage
                 {
                     var data = _buff.GetBuffer();
                     var key = GetKey(_partNumber);
-                    await PutBlobAsync(key, data, (int)_buff.Length, ct).ConfigureAwait(false);
+                    await PutBlobAsync(key, data, (int)_buff.Length, ct);
 
                     _buff.SetLength(0);
                     _partNumber++;
@@ -72,7 +70,10 @@ namespace Kalix.Leo.Azure.Storage
                 if (_partNumber == 1)
                 {
                     // We haven't even uploaded one block yet... just upload it straight...
-                    await _blob.UploadFromByteArrayAsync(data, 0, length, _condition, null, null, ct).ConfigureAwait(false);
+                    using (var ms = new MemoryStream(data, 0, length, false))
+                    {
+                        await _blob.UploadAsync(ms, new BlobUploadOptions { Conditions = _condition, Metadata = _metadata });
+                    }
                     LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
                 }
                 else
@@ -80,7 +81,7 @@ namespace Kalix.Leo.Azure.Storage
                     if (length > 0)
                     {
                         var key = GetKey(_partNumber);
-                        await PutBlobAsync(key, data, length, ct).ConfigureAwait(false);
+                        await PutBlobAsync(key, data, length, ct);
                         _partNumber++;
                     }
                     
@@ -90,7 +91,7 @@ namespace Kalix.Leo.Azure.Storage
                         blocks.Add(GetKey(i));
                     }
 
-                    await _blob.PutBlockListAsync(blocks, ct).ConfigureAwait(false);
+                    await _blob.CommitBlockListAsync(blocks, new CommitBlockListOptions { Conditions = _condition, Metadata = _metadata }, ct);
                     LeoTrace.WriteLine("Finished Put Blocks using " + _partNumber + " total blocks: " + _blob.Name);
                 }
                 _buff.SetLength(0);
@@ -125,7 +126,7 @@ namespace Kalix.Leo.Azure.Storage
         {
             using (var ms = new MemoryStream(data, 0, length))
             {
-                await _blob.PutBlockAsync(key, ms, null, _condition, null, null, ct).ConfigureAwait(false);
+                await _blob.StageBlockAsync(key, ms, conditions: _condition, cancellationToken: ct);
             }
         }
     }

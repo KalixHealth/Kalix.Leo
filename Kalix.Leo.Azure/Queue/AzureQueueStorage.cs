@@ -1,9 +1,9 @@
-﻿using Kalix.Leo.Queue;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Queue;
+﻿using Azure.Storage.Queues;
+using Azure.Storage.Queues.Models;
+using Kalix.Leo.Queue;
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,54 +14,57 @@ namespace Kalix.Leo.Azure.Queue
         private static readonly TimeSpan MaxVisibilityTimeout = TimeSpan.FromDays(7);
         private const int MaxPollingAmountAllowed = 32;
 
-        private readonly CloudQueue _queue;
+        private readonly QueueClient _queue;
 
-        public AzureQueueStorage(CloudQueueClient queueClient, string queue)
+        public AzureQueueStorage(QueueClient queue)
         {
-            _queue = queueClient.GetQueueReference(queue);
+            _queue = queue;
         }
 
         public Task SendMessage(string data, TimeSpan? visibilityDelay = null)
         {
-            return Execute(q => q.AddMessageAsync(new CloudQueueMessage(data), null, visibilityDelay, null, null));
+            return _queue.SendMessageAsync(data, visibilityTimeout: visibilityDelay);
         }
 
-        public async Task<IEnumerable<IQueueMessage>> ListenForNextMessage(int maxMessages, TimeSpan visibility, CancellationToken token)
+        public async IAsyncEnumerable<IQueueMessage> ListenForMessages(int maxMessages, TimeSpan visibility, TimeSpan delayWhenEmpty, Action<Exception> uncaughtException = null, [EnumeratorCancellation] CancellationToken token = default)
         {
             if (visibility > MaxVisibilityTimeout) { visibility = MaxVisibilityTimeout; }
             if (maxMessages > MaxPollingAmountAllowed) { maxMessages = MaxPollingAmountAllowed; }
 
-            try
+            while(!token.IsCancellationRequested)
             {
-                var messages = await _queue.GetMessagesAsync(maxMessages, visibility, null, null).ConfigureAwait(false);
-                return messages.Select(m => new AzureQueueStorageMessage(_queue, m)).ToList();
-            }
-            catch (StorageException e)
-            {
-                throw e.Wrap("Queue: " + _queue.Name);
+                QueueMessage[] messages;
+                try
+                {
+                    messages = await _queue.ReceiveMessagesAsync(maxMessages, visibility, token);
+                }
+                catch (Exception e)
+                {
+                    uncaughtException?.Invoke(e);
+                    await Task.Delay(delayWhenEmpty, token);
+                    continue;
+                }
+
+                foreach (var m in messages)
+                {
+                    yield return new AzureQueueStorageMessage(_queue, m, visibility);
+                }
+
+                if (messages.Length == 0)
+                {
+                    await Task.Delay(delayWhenEmpty, token);
+                }
             }
         }
 
         public Task CreateQueueIfNotExists()
         {
-            return Execute(q => q.CreateIfNotExistsAsync());
+            return _queue.CreateIfNotExistsAsync();
         }
 
         public Task DeleteQueueIfExists()
         {
-            return Execute(q => q.DeleteIfExistsAsync());
-        }
-
-        private async Task Execute(Func<CloudQueue, Task> method)
-        {
-            try
-            {
-                await method(_queue).ConfigureAwait(false);
-            }
-            catch (StorageException e)
-            {
-                throw e.Wrap("Queue: " + _queue.Name);
-            }
+            return _queue.DeleteIfExistsAsync();
         }
     }
 }

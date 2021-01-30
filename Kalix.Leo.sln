@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core", "Kalix.Leo.Core\Kalix.Leo.Core.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30907.101
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kalix.Leo.Core", "Kalix.Leo.Core\Kalix.Leo.Core.csproj", "{74B58639-E668-47F2-83AD-1987BBD49F58}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Kalix.Leo.Azure", "Kalix.Leo.Azure\Kalix.Leo.Azure.csproj", "{03554C9E-00C8-46CE-BFBC-C12C629400E1}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{E71A13D1-9E60-4767-99AE-77A9815F8628}"
 EndProject
@@ -11,21 +13,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Azure.Tests", "Ka
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Core.Tests", "Kalix.Leo.Core.Tests\Kalix.Leo.Core.Tests.csproj", "{EC411333-995F-423A-8700-A98962D79928}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon", "Kalix.Leo.Amazon\Kalix.Leo.Amazon.csproj", "{5027D588-FE74-4F32-86B6-770F1B0DDB78}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Amazon.Tests", "Kalix.Leo.Amazon.Tests\Kalix.Leo.Amazon.Tests.csproj", "{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene", "Kalix.Leo.Lucene\Kalix.Leo.Lucene.csproj", "{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Lucene.Tests", "Kalix.Leo.Lucene.Tests\Kalix.Leo.Lucene.Tests.csproj", "{C68B0680-B5D3-4D6B-993A-4844E94E4C84}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo", "Kalix.Leo\Kalix.Leo.csproj", "{27416D6C-0BDF-4DD1-849C-D2431A023E3B}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Kalix.Leo.Tests", "Kalix.Leo.Tests\Kalix.Leo.Tests.csproj", "{28E216BE-435F-452C-B34F-4842DFAAF493}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6DAE5CD0-D71C-4589-84D5-5EFB7450691C}"
 	ProjectSection(SolutionItems) = preProject
-		LICENSE.txt = LICENSE.txt
 		readme.md = readme.md
 	EndProjectSection
 EndProject
@@ -51,30 +42,10 @@ Global
 		{EC411333-995F-423A-8700-A98962D79928}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EC411333-995F-423A-8700-A98962D79928}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EC411333-995F-423A-8700-A98962D79928}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5027D588-FE74-4F32-86B6-770F1B0DDB78}.Release|Any CPU.Build.0 = Release|Any CPU
-		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6DE256E3-04C1-4E3E-ACAB-AC6F10D65A38}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C68B0680-B5D3-4D6B-993A-4844E94E4C84}.Release|Any CPU.Build.0 = Release|Any CPU
 		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{27416D6C-0BDF-4DD1-849C-D2431A023E3B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{28E216BE-435F-452C-B34F-4842DFAAF493}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{28E216BE-435F-452C-B34F-4842DFAAF493}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{28E216BE-435F-452C-B34F-4842DFAAF493}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{28E216BE-435F-452C-B34F-4842DFAAF493}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,8 +53,8 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{4998E10C-E6FB-42F3-8C2C-8AC75F9687D7} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
 		{EC411333-995F-423A-8700-A98962D79928} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
-		{975ECEA2-4696-4706-84A1-C1AE1ABAC6A2} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
-		{C68B0680-B5D3-4D6B-993A-4844E94E4C84} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
-		{28E216BE-435F-452C-B34F-4842DFAAF493} = {E71A13D1-9E60-4767-99AE-77A9815F8628}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E2EA179E-614B-4886-A03D-781DAE835A35}
 	EndGlobalSection
 EndGlobal

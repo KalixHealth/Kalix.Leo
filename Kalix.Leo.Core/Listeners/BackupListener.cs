@@ -11,7 +11,7 @@ namespace Kalix.Leo.Listeners
     public class BackupListener : IBackupListener
     {
         private static readonly TimeSpan VisibilityTimeout = TimeSpan.FromHours(1);
-        private const int MessagesAllowedToPoll = 32;
+        private static readonly TimeSpan DelayTime = TimeSpan.FromSeconds(2);
 
         private readonly IQueue _backupQueue;
         private readonly IStore _backupStore;
@@ -30,60 +30,49 @@ namespace Kalix.Leo.Listeners
             var token = new CancellationTokenSource();
             var ct = token.Token;
 
-            Task.Run(async () =>
-            {
-                while(!ct.IsCancellationRequested)
-                {
-                    try
-                    {
-                        var messages = await _backupQueue.ListenForNextMessage(maxMessages, VisibilityTimeout, ct).ConfigureAwait(false);
-                        if (messages.Any())
-                        {
-                            await Task.WhenAll(messages.Select(MessageRecieved)).ConfigureAwait(false);
-                        }
-                        else
-                        {
-                            await Task.Delay(2000, ct).ConfigureAwait(false);
-                        }
-                    }
-                    catch(Exception e)
-                    {
-                        if(uncaughtException != null)
-                        {
-                            uncaughtException(e);
-                        }
-                    }
-                }
-            }, ct);
+            Task.Run(() => _backupQueue.ListenForMessages(maxMessages, VisibilityTimeout, DelayTime, uncaughtException, ct)
+                .ForEachAwaitAsync(m => MessageRecieved(m, uncaughtException), ct)
+            );
 
             return token;
         }
 
-        private async Task MessageRecieved(IQueueMessage message)
+        private async Task MessageRecieved(IQueueMessage message, Action<Exception> uncaughtException)
         {
-            var details = JsonConvert.DeserializeObject<StoreDataDetails>(message.Message);
-            var location = details.GetLocation();
-            var data = await _originalStore.LoadData(location).ConfigureAwait(false);
+            try
+            {
+                var details = JsonConvert.DeserializeObject<StoreDataDetails>(message.Message);
+                var location = details.GetLocation();
+                var data = await _originalStore.LoadData(location);
 
-            if (data == null)
-            {
-                // Need to make sure to soft delete in our backup...
-                // We don't have metadata about who did it though...
-                await _backupStore.SoftDelete(location, new UpdateAuditInfo()).ConfigureAwait(false);
-            }
-            else
-            {
-                // Just save it right back into the backup!
-                var ct = CancellationToken.None;
-                await _backupStore.SaveData(location, data.Metadata, data.Metadata.Audit.ToUpdateAuditInfo(), async (s) => 
+                if (data == null)
                 {
-                    await data.Stream.CopyToAsync(s, ct).ConfigureAwait(false);
-                    return data.Metadata.ContentLength;
-                }, ct).ConfigureAwait(false);
-                data.Stream.Dispose();
-            }
+                    // Need to make sure to soft delete in our backup...
+                    // We don't have metadata about who did it though...
+                    await _backupStore.SoftDelete(location, new UpdateAuditInfo());
+                }
+                else
+                {
+                    // Just save it right back into the backup!
+                    var ct = CancellationToken.None;
+                    await _backupStore.SaveData(location, data.Metadata, data.Metadata.Audit.ToUpdateAuditInfo(), async (s) =>
+                    {
+                        await data.Stream.CopyToAsync(s, ct);
+                        return data.Metadata.ContentLength;
+                    }, ct);
+                    data.Stream.Dispose();
+                }
 
-            await message.Complete().ConfigureAwait(false);
+                await message.Complete();
+            }
+            catch (Exception e)
+            {
+                if (uncaughtException != null) { uncaughtException(e); }
+            }
+            finally
+            {
+                await message.DisposeAsync();
+            }
         }
     }
 }

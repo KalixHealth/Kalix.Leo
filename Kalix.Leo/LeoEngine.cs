@@ -3,12 +3,11 @@ using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
 using Kalix.Leo.Listeners;
 using Kalix.Leo.Storage;
+using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.Caching;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -21,34 +20,32 @@ namespace Kalix.Leo
         private readonly Lazy<IRecordSearchComposer> _composer;
         
         private static readonly object _cacheLock = new object();
-        private readonly MemoryCache _cache;
-        private readonly CacheItemPolicy _cachePolicy;
+        private readonly IMemoryCache _cache;
+        private readonly MemoryCacheEntryOptions _cachePolicy;
         private readonly string _baseName;
 
         private bool _listenersStarted;
         private bool _hasInitEncryptorContainer;
         private List<IDisposable> _disposables;
 
-        public LeoEngine(LeoEngineConfiguration config)
+        public LeoEngine(LeoEngineConfiguration config, IMemoryCache cache)
         {
             _config = config;
             _disposables = new List<IDisposable>();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
             _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.SecondaryIndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
-            _cache = MemoryCache.Default;
-            _cachePolicy = new CacheItemPolicy
-            {
-                Priority = CacheItemPriority.Default,
-                SlidingExpiration = TimeSpan.FromHours(1),
-                RemovedCallback = (a) => 
+            _cache = cache;
+            _cachePolicy = new MemoryCacheEntryOptions()
+                .SetPriority(CacheItemPriority.NeverRemove)
+                .SetSlidingExpiration(TimeSpan.FromHours(1))
+                .RegisterPostEvictionCallback((key, value, reason, state) =>
                 {
-                    var disp = a.CacheItem.Value as IDisposable;
-                    if(disp != null)
+                    var disp = value as IDisposable;
+                    if (disp != null)
                     {
                         disp.Dispose();
                     }
-                }
-            };
+                });
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
             _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore), true);
@@ -156,40 +153,21 @@ namespace Kalix.Leo
         private Task<T> GetCachedValue<T>(string key, Func<Task<T>> factory)
             where T : class
         {
-            // This is very safe, will only create one. This will not dispose, but that was the case anyways
-            var lazy = new Lazy<Task<T>>(factory, true);
-            _cache.AddOrGetExisting(key, lazy, _cachePolicy);
-            return ((Lazy<Task<T>>)_cache.Get(key)).Value;
+            return _cache.GetOrCreateAsync(key, async e =>
+            {
+                e.SetOptions(_cachePolicy);
+                return await factory();
+            });
         }
 
         private T GetCachedValue<T>(string key, Func<T> factory)
             where T : class, IDisposable
         {
-            // We need this method to produce values that will be disposed when removed from the cache
-            // Not so important that we create additional values
-            var value = _cache.Get(key);
-            if (value == null)
+            return _cache.GetOrCreate(key, e =>
             {
-                var newValue = factory();
-                value = _cache.AddOrGetExisting(key, newValue, _cachePolicy);
-                if (value == null)
-                {
-                    value = newValue;
-                }
-                else
-                {
-                    // We can dispose this one straight away, we are using something that already exists
-                    newValue.Dispose();
-                }
-            }
-            return (T)value;
-        }
-
-        private static MethodInfo _genericGetPartitionInfo = typeof(LeoEngine).GetMethod("GetObjectPartition");
-        private IBasePartition GetPartitionByType(Type type, string container)
-        {
-            var method = _genericGetPartitionInfo.MakeGenericMethod(type);
-            return (IBasePartition)method.Invoke(this, new[] { container });
+                e.SetOptions(_cachePolicy);
+                return factory();
+            });
         }
     }
 }

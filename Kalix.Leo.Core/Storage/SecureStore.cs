@@ -92,16 +92,13 @@ namespace Kalix.Leo.Storage
 
             await FindFiles(container, prefix)
                 .Where(filter)
-                .Select(f =>
+                .ForEachAwaitAsync(f =>
                 {
                     // Reindexes always go in the secondary queue, if available
                     f.Metadata[MetadataConstants.ReindexMetadataKey] = "true";
                     f.Metadata.UseSecondaryIndexQueue = true;
                     return (_secondaryIndexQueue ?? _indexQueue).SendMessage(GetMessageDetails(f.Location, f.Metadata));
-                })
-                .Unwrap()
-                .LastOrDefaultAsync()
-                .ConfigureAwait(false);
+                });
         }
 
         public async Task BackupAll(string container, string prefix = null)
@@ -112,16 +109,13 @@ namespace Kalix.Leo.Storage
             }
 
             await FindFiles(container, prefix)
-                .Select(f => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)))
-                .Unwrap()
-                .LastOrDefaultAsync()
-                .ConfigureAwait(false);
+                .ForEachAwaitAsync(f => _backupQueue.SendMessage(GetMessageDetails(f.Location, f.Metadata)));
         }
 
         public async Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
             where T : ObjectWithAuditInfo
         {
-            var data = await LoadData(location, snapshot, encryptor).ConfigureAwait(false);
+            var data = await LoadData(location, snapshot, encryptor);
             if(data == null) { return null; }
             
             if(!data.Metadata.ContainsKey(MetadataConstants.TypeMetadataKey))
@@ -135,7 +129,7 @@ namespace Kalix.Leo.Storage
 
             LeoTrace.WriteLine("Getting data object: " + location);
 
-            var strData = await data.Stream.ReadBytes().ConfigureAwait(false);
+            var strData = await data.Stream.ReadBytes();
             var str = Encoding.UTF8.GetString(strData, 0, strData.Length);
             var obj = JsonConvert.DeserializeObject<T>(str);
             obj.Audit = data.Metadata.Audit;
@@ -146,7 +140,7 @@ namespace Kalix.Leo.Storage
 
         public async Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null, IEncryptor encryptor = null)
         {
-            var data = await _store.LoadData(location, snapshot).ConfigureAwait(false);
+            var data = await _store.LoadData(location, snapshot);
             if (data == null) { return null; }
 
             var metadata = data.Metadata;
@@ -205,7 +199,7 @@ namespace Kalix.Leo.Storage
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
             var ct = CancellationToken.None;
-            var metadata = await SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options).ConfigureAwait(false);
+            var metadata = await SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
             obj.Data.Audit = metadata.Audit;
             return metadata;
         }
@@ -265,10 +259,10 @@ namespace Kalix.Leo.Storage
                     return counter;
                 });
 
-                await savingFunc(stream).ConfigureAwait(false);
-                await stream.Complete(token).ConfigureAwait(false);
+                await savingFunc(stream);
+                await stream.Complete(token);
                 return counter.Length;
-            }, token).ConfigureAwait(false);
+            }, token);
 
             /****************************************************
              *  POST SAVE TASKS (BACKUP, INDEX)
@@ -293,7 +287,7 @@ namespace Kalix.Leo.Storage
 
             if (tasks.Count > 0)
             {
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                await Task.WhenAll(tasks);
             }
 
             return m;
@@ -301,7 +295,7 @@ namespace Kalix.Leo.Storage
 
         public async Task<Metadata> SaveMetadata(StoreLocation location, Metadata metadata, SecureStoreOptions options = SecureStoreOptions.All)
         {
-            var m = await _store.SaveMetadata(location, metadata).ConfigureAwait(false);
+            var m = await _store.SaveMetadata(location, metadata);
 
             /****************************************************
              *  POST SAVE TASKS (BACKUP, INDEX)
@@ -332,7 +326,7 @@ namespace Kalix.Leo.Storage
 
             if (tasks.Count > 0)
             {
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                await Task.WhenAll(tasks);
             }
 
             return m;
@@ -340,16 +334,16 @@ namespace Kalix.Leo.Storage
 
         public async Task Delete(StoreLocation location, UpdateAuditInfo audit, SecureStoreOptions options = SecureStoreOptions.All)
         {
-            var metadata = await _store.GetMetadata(location).ConfigureAwait(false);
+            var metadata = await _store.GetMetadata(location);
             if (metadata == null) { return; }
 
             if (options.HasFlag(SecureStoreOptions.KeepDeletes))
             {
-                await _store.SoftDelete(location, audit).ConfigureAwait(false);
+                await _store.SoftDelete(location, audit);
             }
             else
             {
-                await _store.PermanentDelete(location).ConfigureAwait(false);
+                await _store.PermanentDelete(location);
             }
 
             // The rest of the tasks are done asyncly
@@ -377,7 +371,7 @@ namespace Kalix.Leo.Storage
 
             if (tasks.Count > 0)
             {
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                await Task.WhenAll(tasks);
             }
         }
 

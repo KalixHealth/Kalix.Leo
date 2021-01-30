@@ -35,7 +35,7 @@ namespace Kalix.Leo.Storage
         /// <param name="interval">The interval that you would like a task to fire (over all instances)</param>
         /// <param name="unhandledExceptions">Any unexpected errors during the lock loop can be handled here (optional)</param>
         /// <returns>An observable that fires once over the timespan over all instances</returns>
-        IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null);
+        IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null, CancellationToken token = default);
 
         /// <summary>
         /// Lock based method that runs a task only once (ever). 

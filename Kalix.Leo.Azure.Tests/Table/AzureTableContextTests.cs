@@ -1,7 +1,6 @@
 ﻿using Kalix.Leo.Azure.Table;
 using Lokad.Cloud.Storage.Azure;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Table;
+using Microsoft.Azure.Cosmos.Table;
 using NUnit.Framework;
 using System.Linq;
 

@@ -21,28 +21,28 @@ namespace Kalix.Leo
 
         public async Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
         {
-            await Initialise().ConfigureAwait(false);
-            var enc = await _encryptor.Value.ConfigureAwait(false);
-            return await _store.SaveData(GetLocation(path), metadata, audit, savingFunc, token, enc, _options).ConfigureAwait(false);
+            await Initialise();
+            var enc = await _encryptor.Value;
+            return await _store.SaveData(GetLocation(path), metadata, audit, savingFunc, token, enc, _options);
         }
 
         public async Task<Metadata> SaveMetadata(string path, Metadata metadata)
         {
-            await Initialise().ConfigureAwait(false);
-            return await _store.SaveMetadata(GetLocation(path), metadata, _options).ConfigureAwait(false);
+            await Initialise();
+            return await _store.SaveMetadata(GetLocation(path), metadata, _options);
         }
 
         public async Task<DataWithMetadata> Load(string path, string snapshot = null)
         {
-            await Initialise().ConfigureAwait(false);
-            var enc = await _encryptor.Value.ConfigureAwait(false);
-            return await _store.LoadData(GetLocation(path), snapshot, enc).ConfigureAwait(false);
+            await Initialise();
+            var enc = await _encryptor.Value;
+            return await _store.LoadData(GetLocation(path), snapshot, enc);
         }
 
         public async Task<Metadata> GetMetadata(string path, string snapshot = null)
         {
-            await Initialise().ConfigureAwait(false);
-            return await _store.GetMetadata(GetLocation(path), snapshot).ConfigureAwait(false);
+            await Initialise();
+            return await _store.GetMetadata(GetLocation(path), snapshot);
         }
 
         public IAsyncEnumerable<Snapshot> FindSnapshots(string path)
@@ -61,15 +61,15 @@ namespace Kalix.Leo
 
         public async Task Delete(string path, UpdateAuditInfo audit)
         {
-            await Initialise().ConfigureAwait(false);
-            await _store.Delete(GetLocation(path), audit, _options).ConfigureAwait(false);
+            await Initialise();
+            await _store.Delete(GetLocation(path), audit, _options);
         }
 
         public async Task DeletePermanent(string path)
         {
-            await Initialise().ConfigureAwait(false);
+            await Initialise();
             // Remove the keep deletes option...
-            await _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes).ConfigureAwait(false);
+            await _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes);
         }
 
         public Task ForceIndex(string path, Metadata metadata = null)

@@ -1,128 +1,25 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{74B58639-E668-47F2-83AD-1987BBD49F58}</ProjectGuid>
+    <TargetFramework>net5.0</TargetFramework>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Kalix.Leo</RootNamespace>
-    <AssemblyName>Kalix.Leo.Core</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">..\</SolutionDir>
-    <TargetFrameworkProfile />
-    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <DocumentationFile>bin\Release\Kalix.Leo.Core.XML</DocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>14.0.0</Version>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
+    <Company>Kalix, Inc</Company>
+    <Product>Kalix</Product>
+    <Copyright>Copyright 2021</Copyright>
+    <Description>Core library that abstracts your storage layer, adds encryption/compression</Description>
+    <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
+    <Authors>Felix Jorkowski</Authors>
+    <RepositoryUrl>https://github.com/KalixHealth/Kalix.Leo</RepositoryUrl>
+    <PackageReleaseNotes>Changed to use .net 5</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="AsyncEnumerable\AsyncEnumerableExtensions.cs" />
-    <Compile Include="AuditInfo.cs" />
-    <Compile Include="Indexing\CompositionException.cs" />
-    <Compile Include="Indexing\Config\IRecordSearchConfig.cs" />
-    <Compile Include="Indexing\Config\RecordSearchConfig.cs" />
-    <Compile Include="Indexing\IRecordSearch.cs" />
-    <Compile Include="Indexing\IRecordSearchComposer.cs" />
-    <Compile Include="Indexing\IRecordSearchComposition.cs" />
-    <Compile Include="Indexing\IRecordUniqueIndex.cs" />
-    <Compile Include="Indexing\IReindexer.cs" />
-    <Compile Include="LeoTrace.cs" />
-    <Compile Include="ObjectWithAuditInfo.cs" />
-    <Compile Include="Storage\LengthCounterStream.cs" />
-    <Compile Include="Storage\LockException.cs" />
-    <Compile Include="AsyncEnumerable\AsyncEnumerableEx.cs" />
-    <Compile Include="Streams\AsyncMemoryStream.cs" />
-    <Compile Include="Streams\IAsyncStreamInterfaces.cs" />
-    <Compile Include="Streams\ReadStreamWrapper.cs" />
-    <Compile Include="Streams\StreamExtensions.cs" />
-    <Compile Include="Table\ITableClient.cs" />
-    <Compile Include="Table\ITableContext.cs" />
-    <Compile Include="Table\ITableEntity.cs" />
-    <Compile Include="Indexing\RecordSearch.cs" />
-    <Compile Include="Indexing\RecordSearchComposer.cs" />
-    <Compile Include="Indexing\RecordSearchComposition.cs" />
-    <Compile Include="Indexing\RecordUniqueIndex.cs" />
-    <Compile Include="Listeners\BackupListener.cs" />
-    <Compile Include="Compression\DeflateCompressor.cs" />
-    <Compile Include="Compression\ICompressor.cs" />
-    <Compile Include="Encryption\IEncryptor.cs" />
-    <Compile Include="Listeners\IBackupListener.cs" />
-    <Compile Include="Listeners\IIndexListener.cs" />
-    <Compile Include="Indexing\IIndexer.cs" />
-    <Compile Include="Listeners\IndexListener.cs" />
-    <Compile Include="Storage\ISecureStore.cs" />
-    <Compile Include="MetadataConstants.cs" />
-    <Compile Include="Queue\IQueue.cs" />
-    <Compile Include="Queue\IQueueMessage.cs" />
-    <Compile Include="Storage\SecureStoreOptions.cs" />
-    <Compile Include="Storage\SecureStore.cs" />
-    <Compile Include="Storage\LocationWithMetadata.cs" />
-    <Compile Include="Metadata.cs" />
-    <Compile Include="Storage\ObjectWithMetadata.cs" />
-    <Compile Include="DataWithMetadata.cs" />
-    <Compile Include="Storage\IOptimisticStore.cs" />
-    <Compile Include="Storage\IStore.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Storage\IUniqueIdGenerator.cs" />
-    <Compile Include="Snapshot.cs" />
-    <Compile Include="Storage\UniqueIdGenerator.cs" />
-    <Compile Include="StoreDataDetails.cs" />
-    <Compile Include="Storage\StoreLocation.cs" />
-    <Compile Include="Table\ITableQuery.cs" />
-    <Compile Include="Table\StorageEntityAlreadyExistsException.cs" />
-    <Compile Include="UpdateAuditInfo.cs" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="System.Linq.Async" Version="5.0.0" />
+    <PackageReference Include="System.Threading.Channels" Version="5.0.0" />
+    <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="app.config" />
-    <None Include="Kalix.Leo.Core.nuspec" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json">
-      <Version>12.0.3</Version>
-    </PackageReference>
-    <PackageReference Include="System.Diagnostics.Debug">
-      <Version>4.3.0</Version>
-    </PackageReference>
-    <PackageReference Include="System.Linq.Async">
-      <Version>4.0.0</Version>
-    </PackageReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>rmdir "$(ProjectDir)package" /s /q
-mkdir "$(ProjectDir)package\lib\portable-win+net45+wp80"
-Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Core.dll" "$(ProjectDir)package\lib\portable-win+net45+wp80"
-Xcopy.exe /Y "$(TargetDir)Kalix.Leo.Core.xml" "$(ProjectDir)package\lib\portable-win+net45+wp80"
-Xcopy.exe /Y "$(ProjectDir)Kalix.Leo.Core.nuspec" "$(ProjectDir)package"
-cd "$(ProjectDir)package"
-"$(SolutionDir)Nuget.exe" pack Kalix.Leo.Core.nuspec
-xcopy /Y *.nupkg "$(TargetDir)"</PostBuildEvent>
-  </PropertyGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>

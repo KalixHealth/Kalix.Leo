@@ -20,7 +20,7 @@ namespace Kalix.Leo
         {
             using (var ms = new MemoryStream())
             {
-                await readStream.CopyToStream(ms, CancellationToken.None).ConfigureAwait(false);
+                await readStream.CopyToStream(ms, CancellationToken.None);
                 return ms.ToArray();
             }
         }
@@ -44,7 +44,7 @@ namespace Kalix.Leo
                         do
                         {
                             ct.ThrowIfCancellationRequested();
-                            read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
+                            read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct);
                             if (read > 0)
                             {
                                 ct.ThrowIfCancellationRequested();
@@ -88,11 +88,11 @@ namespace Kalix.Leo
                         do
                         {
                             ct.ThrowIfCancellationRequested();
-                            read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct).ConfigureAwait(false);
+                            read = await readStream.ReadAsync(buffer, 0, buffer.Length, ct);
                             if (read > 0)
                             {
                                 ct.ThrowIfCancellationRequested();
-                                await writeStream.WriteAsync(buffer, 0, read, ct).ConfigureAwait(false);
+                                await writeStream.WriteAsync(buffer, 0, read, ct);
                             }
                         } while (read > 0);
                     }
@@ -165,7 +165,7 @@ namespace Kalix.Leo
                 {
                     var data = _ms.GetBuffer(); // This does not copy the array! more efficient!
                     ct.ThrowIfCancellationRequested();
-                    await _stream.WriteAsync(data, 0, (int)_ms.Length, ct).ConfigureAwait(false);
+                    await _stream.WriteAsync(data, 0, (int)_ms.Length, ct);
                     _ms.SetLength(0);
                 }
             }
@@ -178,17 +178,17 @@ namespace Kalix.Leo
                     if (_ms.Length > 0)
                     {
                         var data = _ms.GetBuffer();
-                        await _stream.WriteAsync(data, 0, (int)_ms.Length, ct).ConfigureAwait(false);
+                        await _stream.WriteAsync(data, 0, (int)_ms.Length, ct);
                         _ms.SetLength(0);
                     }
-                    await _stream.Complete(ct).ConfigureAwait(false);
+                    await _stream.Complete(ct);
                     _isComplete = true;
                 }
             }
 
             public async Task Cancel()
             {
-                await _stream.Cancel().ConfigureAwait(false);
+                await _stream.Cancel();
                 if (!_isComplete) { _stack.Dispose(); }
                 _isComplete = true;
             }
@@ -231,7 +231,7 @@ namespace Kalix.Leo
                 // Try and pre-load data the proper async way
                 if(_readStream.NeedsData)
                 {
-                    await _readStream.PrepareData().ConfigureAwait(false);
+                    await _readStream.PrepareData();
                 }
 
                 return _stack.Read(buffer, offset, count);
@@ -347,7 +347,7 @@ namespace Kalix.Leo
             {
                 if(!_isDone && _bufferNeedsData)
                 {
-                    _length = await _stream.ReadAsync(_buffer, 0, _buffer.Length, CancellationToken.None).ConfigureAwait(false);
+                    _length = await _stream.ReadAsync(_buffer, 0, _buffer.Length, CancellationToken.None);
                     if(_length == 0)
                     {
                         _isDone = true;
@@ -359,7 +359,7 @@ namespace Kalix.Leo
 
                 if (!_isDone && _bufferNeedsData2)
                 {
-                    _length2 = await _stream.ReadAsync(_buffer2, 0, _buffer2.Length, CancellationToken.None).ConfigureAwait(false);
+                    _length2 = await _stream.ReadAsync(_buffer2, 0, _buffer2.Length, CancellationToken.None);
                     if (_length2 == 0)
                     {
                         _isDone = true;

@@ -4,11 +4,10 @@
 // https://code.google.com/p/lokad-cloud/source/browse/Source/Lokad.Cloud.Storage/Azure/FatEntity.cs
 #endregion
 
+using Microsoft.Azure.Cosmos.Table;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using Microsoft.WindowsAzure.Storage.Table;
 
 namespace Lokad.Cloud.Storage.Azure
 {

@@ -1,9 +1,10 @@
-﻿using Kalix.Leo.Azure.Storage;
+﻿using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Specialized;
+using Kalix.Leo.Azure.Storage;
 using Kalix.Leo.Storage;
-using Microsoft.WindowsAzure.Storage;
-using Microsoft.WindowsAzure.Storage.Blob;
 using NUnit.Framework;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -14,13 +15,13 @@ namespace Kalix.Leo.Azure.Tests.Storage
     public class AzureStoreTests
     {
         protected AzureStore _store;
-        protected CloudBlockBlob _blob;
+        protected BlockBlobClient _blob;
         protected StoreLocation _location;
 
         [SetUp]
         public virtual void Init()
         {
-            _store = new AzureStore(CloudStorageAccount.DevelopmentStorageAccount.CreateCloudBlobClient(), true);
+            _store = new AzureStore(AzureTestsHelper.GetDevelopentService(), true);
 
             _blob = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata", true);
             _location = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata");
@@ -29,11 +30,12 @@ namespace Kalix.Leo.Azure.Tests.Storage
         protected string WriteData(StoreLocation location, Metadata m, byte[] data)
         {
             var ct = CancellationToken.None;
-            return _store.SaveData(location, m, null, async (s) =>
+            var res = _store.SaveData(location, m, null, async (s) =>
             {
-                await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
+                await s.WriteAsync(data, 0, data.Length, ct);
                 return data.Length;
-            }, ct).Result.Snapshot;
+            }, ct).Result;
+            return res.Snapshot;
         }
 
         protected OptimisticStoreWriteResult TryOptimisticWrite(StoreLocation location, Metadata m, byte[] data)
@@ -41,7 +43,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             var ct = CancellationToken.None;
             return _store.TryOptimisticWrite(location, m, null, async (s) =>
             {
-                await s.WriteAsync(data, 0, data.Length, ct).ConfigureAwait(false);
+                await s.WriteAsync(data, 0, data.Length, ct);
                 return data.Length;
             }, ct).Result;
         }
@@ -56,9 +58,9 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var m = new Metadata();
                 m["metadata1"] = "somemetadata";
                 WriteData(_location, m, data);
-                
-                _blob.FetchAttributes();
-                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", _blob.Metadata["metadata1"]);
+
+                var props = _blob.GetProperties().Value;
+                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", props.Metadata["metadata1"]);
             }
 
             [Test]
@@ -73,9 +75,9 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 m2["metadata2"] = "othermetadata";
                 WriteData(_location, m2, data);
 
-                _blob.FetchAttributes();
-                Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
-                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", _blob.Metadata["metadata2"]);
+                var props = _blob.GetProperties().Value;
+                Assert.IsFalse(props.Metadata.ContainsKey("metadata1"));
+                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", props.Metadata["metadata2"]);
             }
 
             [Test]
@@ -84,8 +86,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 WriteData(_location, null, data);
 
-                _blob.FetchAttributes();
-                Assert.AreEqual("2.0", _blob.Metadata["leoazureversion"]);
+                var props = _blob.GetProperties().Value;
+                Assert.AreEqual("2.0", props.Metadata["leoazureversion"]);
             }
 
             [Test]
@@ -109,10 +111,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 m["metadata1"] = "somemetadata";
                 var success = TryOptimisticWrite(_location, m, data);
 
-                _blob.FetchAttributes();
+                var props = _blob.GetProperties().Value;
                 Assert.IsTrue(success.Result);
                 Assert.IsNotNull(success.Metadata.Snapshot);
-                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", _blob.Metadata["metadata1"]);
+                Assert.AreEqual("B64_c29tZW1ldGFkYXRh", props.Metadata["metadata1"]);
             }
 
             [Test]
@@ -130,14 +132,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var success2 = TryOptimisticWrite(_location, m2, data);
                 var newMetadata = _store.GetMetadata(_location).Result;
 
-                _blob.FetchAttributes();
+                var props = _blob.GetProperties().Value;
                 Assert.IsTrue(success1.Result, "first write failed");
                 Assert.IsTrue(success2.Result, "second write failed");
                 Assert.AreEqual(success1.Metadata.Snapshot, oldMetadata.Snapshot);
                 Assert.AreEqual(success2.Metadata.Snapshot, newMetadata.Snapshot);
                 Assert.AreNotEqual(success1.Metadata.Snapshot, success2.Metadata.Snapshot);
-                Assert.IsFalse(_blob.Metadata.ContainsKey("metadata1"));
-                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", _blob.Metadata["metadata2"]);
+                Assert.IsFalse(props.Metadata.ContainsKey("metadata1"));
+                Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", props.Metadata["metadata2"]);
             }
 
             [Test]
@@ -146,8 +148,8 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 TryOptimisticWrite(_location, null, data);
 
-                _blob.FetchAttributes();
-                Assert.AreEqual("2.0", _blob.Metadata["leoazureversion"]);
+                var props = _blob.GetProperties().Value;
+                Assert.AreEqual("2.0", props.Metadata["leoazureversion"]);
             }
 
             [Test]
@@ -367,7 +369,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public void NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location, DateTime.UtcNow.Ticks.ToString()).Result;
+                var result = _store.LoadData(_location, DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)).Result;
                 Assert.IsNull(result);
             }
         }

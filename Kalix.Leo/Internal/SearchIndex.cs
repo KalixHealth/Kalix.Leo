@@ -23,8 +23,8 @@ namespace Kalix.Leo.Internal
 
         public async Task Save(string id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
         {
-            var encryptor = await _encryptor.Value.ConfigureAwait(false);
-            await _composition.Save(_partitionId, id, item, previous, encryptor).ConfigureAwait(false);
+            var encryptor = await _encryptor.Value;
+            await _composition.Save(_partitionId, id, item, previous, encryptor);
         }
 
         public Task Save(long id, ObjectWithMetadata<TMain> item, ObjectWithMetadata<TMain> previous)
