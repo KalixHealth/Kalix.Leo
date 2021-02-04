@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +20,7 @@ namespace Kalix.Leo.Storage
         /// <param name="location">Location to store the file</param>
         /// <param name="token">Cancellation token</param>
         /// <returns>Whether the write was successful or not</returns>
-        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token);
+        Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, CancellationToken token);
 
         /// <summary>
         /// Locks the storage at the specified location

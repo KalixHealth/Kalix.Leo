@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>14.0.0</Version>
+    <Version>15.0.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Company>Kalix, Inc</Company>
@@ -14,10 +14,12 @@
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
     <Authors>Felix Jorkowski</Authors>
     <RepositoryUrl>https://github.com/KalixHealth/Kalix.Leo</RepositoryUrl>
-    <PackageReleaseNotes>Changed to use .net 5</PackageReleaseNotes>
+    <PackageReleaseNotes>Changed to use .net 5
+Custom async streams replaces with PipeReader/PipeWriter</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="System.IO.Pipelines" Version="5.0.1" />
     <PackageReference Include="System.Linq.Async" Version="5.0.0" />
     <PackageReference Include="System.Threading.Channels" Version="5.0.0" />
     <PackageReference Include="System.Threading.Tasks.Dataflow" Version="5.0.0" />

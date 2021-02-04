@@ -57,10 +57,9 @@ namespace Kalix.Leo.Listeners
                     var ct = CancellationToken.None;
                     await _backupStore.SaveData(location, data.Metadata, data.Metadata.Audit.ToUpdateAuditInfo(), async (s) =>
                     {
-                        await data.Stream.CopyToAsync(s, ct);
+                        await data.Reader.CopyToAsync(s, ct);
                         return data.Metadata.ContentLength;
                     }, ct);
-                    data.Stream.Dispose();
                 }
 
                 await message.Complete();

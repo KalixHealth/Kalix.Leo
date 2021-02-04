@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO.Pipelines;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,7 +21,7 @@ namespace Kalix.Leo
         /// <param name="token">Cancellation token</param>
         /// <param name="metadata">Optional metadata to save - note this is NOT encrypted</param>
         /// <returns>Task that returns snapshot id when the record is saved</returns>
-        Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null);
+        Task<Metadata> Save(string path, Func<PipeWriter, ValueTask> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null);
 
         /// <summary>
         /// Update metadata at the specified path, does not override it

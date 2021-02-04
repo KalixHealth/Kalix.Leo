@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
@@ -49,9 +50,9 @@ namespace Kalix.Leo.Azure.Storage
             _containerPrefix = containerPrefix;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, CancellationToken token)
         {
-            var result = await SaveDataInternal(location, metadata, audit, savingFunc, token, false);
+            var result = await SaveDataInternal(location, metadata, audit, savingFunc, false, token);
             return result.Metadata;
         }
 
@@ -74,16 +75,16 @@ namespace Kalix.Leo.Azure.Storage
             return await GetActualMetadata(blob, props, null);
         }
 
-        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token)
+        public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, CancellationToken token)
         {
-            return SaveDataInternal(location, metadata, audit, savingFunc, token, true);
+            return SaveDataInternal(location, metadata, audit, savingFunc, true, token);
         }
 
         public async Task<IAsyncDisposable> Lock(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
             var l = await LockInternal(blob);
-            return l == null ? null : l.Item1;
+            return l?.Item1;
         }
 
         public Task RunOnce(StoreLocation location, Func<Task> action) { return RunOnce(location, action, TimeSpan.FromSeconds(5)); }
@@ -107,19 +108,18 @@ namespace Kalix.Leo.Azure.Storage
                 var lease = await LockInternal(blob);
                 if (lease != null)
                 {
-                    await using (var arl = lease.Item1)
-                    {
-                        // Once we have the lock make sure we are not done!
-                        props = await GetBlobProperties(blob);
-                        if (props.Metadata.ContainsKey(ProgressMetadataKey) && props.Metadata[ProgressMetadataKey] == ProgressDoneValue)
-                        {
-                            break;
-                        }
+                    await using var arl = lease.Item1;
 
-                        await action();
-                        props.Metadata[ProgressMetadataKey] = ProgressDoneValue;
-                        await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 });
+                    // Once we have the lock make sure we are not done!
+                    props = await GetBlobProperties(blob);
+                    if (props.Metadata.ContainsKey(ProgressMetadataKey) && props.Metadata[ProgressMetadataKey] == ProgressDoneValue)
+                    {
+                        break;
                     }
+
+                    await action();
+                    props.Metadata[ProgressMetadataKey] = ProgressDoneValue;
+                    await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 });
                 }
                 else
                 {
@@ -145,20 +145,19 @@ namespace Kalix.Leo.Azure.Storage
                     var lease = await LockInternal(blob);
                     if (lease != null)
                     {
-                        await using (var arl = lease.Item1)
-                        { 
-                            var props = await GetBlobProperties(blob, token);
-                            if (props.Metadata.ContainsKey("lastPerformed"))
-                            {
-                                DateTimeOffset.TryParseExact(props.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
-                            }
-                            if (DateTimeOffset.UtcNow >= lastPerformed + interval)
-                            {
-                                lastPerformed = DateTimeOffset.UtcNow;
-                                props.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
-                                await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 }, token);
-                                canExecute = true;
-                            }
+                        await using var arl = lease.Item1;
+
+                        var props = await GetBlobProperties(blob, token);
+                        if (props.Metadata.ContainsKey("lastPerformed"))
+                        {
+                            DateTimeOffset.TryParseExact(props.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
+                        }
+                        if (DateTimeOffset.UtcNow >= lastPerformed + interval)
+                        {
+                            lastPerformed = DateTimeOffset.UtcNow;
+                            props.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
+                            await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 }, token);
+                            canExecute = true;
                         }
                     }
                     timeLeft = (lastPerformed + interval) - DateTimeOffset.UtcNow;
@@ -204,7 +203,8 @@ namespace Kalix.Leo.Azure.Storage
             var needsToUseBlockList = !props.Metadata.ContainsKey(StoreVersionKey);
             var metadata = await GetActualMetadata(blob, props, snapshot);
 
-            return new DataWithMetadata(new AzureReadBlockBlobStream(blob, props.ContentLength, needsToUseBlockList), metadata);
+            var readStream = new AzureReadBlockBlobStream(blob, props.ContentLength, needsToUseBlockList);
+            return new DataWithMetadata(PipeReader.Create(readStream), metadata);
         }
 
         public IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location)
@@ -233,8 +233,7 @@ namespace Kalix.Leo.Azure.Storage
                     string path = b.Name;
                     if (path.EndsWith(IdExtension))
                     {
-                        long tempId;
-                        if (long.TryParse(Path.GetFileNameWithoutExtension(path), out tempId))
+                        if (long.TryParse(Path.GetFileNameWithoutExtension(path), out var tempId))
                         {
                             id = tempId;
                             path = Path.GetDirectoryName(path);
@@ -307,21 +306,261 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        private AuditInfo TransformAuditInformation(Metadata current, UpdateAuditInfo newAudit)
+        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, bool isOptimistic, CancellationToken token)
+        {
+            var blob = GetBlockBlob(location);
+
+            // We always want to save the new audit information when saving!
+            var props = await GetBlobProperties(blob, token);
+            var currentMetadata = await GetActualMetadata(blob, props, null);
+            var auditInfo = TransformAuditInformation(currentMetadata, audit);
+            metadata ??= new Metadata();
+            metadata.Audit = auditInfo;
+
+            var result = new OptimisticStoreWriteResult() { Result = true };
+            try
+            {
+                // If the ETag value is empty then the store value must not exist yet...
+                var condition = isOptimistic ? 
+                    (string.IsNullOrEmpty(metadata.ETag) ? new BlobRequestConditions { IfNoneMatch = ETag.All } : new BlobRequestConditions { IfMatch = new ETag(metadata.ETag) }) 
+                    : null;
+
+                // Copy the metadata across
+                var newMeta = new Dictionary<string, string>();
+                foreach (var m in metadata)
+                {
+                    newMeta[m.Key] = AzureStoreMetadataEncoder.EncodeMetadata(m.Value);
+                }
+
+                // Always store the version - We use this to do more efficient things on read
+                newMeta[StoreVersionKey] = StoreVersionValue;
+                
+                long? length;
+                using (var stream = new AzureWriteBlockBlobStream(blob, condition, newMeta))
+                {
+                    var writer = PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
+                    length = await savingFunc(writer);
+                    await writer.CompleteAsync();
+                    await stream.Complete(token);
+                }
+
+                if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
+                {
+                    newMeta[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
+
+                    // Save the length straight away before the snapshot...
+                    await blob.SetMetadataAsync(newMeta, cancellationToken: token);
+                }
+
+                // Create a snapshot straight away on azure
+                // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
+                if (_enableSnapshots)
+                {
+                    var snapshotBlob = await blob.CreateSnapshotAsync(cancellationToken: token);
+
+                    // Save the snapshot back to original blob...
+                    newMeta[InternalSnapshotKey] = snapshotBlob.Value.Snapshot;
+                    await blob.SetMetadataAsync(newMeta, cancellationToken: token);
+
+                    LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
+                }
+
+                var newProps = await blob.GetPropertiesAsync(cancellationToken: token);
+                result.Metadata = await GetActualMetadata(blob, newProps, null);
+            }
+            catch (RequestFailedException e)
+            {
+                if (isOptimistic)
+                {
+                    // First condition occurrs when the eTags do not match
+                    // Second condition when we specified no eTag (ie must be new blob)
+                    if (e.Status == (int)HttpStatusCode.PreconditionFailed
+                        || (e.Status == (int)HttpStatusCode.Conflict && e.ErrorCode == BlobErrorCode.BlobAlreadyExists))
+                    {
+                        result.Result = false;
+                    }
+                    else
+                    {
+                        // Might have been a different error?
+                        throw;
+                    }
+                }
+                else
+                {
+                    if (e.Status == (int)HttpStatusCode.Conflict || e.ErrorCode == BlobErrorCode.LeaseIdMissing)
+                    {
+                        throw new LockException("The underlying storage is currently locked for save");
+                    }
+
+                    // Might have been a different error?
+                    throw;
+                }
+            }
+
+            return result;
+        }
+
+        private Metadata GetActualMetadata(BlobItem item)
+        {
+            // Pass all custom metadata through the converter
+            var convertedMeta = item.Metadata.ToDictionary(k => k.Key, k => AzureStoreMetadataEncoder.DecodeMetadata(k.Value));
+            var metadata = new Metadata(convertedMeta)
+            {
+                StoredLastModified = item.Properties.LastModified.Value.UtcDateTime,
+                StoredContentLength = item.Properties.ContentLength,
+                StoredContentType = item.Properties.ContentType,
+                ETag = item.Properties.ETag.ToString()
+            };
+
+            if (!metadata.LastModified.HasValue)
+            {
+                metadata.LastModified = metadata.StoredLastModified;
+            }
+
+            // Remove the snapshot key at this point if we have it
+            if (metadata.ContainsKey(InternalSnapshotKey))
+            {
+                metadata.Remove(InternalSnapshotKey);
+            }
+
+            // Remove the store key as well...
+            if (metadata.ContainsKey(StoreVersionKey))
+            {
+                metadata.Remove(StoreVersionKey);
+            }
+
+            if (_enableSnapshots && !string.IsNullOrEmpty(item.Snapshot))
+            {
+                metadata.Snapshot = item.Snapshot;
+            }
+
+            return metadata;
+        }
+
+        private async ValueTask<Metadata> GetActualMetadata(BlockBlobClient blob, BlobProperties props, string snapshot)
+        {
+            if (props == null) { return null; }
+
+            // Pass all custom metadata through the converter
+            var convertedMeta = props.Metadata.ToDictionary(k => k.Key, k => AzureStoreMetadataEncoder.DecodeMetadata(k.Value));
+            var metadata = new Metadata(convertedMeta)
+            {
+                StoredLastModified = props.LastModified.UtcDateTime,
+                StoredContentLength = props.ContentLength,
+                StoredContentType = props.ContentType,
+                ETag = props.ETag.ToString()
+            };
+
+            if (!metadata.LastModified.HasValue)
+            {
+                metadata.LastModified = metadata.StoredLastModified;
+            }
+
+            // Remove the snapshot key at this point if we have it
+            if (metadata.ContainsKey(InternalSnapshotKey))
+            {
+                metadata.Remove(InternalSnapshotKey);
+            }
+
+            // Remove the store key as well...
+            if(metadata.ContainsKey(StoreVersionKey))
+            {
+                metadata.Remove(StoreVersionKey);
+            }
+
+            if (_enableSnapshots)
+            {
+                if (!string.IsNullOrEmpty(snapshot))
+                {
+                    metadata.Snapshot = snapshot;
+                }
+                else if (props.Metadata.ContainsKey(InternalSnapshotKey))
+                {
+                    // Try and use our save snapshot instead of making more calls...
+                    var date = props.Metadata[InternalSnapshotKey];
+                    if (long.TryParse(date, out var ticks))
+                    {
+                        // This is in old format, convert back to snapshot format date
+                        date = new DateTime(ticks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture);
+                    }
+                    metadata.Snapshot = date;
+                }
+                else
+                {
+                    // Try and find last snapshot
+                    // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
+                    var container = _blobStorage.GetBlobContainerClient(blob.BlobContainerName);
+                    var snapBlob = await ListBlobs(container, blob.Name, BlobTraits.None, BlobStates.Snapshots)
+                        .Where(b => !string.IsNullOrEmpty(b.Snapshot) && b.Name == blob.Name)
+                        .AggregateAsync((BlobItem)null, (a, b) => a == null || b == null ? (a ?? b) : (ParseSnapshotDate(b.Snapshot) > ParseSnapshotDate(b.Snapshot) ? a : b));
+
+                    metadata.Snapshot = snapBlob?.Snapshot;
+                }
+            }
+
+            return metadata;
+        }
+
+        private BlockBlobClient GetBlockBlob(StoreLocation location, string snapshot = null)
+        {
+            var container = _blobStorage.GetBlobContainerClient(SafeContainerName(location.Container));
+
+            BlockBlobClient blob;
+            if (location.Id.HasValue)
+            {
+                if (!string.IsNullOrEmpty(location.BasePath))
+                {
+                    var path = Path.Combine(SafePath.MakeSafeFilePath(location.BasePath), location.Id.ToString() + IdExtension);
+                    blob = container.GetBlockBlobClient(path);
+                }
+                else
+                {
+                    blob = container.GetBlockBlobClient(location.Id.ToString() + IdExtension);
+                }
+            }
+            else
+            {
+                blob = container.GetBlockBlobClient(SafePath.MakeSafeFilePath(location.BasePath));
+            }
+
+            return string.IsNullOrWhiteSpace(snapshot) ? blob : blob.WithSnapshot(snapshot);
+        }
+
+        private string SafeContainerName(string containerName)
+        {
+            if(_containerPrefix != null)
+            {
+                containerName = _containerPrefix + containerName;
+            }
+
+            if(containerName.Length > 63)
+            {
+                throw new ArgumentException("Container name cannot be longer than 63 chars", nameof(containerName));
+            }
+
+            if(containerName.Length < 3)
+            {
+                containerName = containerName.PadLeft(3, '0');
+            }
+
+            return containerName;
+        }
+
+        private static AuditInfo TransformAuditInformation(Metadata current, UpdateAuditInfo newAudit)
         {
             var info = current == null ? new AuditInfo() : current.Audit;
             info.UpdatedBy = newAudit == null ? "0" : newAudit.UpdatedBy;
             info.UpdatedByName = newAudit == null ? string.Empty : newAudit.UpdatedByName;
             info.UpdatedOn = DateTime.UtcNow;
 
-            info.CreatedBy = info.CreatedBy ?? info.UpdatedBy;
-            info.CreatedByName = info.CreatedByName ?? info.UpdatedByName;
-            info.CreatedOn = info.CreatedOn ?? info.UpdatedOn;
+            info.CreatedBy ??= info.UpdatedBy;
+            info.CreatedByName ??= info.UpdatedByName;
+            info.CreatedOn ??= info.UpdatedOn;
 
             return info;
         }
 
-        private IAsyncEnumerable<BlobItem> ListBlobs(BlobContainerClient container, string prefix, BlobTraits traits, BlobStates states)
+        private static IAsyncEnumerable<BlobItem> ListBlobs(BlobContainerClient container, string prefix, BlobTraits traits, BlobStates states)
         {
             // Clean up the prefix if required
             prefix = prefix == null ? null : SafePath.MakeSafeFilePath(prefix);
@@ -329,7 +568,15 @@ namespace Kalix.Leo.Azure.Storage
             return container.GetBlobsAsync(traits, states, prefix);
         }
 
-        private async Task<Tuple<IAsyncDisposable, string>> LockInternal(BlockBlobClient blob)
+        private static async IAsyncEnumerable<BlobLease> LeaseRenewInterval(BlobLeaseClient client, BlobRequestConditions condition, [EnumeratorCancellation] CancellationToken token = default)
+        {
+            await foreach (var _ in AsyncEnumerableExtensions.Interval(LeaseRenewDuration, token))
+            {
+                yield return await client.RenewAsync(condition, token);
+            }
+        }
+
+        private static async Task<Tuple<IAsyncDisposable, string>> LockInternal(BlockBlobClient blob)
         {
             BlobLease lease;
 
@@ -388,143 +635,7 @@ namespace Kalix.Leo.Azure.Storage
             return Tuple.Create(keepAlive, lease.LeaseId);
         }
 
-        private async IAsyncEnumerable<BlobLease> LeaseRenewInterval(BlobLeaseClient client, BlobRequestConditions condition, [EnumeratorCancellation] CancellationToken token = default)
-        {
-            await foreach (var _ in AsyncEnumerableExtensions.Interval(LeaseRenewDuration, token))
-            {
-                yield return await client.RenewAsync(condition, token);
-            }
-        }
-
-        private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task<long?>> savingFunc, CancellationToken token, bool isOptimistic)
-        {
-            var blob = GetBlockBlob(location);
-
-            // We always want to save the new audit information when saving!
-            var props = await GetBlobProperties(blob);
-            var currentMetadata = await GetActualMetadata(blob, props, null);
-            var auditInfo = TransformAuditInformation(currentMetadata, audit);
-            metadata = metadata ?? new Metadata();
-            metadata.Audit = auditInfo;
-
-            var result = new OptimisticStoreWriteResult() { Result = true };
-            try
-            {
-                // If the ETag value is empty then the store value must not exist yet...
-                var condition = isOptimistic ? 
-                    (string.IsNullOrEmpty(metadata.ETag) ? new BlobRequestConditions { IfNoneMatch = ETag.All } : new BlobRequestConditions { IfMatch = new ETag(metadata.ETag) }) 
-                    : null;
-
-                // Copy the metadata across
-                var newMeta = new Dictionary<string, string>();
-                foreach (var m in metadata)
-                {
-                    newMeta[m.Key] = AzureStoreMetadataEncoder.EncodeMetadata(m.Value);
-                }
-
-                // Always store the version - We use this to do more efficient things on read
-                newMeta[StoreVersionKey] = StoreVersionValue;
-                
-                long? length;
-                using (var stream = new AzureWriteBlockBlobStream(blob, condition, newMeta))
-                {
-                    length = await savingFunc(stream);
-                    await stream.Complete(token);
-                }
-
-                if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
-                {
-                    newMeta[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
-
-                    // Save the length straight away before the snapshot...
-                    await blob.SetMetadataAsync(newMeta, cancellationToken: token);
-                }
-
-                // Create a snapshot straight away on azure
-                // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
-                if (_enableSnapshots)
-                {
-                    var snapshotBlob = await blob.CreateSnapshotAsync(cancellationToken: token);
-
-                    // Save the snapshot back to original blob...
-                    newMeta[InternalSnapshotKey] = snapshotBlob.Value.Snapshot;
-                    await blob.SetMetadataAsync(newMeta, cancellationToken: token);
-
-                    LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
-                }
-
-                var newProps = await blob.GetPropertiesAsync();
-                result.Metadata = await GetActualMetadata(blob, newProps, null);
-            }
-            catch (RequestFailedException e)
-            {
-                if (isOptimistic)
-                {
-                    // First condition occurrs when the eTags do not match
-                    // Second condition when we specified no eTag (ie must be new blob)
-                    if (e.Status == (int)HttpStatusCode.PreconditionFailed
-                        || (e.Status == (int)HttpStatusCode.Conflict && e.ErrorCode == BlobErrorCode.BlobAlreadyExists))
-                    {
-                        result.Result = false;
-                    }
-                    else
-                    {
-                        // Might have been a different error?
-                        throw;
-                    }
-                }
-                else
-                {
-                    if (e.Status == (int)HttpStatusCode.Conflict || e.ErrorCode == BlobErrorCode.LeaseIdMissing)
-                    {
-                        throw new LockException("The underlying storage is currently locked for save");
-                    }
-
-                    // Might have been a different error?
-                    throw;
-                }
-            }
-
-            return result;
-        }
-
-        private Metadata GetActualMetadata(BlobItem item)
-        {
-            // Pass all custom metadata through the converter
-            var convertedMeta = item.Metadata.ToDictionary(k => k.Key, k => AzureStoreMetadataEncoder.DecodeMetadata(k.Value));
-            var metadata = new Metadata(convertedMeta);
-
-            metadata.StoredLastModified = item.Properties.LastModified.Value.UtcDateTime;
-            if (!metadata.LastModified.HasValue)
-            {
-                metadata.LastModified = metadata.StoredLastModified;
-            }
-
-            metadata.StoredContentLength = item.Properties.ContentLength;
-            metadata.StoredContentType = item.Properties.ContentType;
-            metadata.ETag = item.Properties.ETag.ToString();
-
-            // Remove the snapshot key at this point if we have it
-            if (metadata.ContainsKey(InternalSnapshotKey))
-            {
-                metadata.Remove(InternalSnapshotKey);
-            }
-
-            // Remove the store key as well...
-            if (metadata.ContainsKey(StoreVersionKey))
-            {
-                metadata.Remove(StoreVersionKey);
-            }
-
-            if (_enableSnapshots && !string.IsNullOrEmpty(item.Snapshot))
-            {
-                metadata.Snapshot = item.Snapshot;
-            }
-
-            return metadata;
-        }
-
-        private async Task<BlobProperties> GetBlobProperties(BlockBlobClient blob, CancellationToken token = default)
+        private static async Task<BlobProperties> GetBlobProperties(BlockBlobClient blob, CancellationToken token = default)
         {
             try
             {
@@ -536,117 +647,9 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        private async ValueTask<Metadata> GetActualMetadata(BlockBlobClient blob, BlobProperties props, string snapshot)
-        {
-            if (props == null) { return null; }
-
-            // Pass all custom metadata through the converter
-            var convertedMeta = props.Metadata.ToDictionary(k => k.Key, k => AzureStoreMetadataEncoder.DecodeMetadata(k.Value));
-            var metadata = new Metadata(convertedMeta);
-
-            metadata.StoredLastModified = props.LastModified.UtcDateTime;
-            if(!metadata.LastModified.HasValue)
-            {
-                metadata.LastModified = metadata.StoredLastModified;
-            }
-
-            metadata.StoredContentLength = props.ContentLength;
-            metadata.StoredContentType = props.ContentType;
-            metadata.ETag = props.ETag.ToString();
-
-            // Remove the snapshot key at this point if we have it
-            if(metadata.ContainsKey(InternalSnapshotKey))
-            {
-                metadata.Remove(InternalSnapshotKey);
-            }
-
-            // Remove the store key as well...
-            if(metadata.ContainsKey(StoreVersionKey))
-            {
-                metadata.Remove(StoreVersionKey);
-            }
-
-            if (_enableSnapshots)
-            {
-                if (!string.IsNullOrEmpty(snapshot))
-                {
-                    metadata.Snapshot = snapshot;
-                }
-                else if (props.Metadata.ContainsKey(InternalSnapshotKey))
-                {
-                    // Try and use our save snapshot instead of making more calls...
-                    var date = props.Metadata[InternalSnapshotKey];
-                    if (long.TryParse(date, out var ticks))
-                    {
-                        // This is in old format, convert back to snapshot format date
-                        date = new DateTime(ticks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture);
-                    }
-                    metadata.Snapshot = date;
-                }
-                else
-                {
-                    // Try and find last snapshot
-                    // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
-                    var container = _blobStorage.GetBlobContainerClient(blob.BlobContainerName);
-                    var snapBlob = await ListBlobs(container, blob.Name, BlobTraits.None, BlobStates.Snapshots)
-                        .Where(b => !string.IsNullOrEmpty(b.Snapshot) && b.Name == blob.Name)
-                        .AggregateAsync((BlobItem)null, (a, b) => a == null || b == null ? (a ?? b) : (ParseSnapshotDate(b.Snapshot) > ParseSnapshotDate(b.Snapshot) ? a : b));
-
-                    metadata.Snapshot = snapBlob?.Snapshot;
-                }
-            }
-
-            return metadata;
-        }
-
-        private DateTime ParseSnapshotDate(string date)
+        private static DateTime ParseSnapshotDate(string date)
         {
             return DateTime.Parse(date, null, DateTimeStyles.RoundtripKind);
-        }
-
-        private BlockBlobClient GetBlockBlob(StoreLocation location, string snapshot = null)
-        {
-            var container = _blobStorage.GetBlobContainerClient(SafeContainerName(location.Container));
-
-            BlockBlobClient blob;
-            if (location.Id.HasValue)
-            {
-                if (!string.IsNullOrEmpty(location.BasePath))
-                {
-                    var path = Path.Combine(SafePath.MakeSafeFilePath(location.BasePath), location.Id.ToString() + IdExtension);
-                    blob = container.GetBlockBlobClient(path);
-                }
-                else
-                {
-                    blob = container.GetBlockBlobClient(location.Id.ToString() + IdExtension);
-                }
-            }
-            else
-            {
-                blob = container.GetBlockBlobClient(SafePath.MakeSafeFilePath(location.BasePath));
-            }
-
-            return string.IsNullOrWhiteSpace(snapshot) ? blob : blob.WithSnapshot(snapshot);
-        }
-
-        private string SafeContainerName(string containerName)
-        {
-            if(_containerPrefix != null)
-            {
-                containerName = _containerPrefix + containerName;
-            }
-
-            if(containerName.Length > 63)
-            {
-                throw new ArgumentException("Container name cannot be longer than 63 chars", "containerName");
-            }
-
-            if(containerName.Length < 3)
-            {
-                containerName = containerName.PadLeft(3, '0');
-            }
-
-            return containerName;
         }
     }
 }

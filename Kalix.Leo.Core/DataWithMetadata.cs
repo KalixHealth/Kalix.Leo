@@ -1,4 +1,6 @@
-﻿namespace Kalix.Leo
+﻿using System.IO.Pipelines;
+
+namespace Kalix.Leo
 {
     /// <summary>
     /// Data stream that also holds metadata
@@ -6,17 +8,17 @@
     public sealed class DataWithMetadata
     {
         private readonly Metadata _metadata;
-        private readonly IReadAsyncStream _stream;
+        private readonly PipeReader _reader;
 
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="stream">A stream of data</param>
         /// <param name="metadata">Metadata to include</param>
-        public DataWithMetadata(IReadAsyncStream stream, Metadata metadata = null)
+        public DataWithMetadata(PipeReader stream, Metadata metadata = null)
         {
             _metadata = metadata ?? new Metadata();
-            _stream = stream;
+            _reader = stream;
         }
 
         /// <summary>
@@ -27,6 +29,6 @@
         /// <summary>
         /// The stream of full data
         /// </summary>
-        public IReadAsyncStream Stream { get { return _stream; } }
+        public PipeReader Reader { get { return _reader; } }
     }
 }

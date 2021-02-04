@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    public sealed class AzureReadBlockBlobStream : IReadAsyncStream
+    public sealed class AzureReadBlockBlobStream : Stream
     {
         private const int AzureBlockSize = 4194304;
         private readonly BlockBlobClient _blob;
@@ -24,6 +24,16 @@ namespace Kalix.Leo.Azure.Storage
         private int _offset;
         private long _position;
 
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => _contentLength;
+
+        public override long Position { get => _position; set => throw new NotImplementedException(); }
+
         public AzureReadBlockBlobStream(BlockBlobClient blob, long contentLength, bool needsToReadBlockList)
         {
             _blob = blob;
@@ -36,7 +46,7 @@ namespace Kalix.Leo.Azure.Storage
             _position = 0;
         }
 
-        public async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
             if (_needsToReadBlockList && _orderedBlocks == null)
             {
@@ -104,9 +114,38 @@ namespace Kalix.Leo.Azure.Storage
             _currentBlock++;
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            _currentBlockData.Dispose();
+            if (disposing)
+            {
+                _currentBlockData.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        public override void Flush()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException();
         }
     }
 }

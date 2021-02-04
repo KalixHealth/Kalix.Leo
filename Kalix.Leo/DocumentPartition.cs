@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace Kalix.Leo
         {
         }
 
-        public async Task<Metadata> Save(string path, Func<IWriteAsyncStream, Task> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
+        public async Task<Metadata> Save(string path, Func<PipeWriter, ValueTask> savingFunc, UpdateAuditInfo audit, CancellationToken token, Metadata metadata = null)
         {
             await Initialise();
             var enc = await _encryptor.Value;

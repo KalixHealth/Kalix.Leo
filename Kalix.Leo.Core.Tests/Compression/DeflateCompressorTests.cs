@@ -1,11 +1,12 @@
 ﻿using Kalix.Leo.Compression;
-using Kalix.Leo.Streams;
 using NUnit.Framework;
 using System;
 using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Core.Tests.Compression
 {
@@ -79,26 +80,31 @@ namespace Kalix.Leo.Core.Tests.Compression
         }
 
         [Test]
-        public void SmallCanCompressAndDecompressUsingStreamTransformer()
+        public async Task SmallCanCompressAndDecompressUsingPipelines()
         {
             var str = "This is a string to compress and uncompress";
             var data = Encoding.UTF8.GetBytes(str);
 
             byte[] compData;
-            using (var cms = new AsyncMemoryStream())
-            using (var compressed = cms.AddTransformer(_compressor.CompressWriteStream))
+            using (var cms = new MemoryStream())
             {
-                compressed.WriteAsync(data, 0, data.Length, CancellationToken.None).Wait();
-                compressed.Complete(CancellationToken.None).Wait();
-
+                var writer = PipeWriter.Create(cms);
+                using var compressed = _compressor.CompressWriteStream(writer.AsStream());
+                var innerWriter = PipeWriter.Create(compressed);
+                await innerWriter.WriteAsync(data.AsMemory());
+                await innerWriter.CompleteAsync();
                 compData = cms.ToArray();
             }
 
             byte[] decData;
-            using (var reader = new ReadStreamWrapper(new MemoryStream(compData)))
-            using (var decompressed = reader.AddTransformer(_compressor.DecompressReadStream))
+            using (var rms = new MemoryStream(compData, false))
             {
-                decData = decompressed.ReadBytes().Result;
+                var reader = PipeReader.Create(rms);
+                using var decompressed = _compressor.DecompressReadStream(reader.AsStream());
+                var innerReader = PipeReader.Create(decompressed);
+                using var ms = new MemoryStream();
+                await innerReader.CopyToAsync(ms);
+                decData = ms.ToArray();
             }
 
             var decStr = Encoding.UTF8.GetString(decData, 0, decData.Length);
@@ -106,25 +112,30 @@ namespace Kalix.Leo.Core.Tests.Compression
         }
 
         [Test]
-        public void LargeCanCompressAndDecompressUsingStreamTransformer()
+        public async Task LargeCanCompressAndDecompressUsingPipelines()
         {
             var data = RandomData(1);
 
             byte[] compData;
-            using (var cms = new AsyncMemoryStream())
-            using (var compressed = cms.AddTransformer(_compressor.CompressWriteStream))
+            using (var cms = new MemoryStream())
             {
-                compressed.WriteAsync(data, 0, data.Length, CancellationToken.None).Wait();
-                compressed.Complete(CancellationToken.None).Wait();
-
+                var writer = PipeWriter.Create(cms);
+                using var compressed = _compressor.CompressWriteStream(writer.AsStream());
+                var innerWriter = PipeWriter.Create(compressed);
+                await innerWriter.WriteAsync(data.AsMemory());
+                await innerWriter.CompleteAsync();
                 compData = cms.ToArray();
             }
 
             byte[] newData;
-            using (var reader = new ReadStreamWrapper(new MemoryStream(compData)))
-            using (var decompressed = reader.AddTransformer(_compressor.DecompressReadStream))
+            using (var rms = new MemoryStream(compData, false))
             {
-                newData = decompressed.ReadBytes().Result;
+                var reader = PipeReader.Create(rms);
+                using var decompressed = _compressor.DecompressReadStream(reader.AsStream());
+                var innerReader = PipeReader.Create(decompressed);
+                using var ms = new MemoryStream();
+                await innerReader.CopyToAsync(ms);
+                newData = ms.ToArray();
             }
 
             Assert.IsTrue(data.SequenceEqual(newData));

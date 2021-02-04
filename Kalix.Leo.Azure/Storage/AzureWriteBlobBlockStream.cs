@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Storage
 {
-    public class AzureWriteBlockBlobStream : IWriteAsyncStream
+    public class AzureWriteBlockBlobStream : Stream
     {
         private const int AzureBlockSize = 4194304;
 
@@ -17,10 +17,20 @@ namespace Kalix.Leo.Azure.Storage
         private readonly BlobRequestConditions _condition;
         private readonly IDictionary<string, string> _metadata;
 
-        private MemoryStream _buff;
+        private readonly MemoryStream _buff;
         private int _partNumber;
 
         private bool _hasCompleted;
+
+        public override bool CanRead => false;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => true;
+
+        public override long Length => throw new NotImplementedException();
+
+        public override long Position { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
 
         public AzureWriteBlockBlobStream(BlockBlobClient blob, BlobRequestConditions condition, IDictionary<string, string> metadata)
         {
@@ -32,7 +42,7 @@ namespace Kalix.Leo.Azure.Storage
             _partNumber = 1;
         }
 
-        public async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
         {
             if (_hasCompleted)
             {
@@ -72,7 +82,7 @@ namespace Kalix.Leo.Azure.Storage
                     // We haven't even uploaded one block yet... just upload it straight...
                     using (var ms = new MemoryStream(data, 0, length, false))
                     {
-                        await _blob.UploadAsync(ms, new BlobUploadOptions { Conditions = _condition, Metadata = _metadata });
+                        await _blob.UploadAsync(ms, new BlobUploadOptions { Conditions = _condition, Metadata = _metadata }, ct);
                     }
                     LeoTrace.WriteLine("Uploaded Single Block: " + _blob.Name);
                 }
@@ -103,31 +113,58 @@ namespace Kalix.Leo.Azure.Storage
             // To cancel the upload we just need to prevent the complete method from firing
             // So either the single block or PutBlockList is never called
             _hasCompleted = true;
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
-        public Task FlushAsync(CancellationToken ct)
+        public override Task FlushAsync(CancellationToken ct)
         {
-            return Task.FromResult(0);
+            return Task.CompletedTask;
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            _buff.Dispose();
             _hasCompleted = true;
-        }
-
-        private string GetKey(int part)
-        {
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes(part.ToString("d7")));
+            if (disposing)
+            {
+                _buff.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         private async Task PutBlobAsync(string key, byte[] data, int length, CancellationToken ct)
         {
-            using (var ms = new MemoryStream(data, 0, length))
-            {
-                await _blob.StageBlockAsync(key, ms, conditions: _condition, cancellationToken: ct);
-            }
+            using var ms = new MemoryStream(data, 0, length, false);
+            await _blob.StageBlockAsync(key, ms, conditions: _condition, cancellationToken: ct);
+        }
+
+        public override void Flush()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void SetLength(long value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        private static string GetKey(int part)
+        {
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(part.ToString("d7")));
         }
     }
 }

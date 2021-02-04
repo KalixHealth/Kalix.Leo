@@ -1,5 +1,6 @@
 ﻿using Kalix.ApiCrypto.AES;
 using Kalix.Leo.Storage;
+using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
@@ -31,14 +32,16 @@ namespace Kalix.Leo.Encryption
                     // This will catch rare cases where two server calls may try to create two keys
                     var result = await store.TryOptimisticWrite(keyLocation, null, null, async (s) =>
                     {
-                        await s.WriteAsync(blob, 0, blob.Length, ct);
+                        await s.WriteAsync(blob.AsMemory(), ct);
                         return blob.Length;
                     }, ct);
                     isFound = result.Result;
                 }
                 else
                 {
-                    blob = await data.Stream.ReadBytes();
+                    using var ms = new MemoryStream();
+                    await data.Reader.CopyToAsync(ms);
+                    blob = ms.ToArray();
                     isFound = true;
                 }
             } while (!isFound);

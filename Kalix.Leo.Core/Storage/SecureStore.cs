@@ -4,6 +4,8 @@ using Kalix.Leo.Queue;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -21,9 +23,7 @@ namespace Kalix.Leo.Storage
 
         public SecureStore(IOptimisticStore store, IQueue backupQueue = null, IQueue indexQueue = null, IQueue secondaryIndexQueue = null, ICompressor compressor = null)
         {
-            if (store == null) { throw new ArgumentNullException("store"); }
-
-            _store = store;
+            _store = store ?? throw new ArgumentNullException(nameof(store));
             _backupQueue = backupQueue;
             _indexQueue = indexQueue;
             _secondaryIndexQueue = secondaryIndexQueue;
@@ -57,7 +57,7 @@ namespace Kalix.Leo.Storage
 
         public Task ForceObjectIndex<T>(StoreLocation location, Metadata metadata = null)
         {
-            metadata = metadata ?? new Metadata();
+            metadata ??= new Metadata();
             metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
             // Note: This is not getting reindex flag on purpose, this is a forced FULL index
 
@@ -68,10 +68,10 @@ namespace Kalix.Leo.Storage
         {
             if (_indexQueue == null)
             {
-                throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                throw new ArgumentException("Index option should not be used if no index queue has been defined");
             }
 
-            metadata = metadata ?? new Metadata();
+            metadata ??= new Metadata();
             if (metadata.DoNotIndex)
             {
                 return Task.CompletedTask;
@@ -129,7 +129,9 @@ namespace Kalix.Leo.Storage
 
             LeoTrace.WriteLine("Getting data object: " + location);
 
-            var strData = await data.Stream.ReadBytes();
+            using var ms = new MemoryStream();
+            await data.Reader.CopyToAsync(ms);
+            var strData = ms.ToArray();
             var str = Encoding.UTF8.GetString(strData, 0, strData.Length);
             var obj = JsonConvert.DeserializeObject<T>(str);
             obj.Audit = data.Metadata.Audit;
@@ -144,7 +146,7 @@ namespace Kalix.Leo.Storage
             if (data == null) { return null; }
 
             var metadata = data.Metadata;
-            var stream = data.Stream;
+            var stream = data.Reader;
 
             // Check encryption algorithm
             var hasEncryption = metadata.ContainsKey(MetadataConstants.EncryptionMetadataKey);
@@ -163,22 +165,21 @@ namespace Kalix.Leo.Storage
             // Modify read stream if required
             if (hasEncryption || hasCompression)
             {
-                stream = stream.AddTransformer(s =>
+                var s = stream.AsStream();
+
+                // This is a read flow, so decryption comes first
+                if (hasEncryption)
                 {
-                    // This is a read flow, so decryption comes first
-                    if (hasEncryption)
-                    {
-                        s = encryptor.Decrypt(s, true);
-                    }
+                    s = encryptor.Decrypt(s, true);
+                }
 
-                    // Then comes the decompression
-                    if (hasCompression)
-                    {
-                        s = _compressor.DecompressReadStream(s);
-                    }
+                // Then comes the decompression
+                if (hasCompression)
+                {
+                    s = _compressor.DecompressReadStream(s);
+                }
 
-                    return s;
-                });
+                stream = PipeReader.Create(s);
             }
 
             return new DataWithMetadata(stream, metadata);
@@ -199,12 +200,12 @@ namespace Kalix.Leo.Storage
             obj.Metadata[MetadataConstants.TypeMetadataKey] = typeof(T).FullName;
 
             var ct = CancellationToken.None;
-            var metadata = await SaveData(location, obj.Metadata, audit, (s) => s.WriteAsync(data, 0, data.Length, ct), ct, encryptor, options);
+            var metadata = await SaveData(location, obj.Metadata, audit, async s => await s.WriteAsync(data.AsMemory(), ct), ct, encryptor, options);
             obj.Data.Audit = metadata.Audit;
             return metadata;
         }
 
-        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, UpdateAuditInfo audit, Func<IWriteAsyncStream, Task> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
+        public async Task<Metadata> SaveData(StoreLocation location, Metadata mdata, UpdateAuditInfo audit, Func<PipeWriter, ValueTask> savingFunc, CancellationToken token, IEncryptor encryptor = null, SecureStoreOptions options = SecureStoreOptions.All)
         {
             LeoTrace.WriteLine("Saving: " + location.Container + ", " + location.BasePath + ", " + (location.Id.HasValue ? location.Id.Value.ToString() : "null"));
             var metadata = new Metadata(mdata);
@@ -225,7 +226,7 @@ namespace Kalix.Leo.Storage
             {
                 if (_compressor == null)
                 {
-                    throw new ArgumentException("Compression option should not be used if no compressor has been implemented", "options");
+                    throw new ArgumentException("Compression option should not be used if no compressor has been implemented");
                 }
                 metadata[MetadataConstants.CompressionMetadataKey] = _compressor.Algorithm;
             }
@@ -239,28 +240,27 @@ namespace Kalix.Leo.Storage
              * ***************************************************/
             var m = await _store.SaveData(location, metadata, audit, async (stream) =>
             {
-                LengthCounterStream counter = null;
-                stream = stream.AddTransformer(s =>
+                var s = stream.AsStream();
+                // Encrypt just before writing to the stream (if we need)
+                if (encryptor != null)
                 {
-                    // Encrypt just before writing to the stream (if we need)
-                    if (encryptor != null)
-                    {
-                        s = encryptor.Encrypt(s, false);
-                    }
+                    s = encryptor.Encrypt(s, false);
+                }
 
-                    // Compression comes right before encryption
-                    if (options.HasFlag(SecureStoreOptions.Compress))
-                    {
-                        s = _compressor.CompressWriteStream(s);
-                    }
+                // Compression comes right before encryption
+                if (options.HasFlag(SecureStoreOptions.Compress))
+                {
+                    s = _compressor.CompressWriteStream(s);
+                }
 
-                    // Always place the length counter stream
-                    counter = new LengthCounterStream(s);
-                    return counter;
-                });
+                // Always place the length counter stream
+                var counter = new LengthCounterStream(s);
 
-                await savingFunc(stream);
-                await stream.Complete(token);
+                var pipeWriter = PipeWriter.Create(counter);
+
+                await savingFunc(pipeWriter);
+                await pipeWriter.CompleteAsync();
+
                 return counter.Length;
             }, token);
 
@@ -274,7 +274,7 @@ namespace Kalix.Leo.Storage
             {
                 if(_backupQueue == null)
                 {
-                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined");
                 }
 
                 tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
@@ -307,7 +307,7 @@ namespace Kalix.Leo.Storage
             {
                 if (_backupQueue == null)
                 {
-                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined");
                 }
 
                 tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
@@ -317,7 +317,7 @@ namespace Kalix.Leo.Storage
             {
                 if (_indexQueue == null)
                 {
-                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                    throw new ArgumentException("Index option should not be used if no index queue has been defined");
                 }
 
                 var queue = _secondaryIndexQueue != null && (metadata?.UseSecondaryIndexQueue ?? false) ? _secondaryIndexQueue : _indexQueue;
@@ -353,7 +353,7 @@ namespace Kalix.Leo.Storage
             {
                 if (_backupQueue == null)
                 {
-                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined", "options");
+                    throw new ArgumentException("Backup option should not be used if no backup queue has been defined");
                 }
 
                 tasks.Add(_backupQueue.SendMessage(GetMessageDetails(location, metadata)));
@@ -363,7 +363,7 @@ namespace Kalix.Leo.Storage
             {
                 if (_indexQueue == null)
                 {
-                    throw new ArgumentException("Index option should not be used if no index queue has been defined", "options");
+                    throw new ArgumentException("Index option should not be used if no index queue has been defined");
                 }
 
                 tasks.Add(_indexQueue.SendMessage(GetMessageDetails(location, metadata)));
@@ -413,7 +413,7 @@ namespace Kalix.Leo.Storage
             return _store.PermanentDeleteContainer(container);
         }
 
-        private string GetMessageDetails(StoreLocation location, Metadata metadata)
+        private static string GetMessageDetails(StoreLocation location, Metadata metadata)
         {
             var details = new StoreDataDetails
             {

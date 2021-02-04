@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -89,7 +90,7 @@ namespace Kalix.Leo.Storage
             var ct = CancellationToken.None;
             await _store.SaveData(_location, null, null, async (s) => 
             {
-                await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct);
+                await s.WriteAsync(limitBytes.AsMemory(), ct);
                 return limitBytes.Length;
             }, ct);
 
@@ -109,8 +110,9 @@ namespace Kalix.Leo.Storage
                 var dataStream = await _store.LoadData(_location);
                 if (dataStream != null)
                 {
-                    var all = await dataStream.Stream.ReadBytes();
-                    data = Encoding.UTF8.GetString(all, 0, all.Length);
+                    using var ms = new MemoryStream();
+                    await dataStream.Reader.CopyToAsync(ms);
+                    data = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
                 }
 
                 long currentId;
@@ -137,7 +139,7 @@ namespace Kalix.Leo.Storage
                 var ct = CancellationToken.None;
                 var result = await _store.TryOptimisticWrite(_location, m, null, async (s) =>
                 {
-                    await s.WriteAsync(limitBytes, 0, limitBytes.Length, ct);
+                    await s.WriteAsync(limitBytes.AsMemory(), ct);
                     return limitBytes.Length;
                 }, ct);
 

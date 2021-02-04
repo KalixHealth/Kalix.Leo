@@ -8,6 +8,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Tests.Storage
 {
@@ -32,7 +33,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             var ct = CancellationToken.None;
             var res = _store.SaveData(location, m, null, async (s) =>
             {
-                await s.WriteAsync(data, 0, data.Length, ct);
+                await s.WriteAsync(data.AsMemory(), ct);
                 return data.Length;
             }, ct).Result;
             return res.Snapshot;
@@ -43,7 +44,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             var ct = CancellationToken.None;
             return _store.TryOptimisticWrite(location, m, null, async (s) =>
             {
-                await s.WriteAsync(data, 0, data.Length, ct);
+                await s.WriteAsync(data.AsMemory(), ct);
                 return data.Length;
             }, ct).Result;
         }
@@ -55,8 +56,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void HasMetadataCorrectlySavesIt()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "somemetadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "somemetadata"
+                };
                 WriteData(_location, m, data);
 
                 var props = _blob.GetProperties().Value;
@@ -67,12 +70,16 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void AlwaysOverridesMetadata()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "somemetadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "somemetadata"
+                };
                 WriteData(_location, m, data);
 
-                var m2 = new Metadata();
-                m2["metadata2"] = "othermetadata";
+                var m2 = new Metadata
+                {
+                    ["metadata2"] = "othermetadata"
+                };
                 WriteData(_location, m2, data);
 
                 var props = _blob.GetProperties().Value;
@@ -107,8 +114,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void HasMetadataCorrectlySavesIt()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "somemetadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "somemetadata"
+                };
                 var success = TryOptimisticWrite(_location, m, data);
 
                 var props = _blob.GetProperties().Value;
@@ -121,14 +130,18 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void AlwaysOverridesMetadata()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "somemetadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "somemetadata"
+                };
                 var success1 = TryOptimisticWrite(_location, m, data);
                 var oldMetadata = _store.GetMetadata(_location).Result;
 
-                var m2 = new Metadata();
-                m2.ETag = oldMetadata.ETag;
-                m2["metadata2"] = "othermetadata";
+                var m2 = new Metadata
+                {
+                    ETag = oldMetadata.ETag,
+                    ["metadata2"] = "othermetadata"
+                };
                 var success2 = TryOptimisticWrite(_location, m2, data);
                 var newMetadata = _store.GetMetadata(_location).Result;
 
@@ -199,8 +212,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void FindsMetadataIncludingSizeAndLength()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "somemetadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "somemetadata"
+                };
                 WriteData(_location, m, data);
 
                 var result = _store.GetMetadata(_location).Result;
@@ -227,29 +242,32 @@ namespace Kalix.Leo.Azure.Tests.Storage
         public class LoadDataMethod : AzureStoreTests
         {
             [Test]
-            public void MetadataIsTransferedWhenSelectingAStream()
+            public async Task MetadataIsTransferedWhenSelectingAStream()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "metadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "metadata"
+                };
+
                 WriteData(_location, m, data);
 
-                var result = _store.LoadData(_location).Result;
+                var result = await _store.LoadData(_location);
                 Assert.IsNotNull(result.Metadata.Snapshot);
                 Assert.AreEqual("metadata", result.Metadata["metadata1"]);
             }
 
             [Test]
-            public void NoFileReturnsFalse()
+            public async Task NoFileReturnsFalse()
             {
-                var result = _store.LoadData(_location).Result;
+                var result = await _store.LoadData(_location);
                 Assert.IsNull(result);
             }
 
             [Test]
-            public void NoContainerReturnsFalse()
+            public async Task NoContainerReturnsFalse()
             {
-                var result = _store.LoadData(new StoreLocation("blahblahblah", "blah")).Result;
+                var result = await _store.LoadData(new StoreLocation("blahblahblah", "blah"));
                 Assert.IsNull(result);
             }
 
@@ -257,8 +275,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void FileMarkedAsDeletedReturnsNull()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["leodeleted"] = DateTime.UtcNow.Ticks.ToString();
+                var m = new Metadata
+                {
+                    ["leodeleted"] = DateTime.UtcNow.Ticks.ToString()
+                };
                 WriteData(_location, m, data);
 
                 var result = _store.LoadData(_location).Result;
@@ -266,7 +286,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
             }
 
             [Test]
-            public void AllDataLoadsCorrectly()
+            public async Task AllDataLoadsCorrectly()
             {
                 var data = AzureTestsHelper.RandomData(1);
                 WriteData(_location, null, data);
@@ -275,14 +295,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 byte[] resData;
                 using(var ms = new MemoryStream())
                 {
-                    result.Stream.CopyToStream(ms, CancellationToken.None).Wait();
+                    await result.Reader.CopyToAsync(ms, CancellationToken.None);
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));
             }
 
             [Test]
-            public void AllDataLargeFileLoadsCorrectly()
+            public async Task AllDataLargeFileLoadsCorrectly()
             {
                 var data = AzureTestsHelper.RandomData(14);
                 WriteData(_location, null, data);
@@ -291,7 +311,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 byte[] resData;
                 using (var ms = new MemoryStream())
                 {
-                    result.Stream.CopyToStream(ms, CancellationToken.None).Wait();
+                    await result.Reader.CopyToAsync(ms, CancellationToken.None);
                     resData = ms.ToArray();
                 }
                 Assert.IsTrue(data.SequenceEqual(resData));
@@ -324,8 +344,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void SingleSnapshotCanBeFound()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "metadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "metadata"
+                };
                 WriteData(_location, m, data);
 
                 var snapshots = _store.FindSnapshots(_location).ToEnumerable();
@@ -339,7 +361,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var data = AzureTestsHelper.RandomData(1);
                 WriteData(_location, null, data);
 
-                var blob2 = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
+                AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data", true);
                 var location2 = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata/subitem.data");
 
                 WriteData(location2, null, data);
@@ -357,8 +379,10 @@ namespace Kalix.Leo.Azure.Tests.Storage
             public void MetadataIsTransferedWhenSelectingAStream()
             {
                 var data = AzureTestsHelper.RandomData(1);
-                var m = new Metadata();
-                m["metadata1"] = "metadata";
+                var m = new Metadata
+                {
+                    ["metadata1"] = "metadata"
+                };
                 var shapshot = WriteData(_location, m, data);
 
                 var res = _store.LoadData(_location, shapshot).Result;
@@ -448,7 +472,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         public class LockMethod : AzureStoreTests
         {
             [Test]
-            public void LockSuceedsEvenIfNoFile()
+            public async Task LockSuceedsEvenIfNoFile()
             {
                 var l = _store.Lock(_location).Result;
                 try
@@ -457,15 +481,15 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 }
                 finally
                 {
-                    l.DisposeAsync().GetAwaiter().GetResult();
+                    await l.DisposeAsync();
                 }
             }
 
             [Test]
-            public void IfAlreadyLockedOtherLocksFail()
+            public async Task IfAlreadyLockedOtherLocksFail()
             {
-                var l = _store.Lock(_location).Result;
-                var l2 = _store.Lock(_location).Result;
+                var l = await _store.Lock(_location);
+                var l2 = await _store.Lock(_location);
                 try
                 {
                     Assert.IsNotNull(l);
@@ -473,16 +497,16 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 }
                 finally
                 {
-                    l.DisposeAsync().GetAwaiter().GetResult();
+                    await l.DisposeAsync();
                 }
             }
 
             [Test]
             public void IfFileLockedReturnsFalse()
             {
-                Assert.Throws<LockException>(() =>
+                Assert.ThrowsAsync<LockException>(async () =>
                 {
-                    var l = _store.Lock(_location).Result;
+                    var l = await _store.Lock(_location);
                     try
                     {
                         var data = AzureTestsHelper.RandomData(1);
@@ -497,7 +521,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                     }
                     finally
                     {
-                        l.DisposeAsync().GetAwaiter().GetResult();
+                        await l.DisposeAsync();
                     }
                 });
             }
