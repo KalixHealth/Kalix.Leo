@@ -34,6 +34,6 @@ namespace Kalix.Leo.Listeners
         /// <param name="uncaughtException">Use this to listen to failed messages</param>
         /// <param name="messagesToProcessInParallel">Number of messages to handle concurrently</param>
         /// <returns>A disposable that will stop the listener if disposed</returns>
-        IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
+        IAsyncDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null);
     }
 }

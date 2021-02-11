@@ -1,5 +1,6 @@
 ﻿using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
+using System;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
@@ -46,6 +47,6 @@ namespace Kalix.Leo
         /// Start listeners for the index and backup queues
         /// </summary>
         /// <param name="messagesToProcessInParallel">The number of messages to concurrently process, it set to the number of cores</param>
-        void StartListeners(int? messagesToProcessInParallel = null);
+        IAsyncDisposable StartListeners(int? messagesToProcessInParallel = null);
     }
 }

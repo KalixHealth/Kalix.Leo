@@ -5,43 +5,38 @@ using Kalix.Leo.Listeners;
 using Kalix.Leo.Storage;
 using Microsoft.Extensions.Caching.Memory;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo
 {
-    public class LeoEngine : IDisposable, ILeoEngine
+    public class LeoEngine : ILeoEngine
     {
         private readonly LeoEngineConfiguration _config;
         private readonly IBackupListener _backupListener;
         private readonly IIndexListener _indexListener;
         private readonly Lazy<IRecordSearchComposer> _composer;
         
-        private static readonly object _cacheLock = new object();
         private readonly IMemoryCache _cache;
         private readonly MemoryCacheEntryOptions _cachePolicy;
         private readonly string _baseName;
 
         private bool _listenersStarted;
         private bool _hasInitEncryptorContainer;
-        private List<IDisposable> _disposables;
 
         public LeoEngine(LeoEngineConfiguration config, IMemoryCache cache)
         {
             _config = config;
-            _disposables = new List<IDisposable>();
             _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
-            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.SecondaryIndexQueue, config.TypeResolver, config.TypeNameResolver) : null;
+            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.SecondaryIndexQueue, config.TypeResolver) : null;
             _cache = cache;
             _cachePolicy = new MemoryCacheEntryOptions()
                 .SetPriority(CacheItemPriority.NeverRemove)
                 .SetSlidingExpiration(TimeSpan.FromHours(1))
                 .RegisterPostEvictionCallback((key, value, reason, state) =>
                 {
-                    var disp = value as IDisposable;
-                    if (disp != null)
+                    if (value is IDisposable disp)
                     {
                         disp.Dispose();
                     }
@@ -54,7 +49,7 @@ namespace Kalix.Leo
             {
                 if (config.Objects == null)
                 {
-                    throw new ArgumentNullException("You have not initialised any objects");
+                    throw new ArgumentNullException("config.Objects", "You have not initialised any objects");
                 }
 
                 if (config.Objects.Select(o => o.BasePath).Distinct().Count() != config.Objects.Count())
@@ -122,32 +117,34 @@ namespace Kalix.Leo
             return GetCachedValue(key, () => CertProtectedEncryptor.CreateEncryptor(_config.BaseStore, new StoreLocation(_config.KeyContainer, partitionKey), _config.RsaCert));
         }
 
-        public void StartListeners(int? messagesToProcessInParallel = null)
+        public IAsyncDisposable StartListeners(int? messagesToProcessInParallel = null)
         {
             if (_listenersStarted)
             {
                 throw new InvalidOperationException("Listeners have already started");
             }
 
+            IAsyncDisposable _backupListenerDispose = null;
             if(_backupListener != null)
             {
-                _disposables.Add(_backupListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel));
+                _backupListenerDispose = _backupListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel);
             }
 
+            IAsyncDisposable _indexListenerDispose = null;
             if (_indexListener != null)
             {
-                _disposables.Add(_indexListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel));
+                _indexListenerDispose = _indexListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel);
             }
 
             _listenersStarted = true;
-        }
-
-        public void Dispose()
-        {
-            foreach (var d in _disposables)
+            return AsyncDisposable.Create(async () =>
             {
-                d.Dispose();
-            }
+                await Task.WhenAll(
+                    _backupListenerDispose == null ? Task.CompletedTask : _backupListenerDispose.DisposeAsync().AsTask(),
+                    _indexListenerDispose == null ? Task.CompletedTask : _indexListenerDispose.DisposeAsync().AsTask()
+                );
+                _listenersStarted = false;
+            });
         }
 
         private Task<T> GetCachedValue<T>(string key, Func<Task<T>> factory)

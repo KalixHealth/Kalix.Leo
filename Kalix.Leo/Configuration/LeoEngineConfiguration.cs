@@ -84,10 +84,5 @@ namespace Kalix.Leo.Configuration
         /// Type resolver to find an object by type, should use a container if you have one
         /// </summary>
         public Func<Type, object> TypeResolver { get; set; }
-
-        /// <summary>
-        /// The resolvers to find a type by name (if null will use a default implementation)
-        /// </summary>
-        public Func<string, Type> TypeNameResolver { get; set; }
     }
 }

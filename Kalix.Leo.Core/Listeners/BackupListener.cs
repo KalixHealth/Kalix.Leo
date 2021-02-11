@@ -24,17 +24,22 @@ namespace Kalix.Leo.Listeners
             _originalStore = originalStore;
         }
 
-        public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
+        public IAsyncDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
             var token = new CancellationTokenSource();
             var ct = token.Token;
 
-            Task.Run(() => _backupQueue.ListenForMessages(maxMessages, VisibilityTimeout, DelayTime, uncaughtException, ct)
+            var task = Task.Run(() => _backupQueue.ListenForMessages(maxMessages, VisibilityTimeout, DelayTime, uncaughtException, ct)
                 .ForEachAwaitAsync(m => MessageRecieved(m, uncaughtException), ct)
             );
 
-            return token;
+            return AsyncDisposable.Create(async () =>
+            {
+                token.Cancel();
+                try { await task; } catch { }
+                token.Dispose();
+            });
         }
 
         private async Task MessageRecieved(IQueueMessage message, Action<Exception> uncaughtException)
@@ -66,7 +71,7 @@ namespace Kalix.Leo.Listeners
             }
             catch (Exception e)
             {
-                if (uncaughtException != null) { uncaughtException(e); }
+                uncaughtException?.Invoke(e);
             }
             finally
             {

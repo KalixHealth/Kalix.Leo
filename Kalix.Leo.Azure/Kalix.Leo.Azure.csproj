@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>15.0.0</Version>
+    <Version>15.1.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Copyright>Copyright 2021</Copyright>
@@ -14,7 +14,8 @@
     <Description>Azure implementation of the Kalix.Leo storage abstraction</Description>
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
     <PackageReleaseNotes>Changed to use .net 5
-Custom async streams replaces with PipeReader/PipeWriter</PackageReleaseNotes>
+Custom async streams replaces with PipeReader/PipeWriter
+Listener streams return IAsyncDispose instead of Dispose</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.8.0" />

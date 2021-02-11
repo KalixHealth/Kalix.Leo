@@ -21,16 +21,14 @@ namespace Kalix.Leo.Listeners
         private readonly IQueue _backupIndexQueue;
         private readonly Dictionary<string, Type> _typeIndexers;
         private readonly Dictionary<string, Type> _pathIndexers;
-        private readonly Func<string, Type> _typeNameResolver;
         private readonly Func<Type, object> _typeResolver;
 
-        public IndexListener(IQueue indexQueue, IQueue backupIndexQueue, Func<Type, object> typeResolver, Func<string, Type> typeNameResolver = null)
+        public IndexListener(IQueue indexQueue, IQueue backupIndexQueue, Func<Type, object> typeResolver)
         {
             _indexQueue = indexQueue;
             _backupIndexQueue = backupIndexQueue;
             _typeIndexers = new Dictionary<string, Type>();
             _pathIndexers = new Dictionary<string, Type>();
-            _typeNameResolver = typeNameResolver ?? (s => Type.GetType(s, false));
             _typeResolver = typeResolver;
         }
 
@@ -38,7 +36,7 @@ namespace Kalix.Leo.Listeners
         {
             if(!typeof(IIndexer).GetTypeInfo().IsAssignableFrom(indexer.GetTypeInfo()))
             {
-                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", "indexer");
+                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", nameof(indexer));
             }
 
             if (_pathIndexers.ContainsKey(basePath))
@@ -58,7 +56,7 @@ namespace Kalix.Leo.Listeners
         {
             if (!typeof(IIndexer).GetTypeInfo().IsAssignableFrom(indexer.GetTypeInfo()))
             {
-                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", "indexer");
+                throw new ArgumentException("The type specified to register as an indexer does not implement IIndexer", nameof(indexer));
             }
 
             if (_typeIndexers.ContainsKey(type.FullName))
@@ -75,7 +73,7 @@ namespace Kalix.Leo.Listeners
             public List<IQueueMessage> Messages { get; set; }
         }
 
-        public IDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
+        public IAsyncDisposable StartListener(Action<Exception> uncaughtException = null, int? messagesToProcessInParallel = null)
         {
             var maxMessages = messagesToProcessInParallel ?? Environment.ProcessorCount;
             var token = new CancellationTokenSource();
@@ -91,24 +89,36 @@ namespace Kalix.Leo.Listeners
 
             var actionBlock = new ActionBlock<IGrouping<string, IQueueMessage>>(async g =>
             {
+                ct.ThrowIfCancellationRequested();
                 try
                 {
-                    await ExecuteMessages(g, uncaughtException);
+                    await ExecuteMessages(g);
                     await Task.WhenAll(g.Where(m => !m.IsComplete).Select(m => m.Complete()));
                 }
                 catch (Exception e)
                 {
                     uncaughtException?.Invoke(e);
                 }
+                finally
+                {
+                    await Task.WhenAll(g.Select(m => m.DisposeAsync().AsTask()));
+                }
             }, new ExecutionDataflowBlockOptions { BoundedCapacity = maxMessages, MaxDegreeOfParallelism = maxMessages });
 
             // Thread to push messages onto the action block to process in parallel
-            _ = Task.Run(() =>
+            var task = Task.Run(() =>
                 messages.TimedBuffer(maxMessages, TimeToWait, ct)
                     .ForEachAwaitAsync(ma => ma.GroupBy(FindKey).ToAsyncEnumerable().ForEachAwaitAsync(g => actionBlock.SendAsync(g, ct), ct), ct)
             , ct);
 
-            return token;
+            return AsyncDisposable.Create(async () =>
+            {
+                token.Cancel();
+                actionBlock.Complete();
+                try { await task; } catch { }
+                try { await actionBlock.Completion; } catch { }
+                token.Dispose();
+            });
         }
 
         private string FindKey(IQueueMessage message)
@@ -118,7 +128,7 @@ namespace Kalix.Leo.Listeners
             return details.Container + "_" + firstPath;
         }
 
-        private async Task ExecuteMessages(IEnumerable<IQueueMessage> messages, Action<Exception> uncaughtException)
+        private async Task ExecuteMessages(IEnumerable<IQueueMessage> messages)
         {
             try
             {

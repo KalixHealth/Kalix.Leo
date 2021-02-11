@@ -57,7 +57,7 @@ namespace Kalix.Leo.Azure.Queue
         public async ValueTask DisposeAsync()
         {
             IsComplete = true;
-            _tcs.Cancel();
+            if (!_tcs.IsCancellationRequested) { _tcs.Cancel(); }
             try { await _visiblityTask; } catch { }
             _tcs.Dispose();
         }
@@ -73,7 +73,7 @@ namespace Kalix.Leo.Azure.Queue
                     await Task.Delay(refreshTime, token);
 
                     // Don't use cancellation token in next call on purpose, so always finishes if started
-                    var update = await _queue.UpdateMessageAsync(_messageId, _popId, visibilityTimeout: visibilityTimeout);
+                    var update = await _queue.UpdateMessageAsync(_messageId, _popId, visibilityTimeout: visibilityTimeout, cancellationToken: CancellationToken.None);
                     _popId = update.Value.PopReceipt;
                 }
             }

@@ -29,7 +29,7 @@ namespace System.Collections.Generic
             for (int i = 0; i < toCombine.Length; i++)
             {
                 _ = Task.Run(() => toCombine[i].ForEachAwaitAsync(async t => await channels[i].Writer.WriteAsync(t, token), token), token)
-                    .ContinueWith(t => channels[i].Writer.Complete(t.Exception));
+                    .ContinueWith(t => channels[i].Writer.Complete(t.Exception), token);
             }
 
             // Our loop to pull items from channels
@@ -152,7 +152,7 @@ namespace System.Collections.Generic
         private class AsyncDisposeManager<T> : IAsyncDisposable
         {
             private readonly CancellationTokenSource _tcs;
-            private readonly ValueTask _task;
+            private readonly Task _task;
             private readonly Func<Task> _onDispose;
 
             public AsyncDisposeManager(IAsyncEnumerable<T> enumerable, CancellationTokenSource src, Func<Task> onDispose)
@@ -162,7 +162,7 @@ namespace System.Collections.Generic
                 _onDispose = onDispose;
             }
 
-            private async ValueTask ExecuteTask(IAsyncEnumerable<T> enumerable)
+            private async Task ExecuteTask(IAsyncEnumerable<T> enumerable)
             {
                 await foreach (var _ in enumerable.WithCancellation(_tcs.Token)) { }
             }
