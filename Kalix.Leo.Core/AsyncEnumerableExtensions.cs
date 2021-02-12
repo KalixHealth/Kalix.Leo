@@ -144,27 +144,36 @@ namespace System.Collections.Generic
             }
         }
 
-        public static IAsyncDisposable TakeUntilDisposed<T>(this IAsyncEnumerable<T> enumerable, CancellationTokenSource src = null, Func<Task> onDispose = null)
+        public static IAsyncDisposable TakeUntilDisposed<T>(this IAsyncEnumerable<T> enumerable, CancellationTokenSource src = null, Func<Task> onDispose = null, Action<Exception> onError = null)
         {
-            return new AsyncDisposeManager<T>(enumerable, src, onDispose);
+            return new AsyncDisposeManager<T>(enumerable, src, onDispose, onError);
         }
 
-        private class AsyncDisposeManager<T> : IAsyncDisposable
+        private sealed class AsyncDisposeManager<T> : IAsyncDisposable
         {
             private readonly CancellationTokenSource _tcs;
             private readonly Task _task;
             private readonly Func<Task> _onDispose;
+            private readonly Action<Exception> _onError;
 
-            public AsyncDisposeManager(IAsyncEnumerable<T> enumerable, CancellationTokenSource src, Func<Task> onDispose)
+            public AsyncDisposeManager(IAsyncEnumerable<T> enumerable, CancellationTokenSource src, Func<Task> onDispose, Action<Exception> onError)
             {
                 _tcs = src ?? new CancellationTokenSource();
                 _task = ExecuteTask(enumerable);
                 _onDispose = onDispose;
+                _onError = onError;
             }
 
             private async Task ExecuteTask(IAsyncEnumerable<T> enumerable)
             {
-                await foreach (var _ in enumerable.WithCancellation(_tcs.Token)) { }
+                try
+                {
+                    await foreach (var _ in enumerable.WithCancellation(_tcs.Token)) { }
+                }
+                catch (Exception e)
+                {
+                    _onError?.Invoke(e);
+                }
             }
 
             public async ValueTask DisposeAsync()

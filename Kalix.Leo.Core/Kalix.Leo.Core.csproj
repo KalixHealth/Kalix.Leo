@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>15.1.0</Version>
+    <Version>15.2.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Company>Kalix, Inc</Company>
@@ -14,9 +14,7 @@
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
     <Authors>Felix Jorkowski</Authors>
     <RepositoryUrl>https://github.com/KalixHealth/Kalix.Leo</RepositoryUrl>
-    <PackageReleaseNotes>Changed to use .net 5
-Custom async streams replaces with PipeReader/PipeWriter
-Listener streams return IAsyncDispose instead of Dispose</PackageReleaseNotes>
+    <PackageReleaseNotes>Optimistic store returns lock with access to underlying task</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />

@@ -474,14 +474,14 @@ namespace Kalix.Leo.Azure.Tests.Storage
             [Test]
             public async Task LockSuceedsEvenIfNoFile()
             {
-                var l = _store.Lock(_location).Result;
+                var l = await _store.Lock(_location);
                 try
                 {
                     Assert.IsNotNull(l);
                 }
                 finally
                 {
-                    await l.DisposeAsync();
+                    await l.CancelDispose.DisposeAsync();
                 }
             }
 
@@ -492,12 +492,12 @@ namespace Kalix.Leo.Azure.Tests.Storage
                 var l2 = await _store.Lock(_location);
                 try
                 {
-                    Assert.IsNotNull(l);
-                    Assert.IsNull(l2);
+                    Assert.IsNotNull(l.CancelDispose);
+                    Assert.IsNull(l2.CancelDispose);
                 }
                 finally
                 {
-                    await l.DisposeAsync();
+                    await l.CancelDispose.DisposeAsync();
                 }
             }
 
@@ -521,7 +521,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
                     }
                     finally
                     {
-                        await l.DisposeAsync();
+                        await l.CancelDispose.DisposeAsync();
                     }
                 });
             }

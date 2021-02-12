@@ -375,7 +375,7 @@ namespace Kalix.Leo.Storage
             }
         }
 
-        public Task<IAsyncDisposable> Lock(StoreLocation location)
+        public Task<(IAsyncDisposable CancelDispose, Task Task)> Lock(StoreLocation location)
         {
             return _store.Lock(location);
         }

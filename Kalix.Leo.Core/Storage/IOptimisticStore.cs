@@ -27,7 +27,7 @@ namespace Kalix.Leo.Storage
         /// </summary>
         /// <param name="location">Location of the file to lock</param>
         /// <returns>A disposable to release the lock, or null if the lock could not be made</returns>
-        Task<IAsyncDisposable> Lock(StoreLocation location);
+        Task<(IAsyncDisposable CancelDispose, Task Task)> Lock(StoreLocation location);
 
         /// <summary>
         /// Lock based timer that allows a task to be synchronised to be run every x time over all shared instances

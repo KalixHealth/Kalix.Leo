@@ -80,11 +80,11 @@ namespace Kalix.Leo.Azure.Storage
             return SaveDataInternal(location, metadata, audit, savingFunc, true, token);
         }
 
-        public async Task<IAsyncDisposable> Lock(StoreLocation location)
+        public async Task<(IAsyncDisposable CancelDispose, Task Task)> Lock(StoreLocation location)
         {
             var blob = GetBlockBlob(location);
             var l = await LockInternal(blob);
-            return l?.Item1;
+            return (l?.Item1, l?.Item3);
         }
 
         public Task RunOnce(StoreLocation location, Func<Task> action) { return RunOnce(location, action, TimeSpan.FromSeconds(5)); }
@@ -576,7 +576,7 @@ namespace Kalix.Leo.Azure.Storage
             }
         }
 
-        private static async Task<Tuple<IAsyncDisposable, string>> LockInternal(BlockBlobClient blob)
+        private static async Task<Tuple<IAsyncDisposable, string, Task>> LockInternal(BlockBlobClient blob)
         {
             BlobLease lease;
 
@@ -618,6 +618,7 @@ namespace Kalix.Leo.Azure.Storage
             var condition = new BlobRequestConditions { LeaseId = lease.LeaseId };
 
             // Every 30 secs keep the lock renewed
+            var tcs = new TaskCompletionSource();
             var keepAlive = LeaseRenewInterval(client, condition)
                 .TakeUntilDisposed(onDispose: async () =>
                 {
@@ -629,10 +630,11 @@ namespace Kalix.Leo.Azure.Storage
                     {
                         LeoTrace.WriteLine("Release failed: " + e.Message);
                     }
-                });
+                    tcs.TrySetResult();
+                }, onError: e => tcs.TrySetException(e));
 
 
-            return Tuple.Create(keepAlive, lease.LeaseId);
+            return Tuple.Create(keepAlive, lease.LeaseId, tcs.Task);
         }
 
         private static async Task<BlobProperties> GetBlobProperties(BlockBlobClient blob, CancellationToken token = default)
