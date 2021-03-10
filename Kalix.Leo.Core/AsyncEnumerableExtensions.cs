@@ -28,8 +28,7 @@ namespace System.Collections.Generic
             // Tasks that will push the async enumerables to their channel
             for (int i = 0; i < toCombine.Length; i++)
             {
-                _ = Task.Run(() => toCombine[i].ForEachAwaitAsync(async t => await channels[i].Writer.WriteAsync(t, token), token), token)
-                    .ContinueWith(t => channels[i].Writer.Complete(t.Exception), token);
+                StartBackgroundCopyTask(toCombine[i], channels[i], token);
             }
 
             // Our loop to pull items from channels
@@ -147,6 +146,12 @@ namespace System.Collections.Generic
         public static IAsyncDisposable TakeUntilDisposed<T>(this IAsyncEnumerable<T> enumerable, CancellationTokenSource src = null, Func<Task> onDispose = null, Action<Exception> onError = null)
         {
             return new AsyncDisposeManager<T>(enumerable, src, onDispose, onError);
+        }
+
+        private static void StartBackgroundCopyTask<T>(IAsyncEnumerable<T> copyFrom, Channel<T> copyTo, CancellationToken token)
+        {
+            _ = Task.Run(() => copyFrom.ForEachAwaitAsync(async t => await copyTo.Writer.WriteAsync(t, token), token), token)
+                    .ContinueWith(t => copyTo.Writer.Complete(t.Exception), token);
         }
 
         private sealed class AsyncDisposeManager<T> : IAsyncDisposable
