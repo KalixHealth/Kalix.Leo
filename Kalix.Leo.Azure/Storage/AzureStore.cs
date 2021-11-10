@@ -222,10 +222,10 @@ namespace Kalix.Leo.Azure.Storage
                 });
         }
 
-        public IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
+        public async IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
         {
             var c = _blobStorage.GetBlobContainerClient(SafeContainerName(container));
-            return ListBlobs(c, prefix, BlobTraits.Metadata, BlobStates.None)
+            var blobs = ListBlobs(c, prefix, BlobTraits.Metadata, BlobStates.None)
                 .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
                 .Select(b =>
                 {
@@ -239,10 +239,26 @@ namespace Kalix.Leo.Azure.Storage
                             path = Path.GetDirectoryName(path);
                         }
                     }
-                    
+
                     var loc = new StoreLocation(container, path, id);
                     return new LocationWithMetadata(loc, GetActualMetadata(b));
                 });
+
+            // Wierd setup here so we can catch the error if no container and just return empty
+            await using var en = blobs.GetAsyncEnumerator();
+            while (true)
+            {
+                try
+                {
+                    if (!await en.MoveNextAsync()) { yield break; }
+                }
+                catch (RequestFailedException ex) when (ex.ErrorCode == "ContainerNotFound")
+                {
+                    yield break;
+                }
+
+                yield return en.Current;
+            }
         }
 
         public async Task SoftDelete(StoreLocation location, UpdateAuditInfo audit)

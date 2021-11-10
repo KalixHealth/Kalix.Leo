@@ -373,6 +373,24 @@ namespace Kalix.Leo.Azure.Tests.Storage
         }
 
         [TestFixture]
+        public class FindFilesMethod : AzureStoreTests
+        {
+            [Test]
+            public async Task NoContainerReturnsEmpty()
+            {
+                var files = await _store.FindFiles("not-exists").ToListAsync();
+                Assert.AreEqual(0, files.Count);
+            }
+
+            [Test]
+            public async Task ContainerWithFilesReturnsCorrectNumber()
+            {
+                var files = await _store.FindFiles(_location.Container).ToListAsync();
+                Assert.AreEqual(1, files.Count);
+            }
+        }
+
+        [TestFixture]
         public class LoadDataMethodWithSnapshot : AzureStoreTests
         {
             [Test]
