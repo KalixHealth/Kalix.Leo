@@ -51,8 +51,7 @@ namespace Kalix.Leo
         {
             await Initialise();
 
-            var member = idField.Body as MemberExpression;
-            if(member == null)
+            if (idField.Body is not MemberExpression member)
             {
                 throw new ArgumentException(string.Format("Expression '{0}' refers to a method, not a property.", idField.ToString()));
             }
