@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>15.3.0</Version>
+    <Version>16.0.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Company>Kalix, Inc</Company>
@@ -14,7 +14,7 @@
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
     <Authors>Felix Jorkowski</Authors>
     <RepositoryUrl>https://github.com/KalixHealth/Kalix.Leo</RepositoryUrl>
-    <PackageReleaseNotes>Optimistic store returns lock with access to underlying task</PackageReleaseNotes>
+    <PackageReleaseNotes>Updated to .net 6</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />

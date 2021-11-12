@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>15.3.0</Version>
+    <Version>16.0.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Copyright>Copyright 2021</Copyright>
@@ -13,7 +13,7 @@
     <Authors>Felix Jorkowski</Authors>
     <Description>Azure implementation of the Kalix.Leo storage abstraction</Description>
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
-    <PackageReleaseNotes>Optimistic store returns lock with access to underlying task</PackageReleaseNotes>
+    <PackageReleaseNotes>Updated to .net 6</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.10.0" />
