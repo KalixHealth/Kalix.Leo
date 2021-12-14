@@ -122,23 +122,6 @@ namespace Kalix.Leo
             await _store.Delete(GetLocation(id), null, _options & ~SecureStoreOptions.KeepDeletes);
         }
 
-        public Task ForceIndex(long id, Metadata metadata = null)
-        {
-            var loc = GetLocation(id);
-            return _store.ForceObjectIndex<T>(loc, metadata);
-        }
-
-        public Task ReIndexAll()
-        {
-            // Only try to reindex values that actually have an id
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), f => f.Location.Id.HasValue, _config.BasePath + "/");
-        }
-
-        public Task ReBackupAll()
-        {
-            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
-        }
-
         public Task SetInternalIdGenerator(long newId)
         {
             return _idGenerator.Value.SetCurrentId(newId);

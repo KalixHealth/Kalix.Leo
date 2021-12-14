@@ -1,7 +1,6 @@
 ﻿using Kalix.Leo.Configuration;
 using Kalix.Leo.Encryption;
 using Kalix.Leo.Indexing;
-using Kalix.Leo.Listeners;
 using Kalix.Leo.Storage;
 using Microsoft.Extensions.Caching.Memory;
 using System;
@@ -14,22 +13,17 @@ namespace Kalix.Leo
     public class LeoEngine : ILeoEngine
     {
         private readonly LeoEngineConfiguration _config;
-        private readonly IBackupListener _backupListener;
-        private readonly IIndexListener _indexListener;
         private readonly Lazy<IRecordSearchComposer> _composer;
         
         private readonly IMemoryCache _cache;
         private readonly MemoryCacheEntryOptions _cachePolicy;
         private readonly string _baseName;
 
-        private bool _listenersStarted;
         private bool _hasInitEncryptorContainer;
 
         public LeoEngine(LeoEngineConfiguration config, IMemoryCache cache)
         {
             _config = config;
-            _backupListener = config.BackupStore != null && config.BackupQueue != null ? new BackupListener(config.BackupQueue, config.BaseStore, config.BackupStore) : null;
-            _indexListener = config.IndexQueue != null ? new IndexListener(config.IndexQueue, config.SecondaryIndexQueue, config.TypeResolver) : null;
             _cache = cache;
             _cachePolicy = new MemoryCacheEntryOptions()
                 .SetPriority(CacheItemPriority.NeverRemove)
@@ -44,33 +38,6 @@ namespace Kalix.Leo
 
             _baseName = "LeoEngine::" + config.UniqueName + "::";
             _composer = new Lazy<IRecordSearchComposer>(() => config.TableStore == null ? null : new RecordSearchComposer(config.TableStore), true);
-
-            if (_indexListener != null)
-            {
-                if (config.Objects == null)
-                {
-                    throw new ArgumentNullException("config.Objects", "You have not initialised any objects");
-                }
-
-                if (config.Objects.Select(o => o.BasePath).Distinct().Count() != config.Objects.Count())
-                {
-                    throw new ArgumentException("Must have unique base paths accross all objects");
-                }
-
-                foreach (var obj in config.Objects.Where(o => o.Type != null && o.Indexer != null))
-                {
-                    _indexListener.RegisterTypeIndexer(obj.Type, obj.Indexer);
-                    if(obj.IndexerAllowFallbackToBasePath)
-                    {
-                        _indexListener.RegisterPathIndexer(obj.BasePath, obj.Indexer);
-                    }
-                }
-
-                foreach (var obj in config.Objects.Where(o => o.Type == null && o.Indexer != null))
-                {
-                    _indexListener.RegisterPathIndexer(obj.BasePath, obj.Indexer);
-                }
-            }
         }
 
         public IRecordSearchComposer Composer
@@ -115,36 +82,6 @@ namespace Kalix.Leo
             var partitionKey = partitionId.ToString(CultureInfo.InvariantCulture);
             var key = _baseName + "Encryptor::" + partitionKey;
             return GetCachedValue(key, () => CertProtectedEncryptor.CreateEncryptor(_config.BaseStore, new StoreLocation(_config.KeyContainer, partitionKey), _config.RsaCert));
-        }
-
-        public IAsyncDisposable StartListeners(int? messagesToProcessInParallel = null)
-        {
-            if (_listenersStarted)
-            {
-                throw new InvalidOperationException("Listeners have already started");
-            }
-
-            IAsyncDisposable _backupListenerDispose = null;
-            if(_backupListener != null)
-            {
-                _backupListenerDispose = _backupListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel);
-            }
-
-            IAsyncDisposable _indexListenerDispose = null;
-            if (_indexListener != null)
-            {
-                _indexListenerDispose = _indexListener.StartListener(_config.UncaughtExceptions, messagesToProcessInParallel);
-            }
-
-            _listenersStarted = true;
-            return AsyncDisposable.Create(async () =>
-            {
-                await Task.WhenAll(
-                    _backupListenerDispose == null ? Task.CompletedTask : _backupListenerDispose.DisposeAsync().AsTask(),
-                    _indexListenerDispose == null ? Task.CompletedTask : _indexListenerDispose.DisposeAsync().AsTask()
-                );
-                _listenersStarted = false;
-            });
         }
 
         private Task<T> GetCachedValue<T>(string key, Func<Task<T>> factory)

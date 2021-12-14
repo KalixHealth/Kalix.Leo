@@ -11,7 +11,7 @@ namespace Kalix.Leo
     /// </summary>
     public class Metadata : Dictionary<string, string>
     {
-        private readonly static JsonSerializerSettings JsonSettings = new JsonSerializerSettings
+        private readonly static JsonSerializerSettings JsonSettings = new()
         {
             DateTimeZoneHandling = DateTimeZoneHandling.Utc,
             ContractResolver = new CamelCasePropertyNamesContractResolver()
@@ -45,8 +45,7 @@ namespace Kalix.Leo
                 DateTime? val = null;
                 if (ContainsKey(MetadataConstants.ModifiedMetadataKey))
                 {
-                    long ticks;
-                    if (long.TryParse(this[MetadataConstants.ModifiedMetadataKey], out ticks))
+                    if (long.TryParse(this[MetadataConstants.ModifiedMetadataKey], out long ticks))
                     {
                         val = new DateTime(ticks, DateTimeKind.Utc);
                     }
@@ -75,8 +74,7 @@ namespace Kalix.Leo
             {
                 if (ContainsKey(MetadataConstants.ContentLengthMetadataKey))
                 {
-                    long size;
-                    if (long.TryParse(this[MetadataConstants.ContentLengthMetadataKey], out size))
+                    if (long.TryParse(this[MetadataConstants.ContentLengthMetadataKey], out long size))
                     {
                         return size;
                     }
@@ -174,15 +172,5 @@ namespace Kalix.Leo
                 }
             }
         }
-
-        /// <summary>
-        /// When set to true during a save, will push the index to the secondary queue
-        /// </summary>
-        public bool UseSecondaryIndexQueue { get; set; }
-
-        /// <summary>
-        /// When set to true during a save, will not send an index message
-        /// </summary>
-        public bool DoNotIndex { get; set; }
     }
 }

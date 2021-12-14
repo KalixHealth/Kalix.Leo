@@ -75,25 +75,5 @@ namespace Kalix.Leo
         /// <param name="path">The location of the file to delete</param>
         /// <returns>Task that completes when ALL deletes are successful</returns>
         Task DeletePermanent(string path);
-
-        /// <summary>
-        /// Will send out an index message for this item, even if there was no data saved
-        /// </summary>
-        /// <param name="path">The location of the file to index</param>
-        /// <param name="metadata">Optional metadata</param>
-        /// <returns>Task when queue message has been sent</returns>
-        Task ForceIndex(string path, Metadata metadata = null);
-
-        /// <summary>
-        /// If this partition is configured to index, will find all files and queue an index message
-        /// </summary>
-        /// <returns>Task that completes when all files have been queued to index</returns>
-        Task ReIndexAll();
-
-        /// <summary>
-        /// If this partition is configured to backup, will find all files and queue a backup message
-        /// </summary>
-        /// <returns>Task that completes when all files have been queued to backup</returns>
-        Task ReBackupAll();
     }
 }

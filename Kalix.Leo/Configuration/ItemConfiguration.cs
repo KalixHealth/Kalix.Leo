@@ -1,5 +1,4 @@
-﻿using Kalix.Leo.Indexing;
-using System;
+﻿using System;
 
 namespace Kalix.Leo.Configuration
 {
@@ -25,19 +24,9 @@ namespace Kalix.Leo.Configuration
         public string BasePath { get; set; }
 
         /// <summary>
-        /// Optional - the type of the indexer to use when a record is saved. Must be of type IIndexer
-        /// </summary>
-        public Type Indexer { get; set; }
-
-        /// <summary>
         /// Whether to encrypt records in this partition
         /// </summary>
         public bool DoEncrypt { get; set; }
-
-        /// <summary>
-        /// Whether to backup files saved on this partition (only applies to base object, not any table storage)
-        /// </summary>
-        public bool DoBackup { get; set; }
 
         /// <summary>
         /// Whether to compress objects (Note this stage happens before encryption)

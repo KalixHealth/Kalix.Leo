@@ -10,8 +10,6 @@ namespace Kalix.Leo.Storage
     public interface ISecureStore
     {
         bool CanCompress { get; }
-        bool CanIndex { get; }
-        bool CanBackup { get; }
 
         Task<DataWithMetadata> LoadData(StoreLocation location, string snapshot = null, IEncryptor encryptor = null);
         Task<ObjectWithMetadata<T>> LoadObject<T>(StoreLocation location, string snapshot = null, IEncryptor encryptor = null) where T : ObjectWithAuditInfo;
@@ -26,12 +24,6 @@ namespace Kalix.Leo.Storage
 
         IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location);
         IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null);
-
-        Task ForceObjectIndex<T>(StoreLocation location, Metadata metadata = null);
-        Task ForceIndex(StoreLocation location, Metadata metadata);
-
-        Task ReIndexAll(string container, Func<LocationWithMetadata, bool> filter, string prefix = null);
-        Task BackupAll(string container, string prefix = null);
 
         Task<(IAsyncDisposable CancelDispose, Task Task)> Lock(StoreLocation location);
         Task RunOnce(StoreLocation location, Func<Task> action);

@@ -73,22 +73,6 @@ namespace Kalix.Leo
             await _store.Delete(GetLocation(path), null, _options & ~SecureStoreOptions.KeepDeletes);
         }
 
-        public Task ForceIndex(string path, Metadata metadata = null)
-        {
-            return _store.ForceIndex(GetLocation(path), metadata);
-        }
-
-        public Task ReIndexAll()
-        {
-            // All documents in the index can be reindexed...
-            return _store.ReIndexAll(_partitionId.ToString(CultureInfo.InvariantCulture), l => true, _config.BasePath + "/");
-        }
-
-        public Task ReBackupAll()
-        {
-            return _store.BackupAll(_partitionId.ToString(CultureInfo.InvariantCulture), _config.BasePath + "/");
-        }
-
         private StoreLocation GetLocation(string path)
         {
             return new StoreLocation(_partitionId.ToString(CultureInfo.InvariantCulture), Path.Combine(_config.BasePath, path));

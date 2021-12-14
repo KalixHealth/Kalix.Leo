@@ -1,5 +1,4 @@
 ﻿using Kalix.Leo.Compression;
-using Kalix.Leo.Queue;
 using Kalix.Leo.Storage;
 using Kalix.Leo.Table;
 using System;
@@ -42,26 +41,6 @@ namespace Kalix.Leo.Configuration
         /// The RSA certificate that can decode the key container (needs to contain a private key)
         /// </summary>
         public RSA RsaCert { get; set; }
-
-        /// <summary>
-        /// The queue that will be used to send backup messages
-        /// </summary>
-        public IQueue BackupQueue { get; set; }
-
-        /// <summary>
-        /// The store that will be used to backup files
-        /// </summary>
-        public IStore BackupStore { get; set; }
-
-        /// <summary>
-        /// The queue that will be used to send index messages
-        /// </summary>
-        public IQueue IndexQueue { get; set; }
-
-        /// <summary>
-        /// The queue that will be drained while the primary is empty
-        /// </summary>
-        public IQueue SecondaryIndexQueue { get; set; }
 
         /// <summary>
         /// An optional property to be able to hook into any uncaught exceptions in the leo engine

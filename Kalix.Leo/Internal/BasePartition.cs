@@ -22,15 +22,13 @@ namespace Kalix.Leo.Internal
 
         public BasePartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config, Func<Task<IEncryptor>> encryptorFactory)
         {
-            _store = new SecureStore(engineConfig.BaseStore, engineConfig.BackupQueue, engineConfig.IndexQueue, engineConfig.SecondaryIndexQueue, engineConfig.Compressor);
+            _store = new SecureStore(engineConfig.BaseStore, engineConfig.Compressor);
             _partitionId = partitionId;
             _config = config;
             _engineConfig = engineConfig;
 
             _options = SecureStoreOptions.KeepDeletes;
-            if (config.DoBackup) { _options = _options | SecureStoreOptions.Backup; }
-            if (config.Indexer != null) { _options = _options | SecureStoreOptions.Index; }
-            if (config.DoCompress) { _options = _options | SecureStoreOptions.Compress; }
+            if (config.DoCompress) { _options |= SecureStoreOptions.Compress; }
 
             _encryptor = new Lazy<Task<IEncryptor>>(async () => config.DoEncrypt ? await encryptorFactory() : null, true);
         }

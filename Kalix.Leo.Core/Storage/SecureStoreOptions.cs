@@ -12,10 +12,12 @@ namespace Kalix.Leo.Storage
         /// <summary>
         /// Create a message to eventually back this record up to another store
         /// </summary>
+        [Obsolete("No longer support backup")]
         Backup = 1,
         /// <summary>
         /// Create a message to eventually index this record
         /// </summary>
+        [Obsolete("No longer support indexing")]
         Index = 2,
         /// <summary>
         /// Compress this record when saving
@@ -26,6 +28,6 @@ namespace Kalix.Leo.Storage
         /// </summary>
         KeepDeletes = 8,
 
-        All = Backup | Index | Compress | KeepDeletes
+        All = Compress | KeepDeletes
     }
 }

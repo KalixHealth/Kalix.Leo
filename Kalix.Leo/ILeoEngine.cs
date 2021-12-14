@@ -42,11 +42,5 @@ namespace Kalix.Leo
         /// <param name="partitionId">The id to seperate all records saved to this partition</param>
         /// <returns>Encryptor for the given partition</returns>
         Task<IEncryptor> GetEncryptor(long partitionId);
-
-        /// <summary>
-        /// Start listeners for the index and backup queues
-        /// </summary>
-        /// <param name="messagesToProcessInParallel">The number of messages to concurrently process, it set to the number of cores</param>
-        IAsyncDisposable StartListeners(int? messagesToProcessInParallel = null);
     }
 }
