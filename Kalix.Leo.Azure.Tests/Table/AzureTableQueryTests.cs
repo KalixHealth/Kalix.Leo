@@ -1,37 +1,38 @@
-﻿using Kalix.Leo.Azure.Table;
+﻿using Azure;
+using Azure.Data.Tables;
+using Kalix.Leo.Azure.Table;
 using Lokad.Cloud.Storage.Azure;
-using Microsoft.Azure.Cosmos.Table;
 using Newtonsoft.Json;
 using NUnit.Framework;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Tests.Table
 {
     [TestFixture]
     public class AzureTableQueryTests
     {
-        protected CloudTable _table;
+        protected TableClient _table;
         protected AzureTableQuery<TestEntity> _query;
 
         [SetUp]
-        public virtual void Init()
+        public virtual async Task Init()
         {
-            var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudTableClient();
-            _table = client.GetTableReference("kalixleotablequery");
-            _table.CreateIfNotExists();
+            _table = AzureTestsHelper.GetTable("kalixleotablequery");
+            await _table.CreateIfNotExistsAsync();
 
-            _table.Execute(TableOperation.InsertOrReplace(BuildEntity("test1", "test1")));
-            _table.Execute(TableOperation.InsertOrReplace(BuildEntity("test1", "test2")));
-            _table.Execute(TableOperation.InsertOrReplace(BuildEntity("test2", "test1")));
-            _table.Execute(TableOperation.InsertOrReplace(BuildEntity("test2", "test2")));
+            await _table.UpsertEntityAsync(BuildEntity("test1", "test1"), TableUpdateMode.Replace);
+            await _table.UpsertEntityAsync(BuildEntity("test1", "test2"), TableUpdateMode.Replace);
+            await _table.UpsertEntityAsync(BuildEntity("test2", "test1"), TableUpdateMode.Replace);
+            await _table.UpsertEntityAsync(BuildEntity("test2", "test2"), TableUpdateMode.Replace);
 
             _query = new AzureTableQuery<TestEntity>(_table, null);
         }
 
         [TearDown]
-        public virtual void TearDown()
+        public virtual async Task TearDown()
         {
-            _table.DeleteIfExists();
+            await _table.DeleteAsync();
         }
 
         [TestFixture]
@@ -50,11 +51,18 @@ namespace Kalix.Leo.Azure.Tests.Table
                 var count = _query.PartitionKeyEquals("test1").Count().Result;
                 Assert.AreEqual(2, count);
             }
+
+            [Test]
+            public void EmptyResultsOk()
+            {
+                var count = _query.PartitionKeyEquals("test5").Count().Result;
+                Assert.AreEqual(0, count);
+            }
         }
 
-        private FatEntity BuildEntity(string partitionKey, string rowKey)
+        private static FatEntity BuildEntity(string partitionKey, string rowKey)
         {
-            var e = new FatEntity { PartitionKey = partitionKey, RowKey = rowKey, ETag = "*" };
+            var e = new FatEntity { PartitionKey = partitionKey, RowKey = rowKey, ETag = ETag.All };
             var data = new { testdata = "blah" };
             var bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(data));
             e.SetData(bytes, bytes.Length);

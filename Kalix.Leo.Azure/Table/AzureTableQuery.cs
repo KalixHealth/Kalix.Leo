@@ -1,4 +1,6 @@
-﻿using Kalix.Leo.Encryption;
+﻿using Azure;
+using Azure.Data.Tables;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
 using Newtonsoft.Json;
@@ -10,21 +12,17 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using CT = Microsoft.Azure.Cosmos.Table;
 
 namespace Kalix.Leo.Azure.Table
 {
     public class AzureTableQuery<T> : ITableQuery<T>
     {
-        private const string PartitionKey = "PartitionKey";
-        private const string RowKey = "RowKey";
-
-        private readonly string _filter;
-        private readonly CT.CloudTable _table;
+        private readonly IEnumerable<string> _filter;
+        private readonly TableClient _table;
         private readonly IEncryptor _decryptor;
         private readonly int? _take;
 
-        private AzureTableQuery(CT.CloudTable table, IEncryptor decryptor, string filter, int? take)
+        private AzureTableQuery(TableClient table, IEncryptor decryptor, IEnumerable<string> filter, int? take)
         {
             _table = table;
             _decryptor = decryptor;
@@ -32,21 +30,22 @@ namespace Kalix.Leo.Azure.Table
             _take = take;
         }
 
-        public AzureTableQuery(CT.CloudTable table, IEncryptor decryptor)
+        public AzureTableQuery(TableClient table, IEncryptor decryptor)
             : this(table, decryptor, null, null)
         {
         }
 
         public async Task<T> ById(string partitionKey, string rowKey)
         {
-            CT.TableOperation op = CT.TableOperation.Retrieve<FatEntity>(partitionKey, rowKey);
-            CT.TableResult result = await _table.ExecuteAsync(op);
-            if(result.Result == null)
+            try
             {
-                return default(T);
+                var entity = await _table.GetEntityAsync<FatEntity>(partitionKey, rowKey);
+                return ConvertFatEntity(entity);
             }
-
-            return ConvertFatEntity((FatEntity)result.Result);            
+            catch (RequestFailedException ex) when (ex.Status == 404)
+            {
+                return default;
+            }
         }
 
         public Task<T> FirstOrDefault()
@@ -61,32 +60,27 @@ namespace Kalix.Leo.Azure.Table
 
         public ITableQuery<T> PartitionKeyEquals(string partitionKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.Equal, partitionKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey eq {partitionKey}"));
         }
 
         public ITableQuery<T> PartitionKeyLessThan(string partitionKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThan, partitionKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey lt {partitionKey}"));
         }
 
         public ITableQuery<T> PartitionKeyLessThanOrEqual(string partitionKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThanOrEqual, partitionKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey le {partitionKey}"));
         }
 
         public ITableQuery<T> PartitionKeyGreaterThan(string partitionKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThan, partitionKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey gt {partitionKey}"));
         }
 
         public ITableQuery<T> PartitionKeyGreaterThanOrEqual(string partitionKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThanOrEqual, partitionKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey ge {partitionKey}"));
         }
 
         public ITableQuery<T> PartitionKeyStartsWith(string partitionKey)
@@ -99,45 +93,35 @@ namespace Kalix.Leo.Azure.Table
             {
                 lastChar = Convert.ToChar(Convert.ToInt32(lastChar) + 1);
             }
-            string endVal = partitionKey.Substring(0, length - 1) + lastChar;
+            string endVal = partitionKey[..(length - 1)] + lastChar;
 
-            string newFilter = CT.TableQuery.CombineFilters(
-                CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.GreaterThanOrEqual, partitionKey),
-                CT.TableOperators.And,
-                CT.TableQuery.GenerateFilterCondition(PartitionKey, CT.QueryComparisons.LessThan, endVal));
-
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"PartitionKey ge {partitionKey} and PartitionKey lt {endVal}"));
         }
 
 
         public ITableQuery<T> RowKeyEquals(string rowKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.Equal, rowKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey eq {rowKey}"));
         }
 
         public ITableQuery<T> RowKeyLessThan(string rowKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.LessThan, rowKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey lt {rowKey}"));
         }
 
         public ITableQuery<T> RowKeyLessThanOrEqual(string rowKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.LessThanOrEqual, rowKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey le {rowKey}"));
         }
 
         public ITableQuery<T> RowKeyGreaterThan(string rowKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.GreaterThan, rowKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey gt {rowKey}"));
         }
 
         public ITableQuery<T> RowKeyGreaterThanOrEqual(string rowKey)
         {
-            string newFilter = CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.GreaterThanOrEqual, rowKey);
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey ge {rowKey}"));
         }
 
         public ITableQuery<T> RowKeyStartsWith(string rowKey)
@@ -150,14 +134,9 @@ namespace Kalix.Leo.Azure.Table
             {
                 lastChar = Convert.ToChar(Convert.ToInt32(lastChar) + 1);
             }
-            string endVal = rowKey.Substring(0, length - 1) + lastChar;
+            string endVal = rowKey[..(length - 1)] + lastChar;
 
-            string newFilter = CT.TableQuery.CombineFilters(
-                CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.GreaterThanOrEqual, rowKey),
-                CT.TableOperators.And,
-                CT.TableQuery.GenerateFilterCondition(RowKey, CT.QueryComparisons.LessThan, endVal));
-
-            return NewQuery(newFilter);
+            return NewQuery(TableServiceClient.CreateQueryFilter($"RowKey ge {rowKey} and RowKey lt {endVal}"));
         }
 
         public IAsyncEnumerable<T> AsEnumerable()
@@ -167,57 +146,35 @@ namespace Kalix.Leo.Azure.Table
 
         private ITableQuery<T> NewQuery(string newFilter)
         {
-            if (_filter != null)
-            {
-                newFilter = CT.TableQuery.CombineFilters(_filter, CT.TableOperators.And, newFilter);
-            }
-            return new AzureTableQuery<T>(_table, _decryptor, newFilter, _take);
+            var newItem = new[] { newFilter };
+            var allFilters = _filter == null ? newItem : _filter.Concat(newItem).ToArray();
+            return new AzureTableQuery<T>(_table, _decryptor, allFilters, _take);
         }
 
-        private async IAsyncEnumerable<T> ExecuteQuery(string filter, int? take, [EnumeratorCancellation] CancellationToken token = default)
+        private async IAsyncEnumerable<T> ExecuteQuery(IEnumerable<string> filters, int? take, [EnumeratorCancellation] CancellationToken token = default)
         {
-            var query = new CT.TableQuery<FatEntity>();
-            if (filter != null)
+            var filter = $"({string.Join(") and (", filters)})";
+            var result = _table.QueryAsync<FatEntity>(filter: filter, maxPerPage: take, cancellationToken: token);
+            await foreach (var page in result.AsPages())
             {
-                query = query.Where(filter);
-            }
-            if (take.HasValue)
-            {
-                query = query.Take(take);
-            }
-
-            CT.TableQuerySegment<FatEntity> segment = null;
-            do
-            {
-                segment = await _table.ExecuteQuerySegmentedAsync(query, segment == null ? null : segment.ContinuationToken, token);
-                foreach (var entity in segment)
+                foreach (var item in page.Values)
                 {
-                    yield return ConvertFatEntity(entity);
-                    if (token.IsCancellationRequested) { break; }
+                    yield return ConvertFatEntity(item);
                 }
             }
-            while (segment.ContinuationToken != null && !token.IsCancellationRequested);
         }
 
-        private async Task<int> ExecuteCount(string filter, CancellationToken token)
+        // Just select one column to reduce the payload significantly
+        private static readonly string[] SelectColumns = new[] { "PartitionKey" };
+        private async Task<int> ExecuteCount(IEnumerable<string> filters, CancellationToken token)
         {
-            var query = new CT.TableQuery<FatEntity>();
-            if (filter != null)
+            var filter = filters == null || !filters.Any() ? null : $"({string.Join(") and (", filters)})";
+            var result = _table.QueryAsync<TableEntity>(filter: filter, select: SelectColumns, cancellationToken: token);
+            var count = 0;
+            await foreach (var page in result.AsPages())
             {
-                query = query.Where(filter);
+                count += page.Values.Count;
             }
-
-            // Just select one column to reduce the payload significantly
-            query.SelectColumns = new List<string> { "PartitionKey" };
-
-            int count = 0;
-            CT.TableQuerySegment<FatEntity> segment = null;
-            do
-            {
-                segment = await _table.ExecuteQuerySegmentedAsync(query, segment?.ContinuationToken, token);
-                count += segment.Results.Count;
-            }
-            while (segment.ContinuationToken != null);
             return count;
         }
 
@@ -228,21 +185,19 @@ namespace Kalix.Leo.Azure.Table
 
             if (data.Length == 0)
             {
-                result = default(T);
+                result = default;
             }
             else
             {
                 if (_decryptor != null)
                 {
-                    using(var ms = new MemoryStream())
+                    using var ms = new MemoryStream();
+                    using (var dc = _decryptor.Decrypt(ms, false))
                     {
-                        using(var dc = _decryptor.Decrypt(ms, false))
-                        {
-                            dc.Write(data, 0, data.Length);
-                        }
-
-                        data = ms.ToArray();
+                        dc.Write(data, 0, data.Length);
                     }
+
+                    data = ms.ToArray();
                 }
 
                 result = JsonConvert.DeserializeObject<T>(Encoding.UTF8.GetString(data));

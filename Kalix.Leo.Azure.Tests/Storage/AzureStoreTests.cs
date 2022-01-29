@@ -22,7 +22,7 @@ namespace Kalix.Leo.Azure.Tests.Storage
         [SetUp]
         public virtual void Init()
         {
-            _store = new AzureStore(AzureTestsHelper.GetDevelopentService(), true);
+            _store = new AzureStore(AzureTestsHelper.GetBlobService(), true);
 
             _blob = AzureTestsHelper.GetBlockBlob("kalix-leo-tests", "AzureStoreTests.testdata", true);
             _location = new StoreLocation("kalix-leo-tests", "AzureStoreTests.testdata");

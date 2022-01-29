@@ -1,9 +1,11 @@
-﻿using Kalix.Leo.Encryption;
+﻿using Azure;
+using Azure.Data.Tables;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
 using Lokad.Cloud.Storage.Azure;
-using Microsoft.Azure.Cosmos.Table;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,27 +15,27 @@ namespace Kalix.Leo.Azure.Table
 {
     public sealed class AzureTableContext : ITableContext
     {
-        private readonly TableBatchOperation _context;
-        private readonly TableBatchOperation _deleteBackupContext;
-        private readonly CloudTable _table;
+        private readonly List<TableTransactionAction> _context;
+        private readonly List<TableTransactionAction> _deleteBackupContext;
+        private readonly TableClient _table;
         private readonly IEncryptor _encryptor;
         private bool _hasSaved;
         private bool _isDirty;
 
-        public AzureTableContext(CloudTable table, IEncryptor encryptor)
+        public AzureTableContext(TableClient table, IEncryptor encryptor)
         {
             _table = table;
             _encryptor = encryptor;
-            _context = new TableBatchOperation();
-            _deleteBackupContext = new TableBatchOperation();
+            _context = new List<TableTransactionAction>();
+            _deleteBackupContext = new List<TableTransactionAction>();
         }
 
         public void Replace(E entity)
         {
             CheckNotSaved();
             var fat = ConvertToFatEntity(entity);
-            fat.ETag = fat.ETag ?? "*";
-            _context.Replace(fat);
+            fat.ETag = ETag.All;
+            _context.Add(new TableTransactionAction(TableTransactionActionType.UpdateReplace, fat));
             _isDirty = true;
         }
 
@@ -41,7 +43,7 @@ namespace Kalix.Leo.Azure.Table
         {
             CheckNotSaved();
 
-            _context.Insert(ConvertToFatEntity(entity));
+            _context.Add(new TableTransactionAction(TableTransactionActionType.Add, ConvertToFatEntity(entity)));
             _isDirty = true;
         }
 
@@ -49,7 +51,7 @@ namespace Kalix.Leo.Azure.Table
         {
             CheckNotSaved();
 
-            _context.InsertOrMerge(ConvertToFatEntity(entity));
+            _context.Add(new TableTransactionAction(TableTransactionActionType.UpsertMerge, ConvertToFatEntity(entity)));
             _isDirty = true;
         }
 
@@ -57,7 +59,7 @@ namespace Kalix.Leo.Azure.Table
         {
             CheckNotSaved();
 
-            _context.InsertOrReplace(ConvertToFatEntity(entity));
+            _context.Add(new TableTransactionAction(TableTransactionActionType.UpsertReplace, ConvertToFatEntity(entity)));
             _isDirty = true;
         }
 
@@ -66,14 +68,12 @@ namespace Kalix.Leo.Azure.Table
             CheckNotSaved();
 
             // Delete is special in that we do not need the data to delete
-            var fat = new FatEntity
+            var tb = new TableEntity(entity.PartitionKey, entity.RowKey)
             {
-                PartitionKey = entity.PartitionKey,
-                RowKey = entity.RowKey,
-                ETag = "*"
+                ETag = ETag.All
             };
-            _context.Delete(fat);
-            _deleteBackupContext.InsertOrReplace(fat);
+            _context.Add(new TableTransactionAction(TableTransactionActionType.Delete, tb));
+            _deleteBackupContext.Add(new TableTransactionAction(TableTransactionActionType.UpsertReplace, tb));
             _isDirty = true;
         }
 
@@ -91,32 +91,23 @@ namespace Kalix.Leo.Azure.Table
                     // If you try to delete a row that doesn't exist then you get a resource not found exception
                     try
                     {
-                        await _table.ExecuteBatchAsync(_context);
+                        await _table.SubmitTransactionAsync(_context);
                         tryWithDeletes = false;
                     }
-                    catch(StorageException ex)
+                    catch(RequestFailedException ex) when (ex.Status == 404)
                     {
-                        if (ex.RequestInformation.HttpStatusCode != 404)
-                        {
-                            throw;
-                        }
                     }
 
                     // In that case, we want to try and add the deleted items,
                     if(tryWithDeletes)
                     {
-                        await _table.ExecuteBatchAsync(_deleteBackupContext);
-                        await _table.ExecuteBatchAsync(_context);
+                        await _table.SubmitTransactionAsync(_deleteBackupContext);
+                        await _table.SubmitTransactionAsync(_context);
                     }
                 }
-                catch (StorageException ex)
+                catch (RequestFailedException ex) when (ex.ErrorCode == "EntityAlreadyExists" || ex.Message.Contains("The specified entity already exists"))
                 {
-                    if (ex.RequestInformation?.ErrorCode == "EntityAlreadyExists" || (ex.RequestInformation?.ExtendedErrorInformation?.ErrorMessage.Contains("The specified entity already exists") ?? false))
-                    {
-                        throw new StorageEntityAlreadyExistsException(ex.RequestInformation.ExtendedErrorInformation.ErrorMessage, ex);
-                    }
-
-                    throw;
+                    throw new StorageEntityAlreadyExistsException(ex.ErrorCode, ex);
                 }
 
                 _hasSaved = true;
@@ -136,7 +127,7 @@ namespace Kalix.Leo.Azure.Table
             byte[] data;
             if (entity.DataObject == null)
             {
-                data = new byte[0];
+                data = Array.Empty<byte>();
             }
             else
             {
@@ -144,15 +135,13 @@ namespace Kalix.Leo.Azure.Table
 
                 if (_encryptor != null)
                 {
-                    using(var ms = new MemoryStream())
+                    using var ms = new MemoryStream();
+                    using (var enc = _encryptor.Encrypt(ms, false))
                     {
-                        using(var enc = _encryptor.Encrypt(ms, false))
-                        {
-                            enc.Write(data, 0, data.Length);
-                        }
-
-                        data = ms.ToArray();
+                        enc.Write(data, 0, data.Length);
                     }
+
+                    data = ms.ToArray();
                 }
             }
 

@@ -1,6 +1,6 @@
-﻿using Kalix.Leo.Encryption;
+﻿using Azure.Data.Tables;
+using Kalix.Leo.Encryption;
 using Kalix.Leo.Table;
-using Microsoft.Azure.Cosmos.Table;
 using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Table
@@ -8,9 +8,9 @@ namespace Kalix.Leo.Azure.Table
     public sealed class AzureTableClient : ITableClient
     {
         private readonly string _tableNamePrefix;
-        private readonly CloudTableClient _client;
+        private readonly TableServiceClient _client;
 
-        public AzureTableClient(CloudTableClient client, string tableNamePrefix = null)
+        public AzureTableClient(TableServiceClient client, string tableNamePrefix = null)
         {
             _client = client;
             _tableNamePrefix = tableNamePrefix ?? "Leo";
@@ -18,24 +18,24 @@ namespace Kalix.Leo.Azure.Table
 
         public Task CreateTableIfNotExist(string tableName)
         {
-            var table = _client.GetTableReference(GetName(tableName));
+            var table = _client.GetTableClient(GetName(tableName));
             return table.CreateIfNotExistsAsync();
         }
 
         public Task DeleteTableIfExists(string tableName)
         {
-            var table = _client.GetTableReference(GetName(tableName));
-            return table.DeleteIfExistsAsync();
+            var table = _client.GetTableClient(GetName(tableName));
+            return table.DeleteAsync();
         }
 
         public ITableContext Context(string tableName, IEncryptor encryptor)
         {
-            return new AzureTableContext(_client.GetTableReference(GetName(tableName)), encryptor);
+            return new AzureTableContext(_client.GetTableClient(GetName(tableName)), encryptor);
         }
 
         public ITableQuery<T> Query<T>(string tableName, IEncryptor decryptor)
         {
-            return new AzureTableQuery<T>(_client.GetTableReference(GetName(tableName)), decryptor);
+            return new AzureTableQuery<T>(_client.GetTableClient(GetName(tableName)), decryptor);
         }
 
         public string GetName(string tableName)

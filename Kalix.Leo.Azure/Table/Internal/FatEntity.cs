@@ -4,7 +4,8 @@
 // https://code.google.com/p/lokad-cloud/source/browse/Source/Lokad.Cloud.Storage/Azure/FatEntity.cs
 #endregion
 
-using Microsoft.Azure.Cosmos.Table;
+using Azure;
+using Azure.Data.Tables;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,8 +17,13 @@ namespace Lokad.Cloud.Storage.Azure
     /// capability of 960KB (entity limit is at 1024KB).</summary>
     /// <remarks>This class is basically a hack against the Table Storage
     /// to work-around the 64KB limitation for properties.</remarks>
-    public class FatEntity : TableEntity
+    public class FatEntity : ITableEntity
     {
+        public string PartitionKey { get; set; }
+        public string RowKey { get; set; }
+        public DateTimeOffset? Timestamp { get; set; }
+        public ETag ETag { get; set; }
+
         /// <summary>
         /// Maximal entity size is 1MB. Out of that, we keep only
         /// 960kb (1MB - 64kb as a safety margin). Then, it should be taken
@@ -95,8 +101,8 @@ namespace Lokad.Cloud.Storage.Azure
         /// <summary>Split the stream as a fat entity.</summary>
         public void SetData(byte[] data, int dataLength)
         {
-            if (null == data) throw new ArgumentNullException("data");
-            if (dataLength >= MaxByteCapacity) throw new ArgumentOutOfRangeException("data");
+            if (null == data) throw new ArgumentNullException(nameof(data));
+            if (dataLength >= MaxByteCapacity) throw new ArgumentOutOfRangeException(nameof(data));
 
             var setters = new Action<byte[]>[]
                 {
@@ -114,7 +120,7 @@ namespace Lokad.Cloud.Storage.Azure
                     b => P11 = b,
                     b => P12 = b,
                     b => P13 = b,
-                    b => P14 = b,
+                    b => P14 = b
                 };
 
             for (int i = 0; i < 15; i++)

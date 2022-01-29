@@ -134,7 +134,8 @@ namespace Kalix.Leo.Azure.Storage
         private async Task PutBlobAsync(string key, byte[] data, int length, CancellationToken ct)
         {
             using var ms = new MemoryStream(data, 0, length, false);
-            await _blob.StageBlockAsync(key, ms, conditions: _condition, cancellationToken: ct);
+            // NOTE: We do NOT use conditions here, will only do it on the commit
+            await _blob.StageBlockAsync(key, ms, cancellationToken: ct);
         }
 
         public override void Flush()

@@ -1,4 +1,5 @@
-﻿using Azure.Storage.Blobs;
+﻿using Azure.Data.Tables;
+using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Azure.Storage.Blobs.Specialized;
 using System;
@@ -11,12 +12,12 @@ namespace Kalix.Leo.Azure.Tests
         private const long KB = 1024;
         private const long MB = 1024 * KB;
 
-        private static Dictionary<string, BlobContainerClient> _containers = new Dictionary<string, BlobContainerClient>();
-        private static Random _random = new Random();
+        private static readonly Dictionary<string, BlobContainerClient> _containers = new();
+        private static readonly Random _random = new();
 
         public static readonly string DevelopmetStorage = "UseDevelopmentStorage=true";
 
-        public static BlobServiceClient GetDevelopentService()
+        public static BlobServiceClient GetBlobService()
         {
             // "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://ipv4.fiddler"
             return new BlobServiceClient(DevelopmetStorage);
@@ -26,7 +27,7 @@ namespace Kalix.Leo.Azure.Tests
         {
             if(!_containers.ContainsKey(name))
             {
-                var client = GetDevelopentService();
+                var client = GetBlobService();
                 var container = client.GetBlobContainerClient(name);
                 container.CreateIfNotExists();
 
@@ -53,6 +54,16 @@ namespace Kalix.Leo.Azure.Tests
             var data = new byte[noOfMb * MB];
             _random.NextBytes(data);
             return data;
+        }
+
+        public static TableServiceClient GetTableService()
+        {
+            return new TableServiceClient(DevelopmetStorage);
+        }
+
+        public static TableClient GetTable(string tableName)
+        {
+            return new TableClient(DevelopmetStorage, tableName);
         }
     }
 }

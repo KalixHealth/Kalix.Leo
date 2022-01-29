@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>17.0.0</Version>
+    <Version>17.1.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Copyright>Copyright 2021</Copyright>
@@ -13,7 +13,7 @@
     <Authors>Felix Jorkowski</Authors>
     <Description>Library to abstract indexing, querying, encryption and compression on a NoSQL store</Description>
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
-    <PackageReleaseNotes>Updated to .net 6</PackageReleaseNotes>
+    <PackageReleaseNotes>Update dependencies</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Kalix.ApiCrypto" Version="5.0.0" />

@@ -1,47 +1,45 @@
-﻿using Kalix.Leo.Azure.Table;
+﻿using Azure.Data.Tables;
+using Kalix.Leo.Azure.Table;
 using Lokad.Cloud.Storage.Azure;
-using Microsoft.Azure.Cosmos.Table;
 using NUnit.Framework;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Kalix.Leo.Azure.Tests.Table
 {
     [TestFixture]
     public class AzureTableContextTests
     {
-        protected CloudTable _table;
+        protected TableClient _table;
         protected AzureTableContext _azureTable;
 
         [SetUp]
-        public virtual void Init()
+        public virtual async Task Init()
         {
-            var client = CloudStorageAccount.DevelopmentStorageAccount.CreateCloudTableClient();
-            _table = client.GetTableReference("kalixleotablecontext");
-            _table.CreateIfNotExists();
+            _table = AzureTestsHelper.GetTable("kalixleotablecontext");
+            await _table.CreateIfNotExistsAsync();
 
             _azureTable = new AzureTableContext(_table, null);
         }
 
         [TearDown]
-        public virtual void TearDown()
+        public virtual Task TearDown()
         {
-            _table.DeleteIfExists();
+            return _table.DeleteAsync();
         }
 
         [TestFixture]
         public class DeleteMethod : AzureTableContextTests
         {
             [Test]
-            public void CanDeleteEvenWhenRowDoesNotExist()
+            public async Task CanDeleteEvenWhenRowDoesNotExist()
             {
                 _azureTable.Delete(new TestEntity { RowKey = "test1", PartitionKey = "delete" });
                 _azureTable.Delete(new TestEntity { RowKey = "test2", PartitionKey = "delete" });
 
                 _azureTable.Save().Wait();
 
-                var query = new TableQuery<FatEntity>().Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, "delete"));
-                var items = _table.ExecuteQuery(query);
-
+                var items = await _table.QueryAsync<FatEntity>(filter: "PartitionKey eq 'delete'").ToListAsync();
                 Assert.IsFalse(items.Any());
             }
         }
