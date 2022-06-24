@@ -1,19 +1,17 @@
-﻿
-namespace Kalix.Leo.Azure
+﻿namespace Kalix.Leo.Azure;
+
+/// <summary>
+/// Utility class to normalize file paths
+/// </summary>
+public static class SafePath
 {
     /// <summary>
-    /// Utility class to normalize file paths
+    /// Makes sure a path is valid for Azure
     /// </summary>
-    public static class SafePath
+    /// <param name="str">Input path</param>
+    /// <returns>Normalized file path</returns>
+    public static string MakeSafeFilePath(string str)
     {
-        /// <summary>
-        /// Makes sure a path is valid for Azure
-        /// </summary>
-        /// <param name="str">Input path</param>
-        /// <returns>Normalized file path</returns>
-        public static string MakeSafeFilePath(string str)
-        {
-            return (str ?? string.Empty).Replace('\\', '/');
-        }
+        return (str ?? string.Empty).Replace('\\', '/');
     }
 }

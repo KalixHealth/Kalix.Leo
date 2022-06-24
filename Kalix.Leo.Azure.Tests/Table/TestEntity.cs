@@ -1,13 +1,12 @@
 ﻿using Kalix.Leo.Table;
 
-namespace Kalix.Leo.Azure.Tests.Table
+namespace Kalix.Leo.Azure.Tests.Table;
+
+public class TestEntity : ITableEntity
 {
-    public class TestEntity : ITableEntity
-    {
-        public string PartitionKey { get; set; }
+    public string PartitionKey { get; set; }
 
-        public string RowKey { get; set; }
+    public string RowKey { get; set; }
 
-        public object DataObject { get; set; }
-    }
+    public object DataObject { get; set; }
 }

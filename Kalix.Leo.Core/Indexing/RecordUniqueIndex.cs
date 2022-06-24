@@ -1,17 +1,16 @@
-﻿namespace Kalix.Leo.Indexing
+﻿namespace Kalix.Leo.Indexing;
+
+public class RecordUniqueIndex<T> : IRecordUniqueIndex<T>
 {
-    public class RecordUniqueIndex<T> : IRecordUniqueIndex<T>
+    private readonly string _prefix;
+
+    public RecordUniqueIndex(string prefix)
     {
-        private readonly string _prefix;
+        _prefix = prefix;
+    }
 
-        public RecordUniqueIndex(string prefix)
-        {
-            _prefix = prefix;
-        }
-
-        public string Prefix
-        {
-            get { return _prefix; }
-        }
+    public string Prefix
+    {
+        get { return _prefix; }
     }
 }

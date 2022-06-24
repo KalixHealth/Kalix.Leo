@@ -6,62 +6,61 @@ using System;
 using System.Globalization;
 using System.Threading.Tasks;
 
-namespace Kalix.Leo.Internal
+namespace Kalix.Leo.Internal;
+
+public class BasePartition : IBasePartition, IDisposable
 {
-    public class BasePartition : IBasePartition, IDisposable
+    protected readonly ISecureStore _store;
+    protected readonly long _partitionId;
+    protected readonly ItemConfiguration _config;
+    protected readonly Lazy<Task<IEncryptor>> _encryptor;
+    protected readonly SecureStoreOptions _options;
+    protected readonly LeoEngineConfiguration _engineConfig;
+
+    private bool _isInit;
+    private bool _disposed;
+
+    public BasePartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config, Func<Task<IEncryptor>> encryptorFactory)
     {
-        protected readonly ISecureStore _store;
-        protected readonly long _partitionId;
-        protected readonly ItemConfiguration _config;
-        protected readonly Lazy<Task<IEncryptor>> _encryptor;
-        protected readonly SecureStoreOptions _options;
-        protected readonly LeoEngineConfiguration _engineConfig;
+        _store = new SecureStore(engineConfig.BaseStore, engineConfig.Compressor);
+        _partitionId = partitionId;
+        _config = config;
+        _engineConfig = engineConfig;
 
-        private bool _isInit;
-        private bool _disposed;
+        _options = SecureStoreOptions.KeepDeletes;
+        if (config.DoCompress) { _options |= SecureStoreOptions.Compress; }
 
-        public BasePartition(LeoEngineConfiguration engineConfig, long partitionId, ItemConfiguration config, Func<Task<IEncryptor>> encryptorFactory)
+        _encryptor = new Lazy<Task<IEncryptor>>(async () => config.DoEncrypt ? await encryptorFactory() : null, true);
+    }
+
+    public ISearchIndex<TMain, TSearch> Index<TMain, TSearch>(IRecordSearchComposition<TMain, TSearch> composition)
+    {
+        return new SearchIndex<TMain, TSearch>(composition, _encryptor, _partitionId);
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual async Task Initialise()
+    {
+        if (!_isInit)
         {
-            _store = new SecureStore(engineConfig.BaseStore, engineConfig.Compressor);
-            _partitionId = partitionId;
-            _config = config;
-            _engineConfig = engineConfig;
-
-            _options = SecureStoreOptions.KeepDeletes;
-            if (config.DoCompress) { _options |= SecureStoreOptions.Compress; }
-
-            _encryptor = new Lazy<Task<IEncryptor>>(async () => config.DoEncrypt ? await encryptorFactory() : null, true);
+            _isInit = true;
+            string container = _partitionId.ToString(CultureInfo.InvariantCulture);
+            await _engineConfig.BaseStore.CreateContainerIfNotExists(container);
         }
+    }
 
-        public ISearchIndex<TMain, TSearch> Index<TMain, TSearch>(IRecordSearchComposition<TMain, TSearch> composition)
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
         {
-            return new SearchIndex<TMain, TSearch>(composition, _encryptor, _partitionId);
-        }
+            // Nothing to dispose...
 
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual async Task Initialise()
-        {
-            if (!_isInit)
-            {
-                _isInit = true;
-                string container = _partitionId.ToString(CultureInfo.InvariantCulture);
-                await _engineConfig.BaseStore.CreateContainerIfNotExists(container);
-            }
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                // Nothing to dispose...
-
-                _disposed = true;
-            }
+            _disposed = true;
         }
     }
 }

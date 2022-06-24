@@ -5,65 +5,64 @@ using Azure.Storage.Blobs.Specialized;
 using System;
 using System.Collections.Generic;
 
-namespace Kalix.Leo.Azure.Tests
+namespace Kalix.Leo.Azure.Tests;
+
+public static class AzureTestsHelper
 {
-    public static class AzureTestsHelper
+    private const long KB = 1024;
+    private const long MB = 1024 * KB;
+
+    private static readonly Dictionary<string, BlobContainerClient> _containers = new();
+    private static readonly Random _random = new();
+
+    public static readonly string DevelopmetStorage = "UseDevelopmentStorage=true";
+
+    public static BlobServiceClient GetBlobService()
     {
-        private const long KB = 1024;
-        private const long MB = 1024 * KB;
+        // "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://ipv4.fiddler"
+        return new BlobServiceClient(DevelopmetStorage);
+    }
 
-        private static readonly Dictionary<string, BlobContainerClient> _containers = new();
-        private static readonly Random _random = new();
-
-        public static readonly string DevelopmetStorage = "UseDevelopmentStorage=true";
-
-        public static BlobServiceClient GetBlobService()
+    public static BlobContainerClient GetContainer(string name)
+    {
+        if(!_containers.ContainsKey(name))
         {
-            // "UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://ipv4.fiddler"
-            return new BlobServiceClient(DevelopmetStorage);
+            var client = GetBlobService();
+            var container = client.GetBlobContainerClient(name);
+            container.CreateIfNotExists();
+
+            _containers[name] = container;
         }
 
-        public static BlobContainerClient GetContainer(string name)
+        return _containers[name];
+    }
+
+    public static BlockBlobClient GetBlockBlob(string container, string path, bool del)
+    {
+        var c = GetContainer(container);
+        var b = c.GetBlockBlobClient(path);
+        if (del)
         {
-            if(!_containers.ContainsKey(name))
-            {
-                var client = GetBlobService();
-                var container = client.GetBlobContainerClient(name);
-                container.CreateIfNotExists();
-
-                _containers[name] = container;
-            }
-
-            return _containers[name];
+            b.DeleteIfExists(DeleteSnapshotsOption.IncludeSnapshots);
         }
 
-        public static BlockBlobClient GetBlockBlob(string container, string path, bool del)
-        {
-            var c = GetContainer(container);
-            var b = c.GetBlockBlobClient(path);
-            if (del)
-            {
-                b.DeleteIfExists(DeleteSnapshotsOption.IncludeSnapshots);
-            }
+        return b;
+    }
 
-            return b;
-        }
+    public static byte[] RandomData(long noOfMb)
+    {
+        var data = new byte[noOfMb * MB];
+        _random.NextBytes(data);
+        return data;
+    }
 
-        public static byte[] RandomData(long noOfMb)
-        {
-            var data = new byte[noOfMb * MB];
-            _random.NextBytes(data);
-            return data;
-        }
+    public static TableServiceClient GetTableService()
+    {
+        return new TableServiceClient(DevelopmetStorage);
+    }
 
-        public static TableServiceClient GetTableService()
-        {
-            return new TableServiceClient(DevelopmetStorage);
-        }
-
-        public static TableClient GetTable(string tableName)
-        {
-            return new TableClient(DevelopmetStorage, tableName);
-        }
+    public static TableClient GetTable(string tableName)
+    {
+        return new TableClient(DevelopmetStorage, tableName);
     }
 }
