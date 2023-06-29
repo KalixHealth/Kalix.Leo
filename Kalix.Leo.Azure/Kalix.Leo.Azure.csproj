@@ -1,23 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>17.2.3</Version>
+    <Version>18.0.1</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
-    <Copyright>Copyright 2021</Copyright>
+    <Copyright>Copyright 2023</Copyright>
     <Company>Kalix, Inc</Company>
     <Product>Kalix</Product>
     <Authors>Felix Jorkowski</Authors>
     <Description>Azure implementation of the Kalix.Leo storage abstraction</Description>
     <PackageTags>Azure Blob Table Queue Encryption Compression</PackageTags>
-    <PackageReleaseNotes>Use Azure.Data.Tables</PackageReleaseNotes>
+    <PackageReleaseNotes>Update dependencies</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Azure.Data.Tables" Version="12.6.1" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.13.0" />
+    <PackageReference Include="Azure.Data.Tables" Version="12.8.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.16.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj" />
