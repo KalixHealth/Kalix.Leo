@@ -434,16 +434,10 @@ public class AzureStore : IOptimisticStore
         }
 
         // Remove the snapshot key at this point if we have it
-        if (metadata.ContainsKey(InternalSnapshotKey))
-        {
-            metadata.Remove(InternalSnapshotKey);
-        }
+        metadata.Remove(InternalSnapshotKey);
 
         // Remove the store key as well...
-        if (metadata.ContainsKey(StoreVersionKey))
-        {
-            metadata.Remove(StoreVersionKey);
-        }
+        metadata.Remove(StoreVersionKey);
 
         if (_enableSnapshots && !string.IsNullOrEmpty(item.Snapshot))
         {
@@ -473,16 +467,10 @@ public class AzureStore : IOptimisticStore
         }
 
         // Remove the snapshot key at this point if we have it
-        if (metadata.ContainsKey(InternalSnapshotKey))
-        {
-            metadata.Remove(InternalSnapshotKey);
-        }
+        metadata.Remove(InternalSnapshotKey);
 
         // Remove the store key as well...
-        if(metadata.ContainsKey(StoreVersionKey))
-        {
-            metadata.Remove(StoreVersionKey);
-        }
+        metadata.Remove(StoreVersionKey);
 
         if (_enableSnapshots)
         {
@@ -526,8 +514,8 @@ public class AzureStore : IOptimisticStore
         {
             if (!string.IsNullOrEmpty(location.BasePath))
             {
-                var path = Path.Combine(SafePath.MakeSafeFilePath(location.BasePath), location.Id.ToString() + IdExtension);
-                blob = container.GetBlockBlobClient(path);
+                var path = Path.Combine(location.BasePath, location.Id.ToString() + IdExtension);
+                blob = container.GetBlockBlobClient(SafePath.MakeSafeFilePath(path));
             }
             else
             {

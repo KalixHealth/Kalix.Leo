@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>18.0.1</Version>
+    <Version>18.0.2</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
     <Copyright>Copyright 2023</Copyright>
@@ -16,7 +16,7 @@
     <PackageReleaseNotes>Update dependencies</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Kalix.ApiCrypto" Version="7.0.0" />
+    <PackageReference Include="Kalix.ApiCrypto" Version="7.0.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="7.0.0" />
   </ItemGroup>
   <ItemGroup>

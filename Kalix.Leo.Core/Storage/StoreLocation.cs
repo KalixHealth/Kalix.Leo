@@ -3,7 +3,7 @@
 /// <summary>
 /// Index of a specific store record
 /// </summary>
-public struct StoreLocation
+public readonly struct StoreLocation
 {
     private readonly string _container;
     private readonly string _basePath;
