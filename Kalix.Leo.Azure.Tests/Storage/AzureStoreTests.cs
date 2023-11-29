@@ -62,7 +62,7 @@ public class AzureStoreTests
             WriteData(_location, m, data);
 
             var props = _blob.GetProperties().Value;
-            Assert.AreEqual("B64_c29tZW1ldGFkYXRh", props.Metadata["metadata1"]);
+            Assert.That("B64_c29tZW1ldGFkYXRh", Is.EqualTo(props.Metadata["metadata1"]));
         }
 
         [Test]
@@ -82,8 +82,8 @@ public class AzureStoreTests
             WriteData(_location, m2, data);
 
             var props = _blob.GetProperties().Value;
-            Assert.IsFalse(props.Metadata.ContainsKey("metadata1"));
-            Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", props.Metadata["metadata2"]);
+            Assert.That(!props.Metadata.ContainsKey("metadata1"));
+            Assert.That("B64_b3RoZXJtZXRhZGF0YQ==", Is.EqualTo(props.Metadata["metadata2"]));
         }
 
         [Test]
@@ -93,7 +93,7 @@ public class AzureStoreTests
             WriteData(_location, null, data);
 
             var props = _blob.GetProperties().Value;
-            Assert.AreEqual("2.0", props.Metadata["leoazureversion"]);
+            Assert.That("2.0", Is.EqualTo(props.Metadata["leoazureversion"]));
         }
 
         [Test]
@@ -102,7 +102,7 @@ public class AzureStoreTests
             var data = AzureTestsHelper.RandomData(7);
             WriteData(_location, null, data);
 
-            Assert.IsTrue(_blob.Exists());
+            Assert.That(_blob.Exists());
         }
     }
 
@@ -120,9 +120,9 @@ public class AzureStoreTests
             var success = TryOptimisticWrite(_location, m, data);
 
             var props = _blob.GetProperties().Value;
-            Assert.IsTrue(success.Result);
-            Assert.IsNotNull(success.Metadata.Snapshot);
-            Assert.AreEqual("B64_c29tZW1ldGFkYXRh", props.Metadata["metadata1"]);
+            Assert.That(success.Result);
+            Assert.That(success.Metadata.Snapshot, Is.Not.Null);
+            Assert.That("B64_c29tZW1ldGFkYXRh", Is.EqualTo(props.Metadata["metadata1"]));
         }
 
         [Test]
@@ -145,13 +145,13 @@ public class AzureStoreTests
             var newMetadata = _store.GetMetadata(_location).Result;
 
             var props = _blob.GetProperties().Value;
-            Assert.IsTrue(success1.Result, "first write failed");
-            Assert.IsTrue(success2.Result, "second write failed");
-            Assert.AreEqual(success1.Metadata.Snapshot, oldMetadata.Snapshot);
-            Assert.AreEqual(success2.Metadata.Snapshot, newMetadata.Snapshot);
-            Assert.AreNotEqual(success1.Metadata.Snapshot, success2.Metadata.Snapshot);
-            Assert.IsFalse(props.Metadata.ContainsKey("metadata1"));
-            Assert.AreEqual("B64_b3RoZXJtZXRhZGF0YQ==", props.Metadata["metadata2"]);
+            Assert.That(success1.Result, "first write failed");
+            Assert.That(success2.Result, "second write failed");
+            Assert.That(success1.Metadata.Snapshot, Is.EqualTo(oldMetadata.Snapshot));
+            Assert.That(success2.Metadata.Snapshot, Is.EqualTo(newMetadata.Snapshot));
+            Assert.That(success1.Metadata.Snapshot, Is.Not.EqualTo(success2.Metadata.Snapshot));
+            Assert.That(!props.Metadata.ContainsKey("metadata1"));
+            Assert.That("B64_b3RoZXJtZXRhZGF0YQ==", Is.EqualTo(props.Metadata["metadata2"]));
         }
 
         [Test]
@@ -161,7 +161,7 @@ public class AzureStoreTests
             TryOptimisticWrite(_location, null, data);
 
             var props = _blob.GetProperties().Value;
-            Assert.AreEqual("2.0", props.Metadata["leoazureversion"]);
+            Assert.That("2.0", Is.EqualTo(props.Metadata["leoazureversion"]));
         }
 
         [Test]
@@ -171,8 +171,8 @@ public class AzureStoreTests
             var success1 = TryOptimisticWrite(_location, null, data);
             var success2 = TryOptimisticWrite(_location, null, data);
 
-            Assert.IsTrue(success1.Result, "first write failed");
-            Assert.IsFalse(success2.Result, "second write succeeded");
+            Assert.That(success1.Result, "first write failed");
+            Assert.That(!success2.Result, "second write succeeded");
         }
 
         [Test]
@@ -182,7 +182,7 @@ public class AzureStoreTests
             var metadata = new Metadata { ETag = "notreal" };
             var success = TryOptimisticWrite(_location, metadata, data);
 
-            Assert.IsFalse(success.Result, "write should not have succeeded with fake eTag");
+            Assert.That(!success.Result, "write should not have succeeded with fake eTag");
         }
 
         [Test]
@@ -191,9 +191,9 @@ public class AzureStoreTests
             var data = AzureTestsHelper.RandomData(7);
             var success = TryOptimisticWrite(_location, null, data);
 
-            Assert.IsTrue(success.Result);
-            Assert.IsNotNull(success.Metadata.Snapshot);
-            Assert.IsTrue(_blob.Exists());
+            Assert.That(success.Result);
+            Assert.That(success.Metadata.Snapshot, Is.Not.Null);
+            Assert.That(_blob.Exists());
         }
     }
 
@@ -204,7 +204,7 @@ public class AzureStoreTests
         public void NoFileReturnsNull()
         {
             var result = _store.GetMetadata(_location).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
@@ -219,10 +219,10 @@ public class AzureStoreTests
 
             var result = _store.GetMetadata(_location).Result;
 
-            Assert.AreEqual("1048576", result[MetadataConstants.ContentLengthMetadataKey]);
-            Assert.IsTrue(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
-            Assert.IsNotNull(result.Snapshot);
-            Assert.AreEqual("somemetadata", result["metadata1"]);
+            Assert.That("1048576", Is.EqualTo(result[MetadataConstants.ContentLengthMetadataKey]));
+            Assert.That(result.ContainsKey(MetadataConstants.ModifiedMetadataKey));
+            Assert.That(result.Snapshot, Is.Not.Null);
+            Assert.That("somemetadata", Is.EqualTo(result["metadata1"]));
         }
 
         [Test]
@@ -233,7 +233,7 @@ public class AzureStoreTests
 
             var result = _store.GetMetadata(_location).Result;
 
-            Assert.IsFalse(result.ContainsKey("leoazureversion"));
+            Assert.That(!result.ContainsKey("leoazureversion"));
         }
     }
 
@@ -252,22 +252,22 @@ public class AzureStoreTests
             WriteData(_location, m, data);
 
             var result = await _store.LoadData(_location);
-            Assert.IsNotNull(result.Metadata.Snapshot);
-            Assert.AreEqual("metadata", result.Metadata["metadata1"]);
+            Assert.That(result.Metadata.Snapshot, Is.Not.Null);
+            Assert.That("metadata", Is.EqualTo(result.Metadata["metadata1"]));
         }
 
         [Test]
         public async Task NoFileReturnsFalse()
         {
             var result = await _store.LoadData(_location);
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
         public async Task NoContainerReturnsFalse()
         {
             var result = await _store.LoadData(new StoreLocation("blahblahblah", "blah"));
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
@@ -281,7 +281,7 @@ public class AzureStoreTests
             WriteData(_location, m, data);
 
             var result = _store.LoadData(_location).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
@@ -297,7 +297,7 @@ public class AzureStoreTests
                 await result.Reader.CopyToAsync(ms, CancellationToken.None);
                 resData = ms.ToArray();
             }
-            Assert.IsTrue(data.SequenceEqual(resData));
+            Assert.That(data.SequenceEqual(resData));
         }
 
         [Test]
@@ -313,7 +313,7 @@ public class AzureStoreTests
                 await result.Reader.CopyToAsync(ms, CancellationToken.None);
                 resData = ms.ToArray();
             }
-            Assert.IsTrue(data.SequenceEqual(resData));
+            Assert.That(data.SequenceEqual(resData));
         }
 
         [Test]
@@ -324,7 +324,7 @@ public class AzureStoreTests
 
             var result = _store.LoadData(_location).Result;
 
-            Assert.IsFalse(result.Metadata.ContainsKey("leoazureversion"));
+            Assert.That(!result.Metadata.ContainsKey("leoazureversion"));
         }
     }
 
@@ -336,7 +336,7 @@ public class AzureStoreTests
         {
             var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-            Assert.AreEqual(0, snapshots.Count());
+            Assert.That(0, Is.EqualTo(snapshots.Count()));
         }
 
         [Test]
@@ -351,7 +351,7 @@ public class AzureStoreTests
 
             var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-            Assert.AreEqual(1, snapshots.Count());
+            Assert.That(1, Is.EqualTo(snapshots.Count()));
         }
 
         [Test]
@@ -367,7 +367,7 @@ public class AzureStoreTests
 
             var snapshots = _store.FindSnapshots(_location).ToEnumerable();
 
-            Assert.AreEqual(1, snapshots.Count());
+            Assert.That(1, Is.EqualTo(snapshots.Count()));
         }
     }
 
@@ -378,14 +378,14 @@ public class AzureStoreTests
         public async Task NoContainerReturnsEmpty()
         {
             var files = await _store.FindFiles("not-exists").ToListAsync();
-            Assert.AreEqual(0, files.Count);
+            Assert.That(0, Is.EqualTo(files.Count));
         }
 
         [Test]
         public async Task ContainerWithFilesReturnsCorrectNumber()
         {
             var files = await _store.FindFiles(_location.Container).ToListAsync();
-            Assert.AreEqual(1, files.Count);
+            Assert.That(1, Is.EqualTo(files.Count));
         }
     }
 
@@ -403,15 +403,15 @@ public class AzureStoreTests
             var shapshot = WriteData(_location, m, data);
 
             var res = _store.LoadData(_location, shapshot).Result;
-            Assert.AreEqual(shapshot, res.Metadata.Snapshot);
-            Assert.AreEqual("metadata", res.Metadata["metadata1"]);
+            Assert.That(shapshot, Is.EqualTo(res.Metadata.Snapshot));
+            Assert.That("metadata", Is.EqualTo(res.Metadata["metadata1"]));
         }
 
         [Test]
         public void NoFileReturnsFalse()
         {
             var result = _store.LoadData(_location, DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
     }
 
@@ -433,7 +433,7 @@ public class AzureStoreTests
             _store.SoftDelete(_location, null).Wait();
 
             var result = _store.LoadData(_location).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
@@ -446,7 +446,7 @@ public class AzureStoreTests
             _store.SoftDelete(_location, null).Wait();
 
             var result = _store.LoadData(_location, shapshot).Result;
-            Assert.IsNotNull(result);
+            Assert.That(result, Is.Not.Null);
         }
     }
 
@@ -468,7 +468,7 @@ public class AzureStoreTests
             _store.PermanentDelete(_location).Wait();
 
             var result = _store.LoadData(_location).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
 
         [Test]
@@ -481,7 +481,7 @@ public class AzureStoreTests
             _store.PermanentDelete(_location).Wait();
 
             var result = _store.LoadData(_location, shapshot).Result;
-            Assert.IsNull(result);
+            Assert.That(result, Is.Null);
         }
     }
 
@@ -494,7 +494,7 @@ public class AzureStoreTests
             var l = await _store.Lock(_location);
             try
             {
-                Assert.IsNotNull(l);
+                Assert.That(l, Is.Not.Null);
             }
             finally
             {
@@ -509,8 +509,8 @@ public class AzureStoreTests
             var l2 = await _store.Lock(_location);
             try
             {
-                Assert.IsNotNull(l.CancelDispose);
-                Assert.IsNull(l2.CancelDispose);
+                Assert.That(l.CancelDispose, Is.Not.Null);
+                Assert.That(l2.CancelDispose, Is.Null);
             }
             finally
             {

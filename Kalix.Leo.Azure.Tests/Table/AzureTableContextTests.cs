@@ -40,7 +40,7 @@ public class AzureTableContextTests
             _azureTable.Save().Wait();
 
             var items = await _table.QueryAsync<FatEntity>(filter: "PartitionKey eq 'delete'").ToListAsync();
-            Assert.IsFalse(items.Any());
+            Assert.That(items.Count, Is.EqualTo(0));
         }
     }
 }

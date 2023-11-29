@@ -42,21 +42,21 @@ public class AzureTableQueryTests
         public void CountsCorrectly()
         {
             var count = _query.Count().Result;
-            Assert.AreEqual(4, count);
+            Assert.That(4, Is.EqualTo(count));
         }
 
         [Test]
         public void CountWithFilterCorrectly()
         {
             var count = _query.PartitionKeyEquals("test1").Count().Result;
-            Assert.AreEqual(2, count);
+            Assert.That(2, Is.EqualTo(count));
         }
 
         [Test]
         public void EmptyResultsOk()
         {
             var count = _query.PartitionKeyEquals("test5").Count().Result;
-            Assert.AreEqual(0, count);
+            Assert.That(0, Is.EqualTo(count));
         }
     }
 

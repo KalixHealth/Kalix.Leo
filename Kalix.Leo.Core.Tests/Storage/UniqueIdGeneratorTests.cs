@@ -29,7 +29,7 @@ public class UniqueIdGeneratorTests
         var id = generator.NextId().Result;
 
         _store.Received(1).LoadData(_loc);
-        Assert.AreEqual(1, id);
+        Assert.That(1, Is.EqualTo(id));
     }
 
     [Test]
@@ -46,7 +46,7 @@ public class UniqueIdGeneratorTests
         }
 
         _store.Received(1).LoadData(_loc);
-        Assert.AreEqual(10, id);
+        Assert.That(10, Is.EqualTo(id));
     }
 
     private UniqueIdGenerator GetGenerator(int range)

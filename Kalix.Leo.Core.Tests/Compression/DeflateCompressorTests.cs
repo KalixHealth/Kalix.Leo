@@ -49,7 +49,7 @@ public class DeflateCompressorTests
         }
         var decStr = Encoding.UTF8.GetString(decData, 0, decData.Length);
 
-        Assert.AreEqual(str, decStr);
+        Assert.That(str, Is.EqualTo(decStr));
     }
 
     [Test]
@@ -75,7 +75,7 @@ public class DeflateCompressorTests
             newData = ms.ToArray();
         }
 
-        Assert.IsTrue(data.SequenceEqual(newData));
+        Assert.That(data.SequenceEqual(newData));
     }
 
     [Test]
@@ -107,7 +107,7 @@ public class DeflateCompressorTests
         }
 
         var decStr = Encoding.UTF8.GetString(decData, 0, decData.Length);
-        Assert.AreEqual(str, decStr);
+        Assert.That(str, Is.EqualTo(decStr));
     }
 
     [Test]
@@ -137,7 +137,7 @@ public class DeflateCompressorTests
             newData = ms.ToArray();
         }
 
-        Assert.IsTrue(data.SequenceEqual(newData));
+        Assert.That(data.SequenceEqual(newData));
     }
 
     private static byte[] RandomData(long noOfMb)
