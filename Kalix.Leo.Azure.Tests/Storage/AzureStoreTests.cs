@@ -332,15 +332,15 @@ public class AzureStoreTests
     public class FindSnapshotsMethod : AzureStoreTests
     {
         [Test]
-        public void NoSnapshotsReturnsEmpty()
+        public async Task NoSnapshotsReturnsEmpty()
         {
-            var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+            var snapshots = await _store.FindSnapshots(_location).ToListAsync();
 
             Assert.That(0, Is.EqualTo(snapshots.Count()));
         }
 
         [Test]
-        public void SingleSnapshotCanBeFound()
+        public async Task SingleSnapshotCanBeFound()
         {
             var data = AzureTestsHelper.RandomData(1);
             var m = new Metadata
@@ -349,13 +349,13 @@ public class AzureStoreTests
             };
             WriteData(_location, m, data);
 
-            var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+            var snapshots = await _store.FindSnapshots(_location).ToListAsync();
 
             Assert.That(1, Is.EqualTo(snapshots.Count()));
         }
 
         [Test]
-        public void SubItemBlobSnapshotsAreNotIncluded()
+        public async Task SubItemBlobSnapshotsAreNotIncluded()
         {
             var data = AzureTestsHelper.RandomData(1);
             WriteData(_location, null, data);
@@ -365,7 +365,7 @@ public class AzureStoreTests
 
             WriteData(location2, null, data);
 
-            var snapshots = _store.FindSnapshots(_location).ToEnumerable();
+            var snapshots = await _store.FindSnapshots(_location).ToListAsync();
 
             Assert.That(1, Is.EqualTo(snapshots.Count()));
         }
@@ -437,11 +437,11 @@ public class AzureStoreTests
         }
 
         [Test]
-        public void ShouldNotDeleteSnapshots()
+        public async Task ShouldNotDeleteSnapshots()
         {
             var data = AzureTestsHelper.RandomData(1);
             WriteData(_location, null, data);
-            var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+            var shapshot = (await _store.FindSnapshots(_location).SingleAsync()).Id;
 
             _store.SoftDelete(_location, null).Wait();
 
@@ -472,11 +472,11 @@ public class AzureStoreTests
         }
 
         [Test]
-        public void ShouldDeleteAllSnapshots()
+        public async Task ShouldDeleteAllSnapshots()
         {
             var data = AzureTestsHelper.RandomData(1);
             WriteData(_location, null, data);
-            var shapshot = _store.FindSnapshots(_location).ToEnumerable().Single().Id;
+            var shapshot = (await _store.FindSnapshots(_location).SingleAsync()).Id;
 
             _store.PermanentDelete(_location).Wait();
 

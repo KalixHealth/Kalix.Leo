@@ -100,7 +100,7 @@ public static class AsyncEnumerableExtensions
         var enumerator = enumerable.GetAsyncEnumerator(token);
 
         // Every loop will either get items or timeout
-        var nextItem = enumerator.MoveNextAsync(token).AsTask();
+        var nextItem = enumerator.MoveNextAsync().AsTask();
         var timeout = Task.Delay(maxWaitPerBuffer, token);
 
         while (!token.IsCancellationRequested)
@@ -121,7 +121,7 @@ public static class AsyncEnumerableExtensions
                         arr.Clear();
                         timeout = Task.Delay(maxWaitPerBuffer, token);
                     }
-                    nextItem = enumerator.MoveNextAsync(token).AsTask();
+                    nextItem = enumerator.MoveNextAsync().AsTask();
                 }
                 else
                 {
@@ -150,7 +150,13 @@ public static class AsyncEnumerableExtensions
 
     private static void StartBackgroundCopyTask<T>(IAsyncEnumerable<T> copyFrom, Channel<T> copyTo, CancellationToken token)
     {
-        _ = Task.Run(() => copyFrom.ForEachAwaitAsync(async t => await copyTo.Writer.WriteAsync(t, token), token), token)
+        _ = Task.Run(async () =>
+        {
+            await foreach (var t in copyFrom)
+            {
+                await copyTo.Writer.WriteAsync(t, token);
+            }
+        }, token)
                 .ContinueWith(t => copyTo.Writer.Complete(t.Exception), token);
     }
 

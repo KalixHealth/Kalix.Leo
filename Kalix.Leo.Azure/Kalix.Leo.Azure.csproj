@@ -1,13 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <OutputType>Library</OutputType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <Version>20.0.2</Version>
+    <Version>21.0.0</Version>
     <AssemblyVersion>2.0.0.0</AssemblyVersion>
     <FileVersion>2.0.0.0</FileVersion>
-    <Copyright>Copyright 2023</Copyright>
+    <Copyright>Copyright 2025</Copyright>
     <Company>Kalix, Inc</Company>
     <Product>Kalix</Product>
     <Authors>Felix Jorkowski</Authors>
@@ -17,7 +17,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" Version="12.11.0" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.25.0" />
+    <PackageReference Include="Azure.Storage.Blobs" Version="12.26.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kalix.Leo.Core\Kalix.Leo.Core.csproj" />
