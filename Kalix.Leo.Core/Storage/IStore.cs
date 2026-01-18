@@ -52,7 +52,7 @@ public interface IStore
     /// </summary>
     /// <param name="location">The location of the file to find snapshots of</param>
     /// <returns>List of snapshot dates, not guarenteed to be in any order</returns>
-    IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location);
+    IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location, CancellationToken token = default);
 
     /// <summary>
     /// Finds all non-shapshot files in the specified container, with a path prefix if required.
@@ -61,7 +61,7 @@ public interface IStore
     /// <param name="container">Container to search</param>
     /// <param name="prefix">Prefix of the path to filter by</param>
     /// <returns>List of files and metadata</returns>
-    IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null);
+    IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null, CancellationToken token = default);
 
     /// <summary>
     /// Marks the file as deleted, but snapshots are still available

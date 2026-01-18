@@ -72,7 +72,7 @@ public class AzureStore : IOptimisticStore
         }
 
         await blob.SetMetadataAsync(props.Metadata);
-        return await GetActualMetadata(blob, props, null);
+        return await GetActualMetadata(blob, props, null, CancellationToken.None);
     }
 
     public Task<OptimisticStoreWriteResult> TryOptimisticWrite(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, CancellationToken token)
@@ -98,7 +98,7 @@ public class AzureStore : IOptimisticStore
             try
             {
                 props = await GetBlobProperties(blob);
-                if (props != null && props.Metadata.ContainsKey(ProgressMetadataKey) && props.Metadata[ProgressMetadataKey] == ProgressDoneValue)
+                if (props != null && props.Metadata.TryGetValue(ProgressMetadataKey, out string progressValue) && progressValue == ProgressDoneValue)
                 {
                     break;
                 }
@@ -112,7 +112,7 @@ public class AzureStore : IOptimisticStore
 
                 // Once we have the lock make sure we are not done!
                 props = await GetBlobProperties(blob);
-                if (props.Metadata.ContainsKey(ProgressMetadataKey) && props.Metadata[ProgressMetadataKey] == ProgressDoneValue)
+                if (props.Metadata.TryGetValue(ProgressMetadataKey, out string progressValue) && progressValue == ProgressDoneValue)
                 {
                     break;
                 }
@@ -128,12 +128,12 @@ public class AzureStore : IOptimisticStore
         }
     }
 
-    public async IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null, [EnumeratorCancellation] CancellationToken token = default)
+    public async IAsyncEnumerable<bool> RunEvery(StoreLocation location, TimeSpan interval, Action<Exception> unhandledExceptions = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var blob = GetBlockBlob(location);
 
         var minimum = TimeSpan.FromSeconds(5); // so we're not polling the leased blob too fast
-        while (!token.IsCancellationRequested)
+        while (!ct.IsCancellationRequested)
         {
             var timeLeft = TimeSpan.FromSeconds(0);
 
@@ -147,16 +147,16 @@ public class AzureStore : IOptimisticStore
                 {
                     await using var arl = lease.Item1;
 
-                    var props = await GetBlobProperties(blob, token);
-                    if (props.Metadata.ContainsKey("lastPerformed"))
+                    var props = await GetBlobProperties(blob, ct);
+                    if (props.Metadata.TryGetValue("lastPerformed", out string value))
                     {
-                        DateTimeOffset.TryParseExact(props.Metadata["lastPerformed"], "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
+                        DateTimeOffset.TryParseExact(value, "R", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out lastPerformed);
                     }
                     if (DateTimeOffset.UtcNow >= lastPerformed + interval)
                     {
                         lastPerformed = DateTimeOffset.UtcNow;
                         props.Metadata["lastPerformed"] = lastPerformed.ToString("R", CultureInfo.InvariantCulture);
-                        await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 }, token);
+                        await blob.SetMetadataAsync(props.Metadata, new BlobRequestConditions { LeaseId = lease.Item2 }, ct);
                         canExecute = true;
                     }
                 }
@@ -175,14 +175,14 @@ public class AzureStore : IOptimisticStore
             }
 
             // Do this outside the exception to prevent it going out of control
-            await Task.Delay(timeLeft > minimum ? timeLeft : minimum, token);
+            await Task.Delay(timeLeft > minimum ? timeLeft : minimum, ct);
         }
     }
 
     public async Task<Metadata> GetMetadata(StoreLocation location, string snapshot = null)
     {
         var blob = GetBlockBlob(location, snapshot);
-        var metadata = await GetBlobMetadata(blob, snapshot);
+        var metadata = await GetBlobMetadata(blob, snapshot, CancellationToken.None);
 
         return metadata == null || metadata.ContainsKey(_deletedKey) ? null : metadata;
     }
@@ -201,31 +201,36 @@ public class AzureStore : IOptimisticStore
 
         // Older versions need to check the block list before loading...
         var needsToUseBlockList = !props.Metadata.ContainsKey(StoreVersionKey);
-        var metadata = await GetActualMetadata(blob, props, snapshot);
+        var metadata = await GetActualMetadata(blob, props, snapshot, CancellationToken.None);
 
         var readStream = new AzureReadBlockBlobStream(blob, props.ContentLength, needsToUseBlockList);
         return new DataWithMetadata(PipeReader.Create(readStream), metadata);
     }
 
-    public IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location)
+    public async IAsyncEnumerable<Snapshot> FindSnapshots(StoreLocation location, [EnumeratorCancellation] CancellationToken ct = default)
     {
-        if (!_enableSnapshots) { return AsyncEnumerable.Empty<Snapshot>(); }
+        if (!_enableSnapshots) { yield break; }
 
         var blob = GetBlockBlob(location);
         var container = _blobStorage.GetBlobContainerClient(blob.BlobContainerName);
-        return ListBlobs(container, blob.Name, BlobTraits.Metadata, BlobStates.Snapshots)
+        var results = ListBlobs(container, blob.Name, BlobTraits.Metadata, BlobStates.Snapshots, ct)
             .Where(b => !string.IsNullOrWhiteSpace(b.Snapshot) && b.Name == blob.Name)
             .Select(b => new Snapshot
             {
                 Id = b.Snapshot,
                 Metadata = GetActualMetadata(b)
             });
+
+        await foreach (var r in results)
+        {
+            yield return r;
+        }
     }
 
-    public async IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null)
+    public async IAsyncEnumerable<LocationWithMetadata> FindFiles(string container, string prefix = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var c = _blobStorage.GetBlobContainerClient(SafeContainerName(container));
-        var blobs = ListBlobs(c, prefix, BlobTraits.Metadata, BlobStates.None)
+        var blobs = ListBlobs(c, prefix, BlobTraits.Metadata, BlobStates.None, ct)
             .Where(b => !b.Metadata.ContainsKey(_deletedKey)) // Do not include blobs which are soft deleted
             .Select(b =>
             {
@@ -245,7 +250,7 @@ public class AzureStore : IOptimisticStore
             });
 
         // Wierd setup here so we can catch the error if no container and just return empty
-        await using var en = blobs.GetAsyncEnumerator();
+        await using var en = blobs.GetAsyncEnumerator(ct);
         while (true)
         {
             try
@@ -268,7 +273,7 @@ public class AzureStore : IOptimisticStore
         var blob = GetBlockBlob(location);
 
         var props = await GetBlobProperties(blob);
-        var meta = await GetActualMetadata(blob, props, null);
+        var meta = await GetActualMetadata(blob, props, null, CancellationToken.None);
 
         // If already deleted don't worry about it!
         if (meta == null || meta.ContainsKey(_deletedKey)) { return; }
@@ -307,14 +312,14 @@ public class AzureStore : IOptimisticStore
         return c.DeleteIfExistsAsync();
     }
 
-    private async Task<Metadata> GetBlobMetadata(BlockBlobClient blob, string snapshot)
+    private async Task<Metadata> GetBlobMetadata(BlockBlobClient blob, string snapshot, CancellationToken ct)
     {
         LeoTrace.WriteLine("Downloading blob metadata: " + blob.Name);
 
         try
         {
-            var props = await blob.GetPropertiesAsync();
-            return await GetActualMetadata(blob, props, snapshot);
+            var props = await blob.GetPropertiesAsync(cancellationToken: ct);
+            return await GetActualMetadata(blob, props, snapshot, ct);
         }
         catch (RequestFailedException e) when (e.ErrorCode == BlobErrorCode.BlobNotFound)
         {
@@ -322,15 +327,15 @@ public class AzureStore : IOptimisticStore
         }
     }
 
-    private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, bool isOptimistic, CancellationToken token)
+    private async Task<OptimisticStoreWriteResult> SaveDataInternal(StoreLocation location, Metadata metadata, UpdateAuditInfo audit, Func<PipeWriter, Task<long?>> savingFunc, bool isOptimistic, CancellationToken ct)
     {
         var blob = GetBlockBlob(location);
 
         // We always want to save the new audit information when saving!
-        var props = await GetBlobProperties(blob, token);
-        var currentMetadata = await GetActualMetadata(blob, props, null);
+        var props = await GetBlobProperties(blob, ct);
+        var currentMetadata = await GetActualMetadata(blob, props, null, ct);
         var auditInfo = TransformAuditInformation(currentMetadata, audit);
-        metadata ??= new Metadata();
+        metadata ??= [];
         metadata.Audit = auditInfo;
 
         var result = new OptimisticStoreWriteResult() { Result = true };
@@ -357,7 +362,7 @@ public class AzureStore : IOptimisticStore
                 var writer = PipeWriter.Create(stream, new StreamPipeWriterOptions(leaveOpen: true));
                 length = await savingFunc(writer);
                 await writer.CompleteAsync();
-                await stream.Complete(token);
+                await stream.Complete(ct);
             }
 
             if (length.HasValue && (metadata == null || !metadata.ContentLength.HasValue))
@@ -365,24 +370,24 @@ public class AzureStore : IOptimisticStore
                 newMeta[MetadataConstants.ContentLengthMetadataKey] = length.Value.ToString(CultureInfo.InvariantCulture);
 
                 // Save the length straight away before the snapshot...
-                await blob.SetMetadataAsync(newMeta, cancellationToken: token);
+                await blob.SetMetadataAsync(newMeta, cancellationToken: ct);
             }
 
             // Create a snapshot straight away on azure
             // Note: this shouldnt matter for cost as any blocks that are the same do not cost extra
             if (_enableSnapshots)
             {
-                var snapshotBlob = await blob.CreateSnapshotAsync(cancellationToken: token);
+                var snapshotBlob = await blob.CreateSnapshotAsync(cancellationToken: ct);
 
                 // Save the snapshot back to original blob...
                 newMeta[InternalSnapshotKey] = snapshotBlob.Value.Snapshot;
-                await blob.SetMetadataAsync(newMeta, cancellationToken: token);
+                await blob.SetMetadataAsync(newMeta, cancellationToken: ct);
 
                 LeoTrace.WriteLine("Created Snapshot: " + blob.Name);
             }
 
-            var newProps = await blob.GetPropertiesAsync(cancellationToken: token);
-            result.Metadata = await GetActualMetadata(blob, newProps, null);
+            var newProps = await blob.GetPropertiesAsync(cancellationToken: ct);
+            result.Metadata = await GetActualMetadata(blob, newProps, null, ct);
         }
         catch (RequestFailedException e)
         {
@@ -447,7 +452,7 @@ public class AzureStore : IOptimisticStore
         return metadata;
     }
 
-    private async ValueTask<Metadata> GetActualMetadata(BlockBlobClient blob, BlobProperties props, string snapshot)
+    private async ValueTask<Metadata> GetActualMetadata(BlockBlobClient blob, BlobProperties props, string snapshot, CancellationToken ct)
     {
         if (props == null) { return null; }
 
@@ -478,10 +483,8 @@ public class AzureStore : IOptimisticStore
             {
                 metadata.Snapshot = snapshot;
             }
-            else if (props.Metadata.ContainsKey(InternalSnapshotKey))
+            else if (props.Metadata.TryGetValue(InternalSnapshotKey, out string date))
             {
-                // Try and use our save snapshot instead of making more calls...
-                var date = props.Metadata[InternalSnapshotKey];
                 if (long.TryParse(date, out var ticks))
                 {
                     // This is in old format, convert back to snapshot format date
@@ -494,9 +497,9 @@ public class AzureStore : IOptimisticStore
                 // Try and find last snapshot
                 // Unfortunately we need to make a request since this information isn't on the actual blob that we are working with...
                 var container = _blobStorage.GetBlobContainerClient(blob.BlobContainerName);
-                var snapBlob = await ListBlobs(container, blob.Name, BlobTraits.None, BlobStates.Snapshots)
+                var snapBlob = await ListBlobs(container, blob.Name, BlobTraits.None, BlobStates.Snapshots, ct)
                     .Where(b => !string.IsNullOrEmpty(b.Snapshot) && b.Name == blob.Name)
-                    .AggregateAsync((BlobItem)null, (a, b) => a == null || b == null ? (a ?? b) : (ParseSnapshotDate(b.Snapshot) > ParseSnapshotDate(b.Snapshot) ? a : b));
+                    .AggregateAsync((BlobItem)null, (a, b) => a == null || b == null ? (a ?? b) : (ParseSnapshotDate(b.Snapshot) > ParseSnapshotDate(b.Snapshot) ? a : b), ct);
 
                 metadata.Snapshot = snapBlob?.Snapshot;
             }
@@ -564,12 +567,12 @@ public class AzureStore : IOptimisticStore
         return info;
     }
 
-    private static IAsyncEnumerable<BlobItem> ListBlobs(BlobContainerClient container, string prefix, BlobTraits traits, BlobStates states)
+    private static AsyncPageable<BlobItem> ListBlobs(BlobContainerClient container, string prefix, BlobTraits traits, BlobStates states, CancellationToken ct)
     {
         // Clean up the prefix if required
         prefix = prefix == null ? null : SafePath.MakeSafeFilePath(prefix);
 
-        return container.GetBlobsAsync(traits, states, prefix);
+        return container.GetBlobsAsync(traits, states, prefix, ct);
     }
 
     private static async IAsyncEnumerable<BlobLease> LeaseRenewInterval(BlobLeaseClient client, BlobRequestConditions condition, [EnumeratorCancellation] CancellationToken token = default)
